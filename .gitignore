@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+
+# uv / packaging
+.uv-cache/
+dist/
+build/
+*.egg-info/
+*.egg
+
+# IDE / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Claude Code local settings (may contain secrets)
+.claude/settings.local.json
+.claude/settings.json
+
+# Pipeline artifacts
+*.wav
+*.m4a
+*.mp3
+*.mp4
+*.aac
+*.flac
+*.ogg
+*.opus
+*.tmp.json
+*.diarize.json
+*.merged.json
+samples/
+audio/
+out/
+
+# pyannote / HF caches sometimes spilled here
+.huggingface/
