@@ -39,6 +39,18 @@ def test_chat_returns_assistant_text():
         assert c.chat([{"role": "user", "content": "hi"}]) == "hi there"
 
 
+def test_chat_json_uses_json_schema_response_format():
+    """LM Studio's MLX runtime rejects 'json_object'; we must send 'json_schema'."""
+    captured = {}
+    def handler(req):
+        captured["body"] = req.read().decode()
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"x":1}'}}]})
+    with _client_with_transport(handler) as c:
+        c.chat_json([{"role": "user", "content": "x"}])
+    assert '"type":"json_schema"' in captured["body"]
+    assert "json_object" not in captured["body"]
+
+
 def test_chat_json_retries_on_invalid_json():
     calls = []
     def handler(req):

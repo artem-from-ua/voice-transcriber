@@ -87,6 +87,13 @@ class LLMClient:
         try:
             resp = self._client.post("/chat/completions", json=payload)
             resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = ""
+            try:
+                detail = f" — {exc.response.text[:500]}"
+            except Exception:  # noqa: BLE001
+                pass
+            raise LLMError(f"chat/completions {exc.response.status_code}{detail}") from exc
         except httpx.HTTPError as exc:
             raise LLMError(f"chat/completions failed: {exc}") from exc
 
@@ -115,7 +122,14 @@ class LLMClient:
                 attempt_msgs,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                response_format={"type": "json_object"},
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "response",
+                        "strict": False,
+                        "schema": {"type": "object"},
+                    },
+                },
             )
             try:
                 return json.loads(text)
