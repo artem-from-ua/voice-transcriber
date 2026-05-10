@@ -1,0 +1,120 @@
+"""Per-segment ASR-error fixer.
+
+Sends each segment's text to the LLM with a strict "fix obvious mishearings
+only" prompt. Skips markers (`[Human Sounds]`), very short fragments, and
+rejects replies that diverge from the original by more than the configured
+safety thresholds (length ratio, edit distance).
+
+Operating per-segment, not on the whole transcript, is deliberate: the LLM
+cannot rewrite or summarise globally because it never sees more than one
+segment at a time.
+"""
+
+from __future__ import annotations
+
+import sys
+from dataclasses import replace
+from typing import Callable, Iterable
+
+import Levenshtein
+
+from .llm import LLMClient, LLMError
+from .types import Segment
+
+
+MIN_LEN_FOR_FIX = 10
+MAX_EDIT_RATIO = 0.5
+MAX_LENGTH_RATIO = 2.0
+
+
+_SYSTEM_PROMPT = """You are a careful ASR transcript proofreader.
+
+Fix ONLY obvious speech-recognition mistakes: mis-heard proper nouns and
+technical terms ("Hugging Space" → "Hugging Face", "градіо" → "Gradio",
+"CloudCop" → "Claude Code"). Output the corrected line in {language} and
+nothing else — no quotes, no commentary, no explanations.
+
+Hard rules:
+- Do NOT paraphrase, summarise, or reorder words.
+- Do NOT regularise dialect/slang ("шо" stays "шо").
+- Do NOT add or remove punctuation beyond what's clearly already there.
+- If you are not confident a word is mis-heard, leave it as-is.
+- Preserve the speaker's voice and length."""
+
+
+_USER_TEMPLATE = "Text: {text}"
+
+
+def _is_marker(text: str) -> bool:
+    t = text.strip()
+    return t.startswith("[") and t.endswith("]")
+
+
+def _looks_safe(original: str, fixed: str) -> bool:
+    """True if `fixed` is close enough to `original` to trust the LLM."""
+    if not fixed:
+        return False
+    n0, n1 = len(original), len(fixed)
+    if n0 == 0:
+        return False
+    if n1 / n0 > MAX_LENGTH_RATIO or n0 / n1 > MAX_LENGTH_RATIO:
+        return False
+    distance = Levenshtein.distance(original, fixed)
+    if distance / max(n0, n1) > MAX_EDIT_RATIO:
+        return False
+    return True
+
+
+def _strip_quotes(s: str) -> str:
+    s = s.strip()
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in '"\'`':
+        return s[1:-1].strip()
+    return s
+
+
+def fix_segment(
+    text: str,
+    *,
+    llm: LLMClient,
+    language: str,
+) -> str:
+    """Return a corrected segment text, or the original if the LLM reply
+    is unavailable / unsafe."""
+    if _is_marker(text) or len(text.strip()) < MIN_LEN_FOR_FIX:
+        return text
+    messages = [
+        {"role": "system", "content": _SYSTEM_PROMPT.format(language=language)},
+        {"role": "user", "content": _USER_TEMPLATE.format(text=text)},
+    ]
+    try:
+        reply = llm.chat(messages, temperature=0.1, max_tokens=512)
+    except LLMError:
+        return text
+    candidate = _strip_quotes(reply)
+    if not _looks_safe(text, candidate):
+        return text
+    return candidate
+
+
+def fix_asr_errors(
+    segments: Iterable[Segment],
+    *,
+    llm: LLMClient,
+    language: str = "uk",
+    log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
+) -> list[Segment]:
+    """Return new segments with each `content` proof-read.
+
+    Segments are returned in the same order. Marker / short segments are
+    passed through unchanged. The function never aborts on an LLM error —
+    a failed segment falls back to its original text.
+    """
+    fixed_count = 0
+    out: list[Segment] = []
+    for seg in segments:
+        new_text = fix_segment(seg.content, llm=llm, language=language)
+        if new_text != seg.content:
+            fixed_count += 1
+        out.append(replace(seg, content=new_text))
+    log(f"postprocess: {fixed_count}/{len(out)} segments adjusted")
+    return out
