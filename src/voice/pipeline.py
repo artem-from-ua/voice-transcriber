@@ -36,6 +36,8 @@ class PipelineOptions:
     output_path: str | None = None
     language: str = "uk"
     asr_bits: int = 6
+    asr_chunk_duration: float | None = None
+    asr_temperature: float | None = None
     unknown_speaker: str = "ask"           # "ask" | "keep"
     names_override: list[str] | None = None
     datetime_override: datetime | None = None
@@ -119,6 +121,8 @@ def run(options: PipelineOptions) -> str:
                     bitness=options.asr_bits,
                     language=options.language,
                     context=f"Розмова мовою {options.language}.",
+                    chunk_duration=options.asr_chunk_duration,
+                    temperature=options.asr_temperature,
                     log=log,
                 )
             log(f"      {len(asr_segments)} ASR-сегментів")

@@ -35,6 +35,23 @@ def _build_parser() -> argparse.ArgumentParser:
         help="VibeVoice-ASR quantisation (default: 6).",
     )
     t.add_argument(
+        "--asr-chunk-duration", type=float, default=None,
+        metavar="SECONDS",
+        help=(
+            "ASR chunk size in seconds (default: 45). VibeVoice supports up to "
+            "60-minute single-pass inputs and benefits from long context; "
+            "shorter chunks tend to drop linguistic continuity."
+        ),
+    )
+    t.add_argument(
+        "--asr-temperature", type=float, default=None,
+        metavar="T",
+        help=(
+            "Sampling temperature for ASR (default: 0.0 = greedy, deterministic). "
+            "Increase if you hit repetition loops the penalty alone can't break."
+        ),
+    )
+    t.add_argument(
         "--unknown-speaker", choices=("ask", "keep"), default="ask",
         help="When self-intro is missing: ask interactively or keep SPEAKER_XX.",
     )
@@ -71,6 +88,8 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         output_path=args.output,
         language=args.language,
         asr_bits=args.asr_bits,
+        asr_chunk_duration=args.asr_chunk_duration,
+        asr_temperature=args.asr_temperature,
         unknown_speaker=args.unknown_speaker,
         names_override=args.names,
         datetime_override=args.datetime_override,
