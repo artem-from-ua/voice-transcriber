@@ -45,22 +45,22 @@ database "Local" {
 }
 
 User --> CLI : audio path + opts
-CLI --> Pipeline : PipelineOptions
+CLI -[#blue]-> Pipeline : PipelineOptions
 
-Pipeline --> WAV : input audio
-WAV --> ASR : 16 kHz mono WAV
-Pipeline --> FF : input audio
-FF --> Render : AudioMeta
+Pipeline -[#red]-> WAV : input audio
+WAV -[#red]-> ASR : 16 kHz mono WAV
+Pipeline -[#red]-> FF : input audio
+FF -[#blue]-> Render : AudioMeta
 
-ASR --> Merge : AsrSegment[]\n(text + ASR speaker hint)
-Pipeline --> Diar : WAV
-Diar --> Merge : DiarTurn[]\n(pyannote timeline)
-Merge --> Post : Segment[]\n(text + pyannote label)
-Post --> Ident : Segment[]\n(content proof-read)
-Ident --> Struct : Segment[] + {label: name}
-Struct --> TLDR : StructuredDialog\n(sections + segments)
-TLDR --> Render : Markdown TL;DR string
-Render --> User : transcript.md
+ASR -[#blue]-> Merge : AsrSegment[]\n(text + ASR speaker hint)
+Pipeline -[#red]-> Diar : WAV
+Diar -[#blue]-> Merge : DiarTurn[]\n(pyannote timeline)
+Merge -[#blue]-> Post : Segment[]\n(text + pyannote label)
+Post -[#blue]-> Ident : Segment[]\n(content proof-read)
+Ident -[#blue]-> Struct : Segment[] + {label: name}
+Struct -[#blue]-> TLDR : StructuredDialog\n(sections + segments)
+TLDR -[#green]-> Render : Markdown TL;DR string
+Render -[#green]-> User : transcript.md
 
 WAV ..> Ffmpeg
 FF ..> Ffmpeg
@@ -76,13 +76,15 @@ LLM ..> MlxLm
 MlxLm ..> LMSCache
 
 legend right
-  Solid arrows: data flow between stages
+  <color:red>Red</color>: audio bytes
+  <color:blue>Blue</color>: structured data (dataclass / JSON)
+  <color:green>Green</color>: Markdown
   Dotted arrows: library / file dependencies
 end legend
 @enduml
 ```
 
-![Architecture overview](https://www.plantuml.com/plantuml/svg/RLNRZXCv47ttLvJoD15AihFiSibAY153158Y41a6fDb-SBghErRSTijsJsP083w2B-HBgBAxCqdlFYHnrJbLvRevBtsGBhIr5a45ZN1hLOwJuAJnkLCRTF3hnq_8RTrOWoQ0lKLtgt0l_4wPHZfPFu3hS4yU7EP1cagZ438Fri57Zqw8HkOxMI6COWHujNmxWgy2ZboFSgr683rZfq2Z6jJAO4JVTuBuTkIqLmAbKw7_Z-kRympAid5savmi5WFypmpEoh9ki89R9S6t6oBdwFquyZzTN0yC7cUaTn6yM7yOW7zbK2Zfr9SKxPBE0yRV6TJegeIl-3GWFCcWiJvqjqYPapnWFSr05NHKvNsal6LXm7cMKLLScuVMfN3hA0rOppC8kaW9NIqlXncT_v5HPqs1YV4X7ayvMjTmLkkx2VtkdMmQTAbuo-MAcvLhsnOmUdqNq1cfKuzkkgBF-lPaiJrHoV0rpU1rd4cgScmDHv1jeMnahfQVcTRSIsDiG7WyFO_wzvs2mUvEPyfC-gOcMtsthFbcXGno8ptDqTBc_SrAgob567sVJNEPRt6cwuaF77XMsm9rwibojNx5A1ieclu7-hQjAcMgKkOu2tQ79lBVBAxup55vBs0oUS7p3dE8EK4ZmnOUWMs25wnd_33SyyFnNHEKDLw80yP4cbBYq5ws8RaJh664YpU7yoUmU_C5QcjidEWJuyLYO4iArgTM4tR1sXK6AGIxOomEBaFUhR6gQGnkid_DMS2xG4amopSeTsI-LIQCJmFoLf0jNoGUZnsougfr9hexD3UeEfgFHUB5uj1IaC7_X3-OQRb1JS6PoIPnIGOskJM1jJGWjfmubCLO91vRf8qvDY7_NwFVEHXPupVHKPZDwyFSVkaAoaRRYg9uUXkvRsJjaoS_5f5-KkcLTBl2xWrv-eSmsbuQ9D71p8oZCuV-cMx2j2v4RFPq-gBV7khVaSJDO94NXZxnV1ZUM7_M7DRceEa7DbOl6j4sfyhqKfTwByPyUe4-AMpSjVXz6bfeh2WnSAhQyfkqjbeL89spUpy7tamejTt31iCUqNGFF14lRGZumDHguwIxvuU4zx30XijbSaLazf_2Y9VqHVzslm40)
+![Architecture overview](https://www.plantuml.com/plantuml/svg/RLLVRzis47_dfpXuBpO6sykwTPjN6CsQfUrWjqMSPGCoFT3IMIPCaG999N6B3lqG-uJx9BiZBLlHyc2QT_Ux_tVKIn-a2qsbHL118znPbUCuE6byxjGQ7VpxvH_8RLLRWoQ0lKDtf_1U-9qojNIoEWbNOKyM7EP1cbAZ438Fri7l7fqGjSntiaGOH0_mQl5s09y4T4mFSgq683tB7WjgLQDM1gFqmu4Gdpj6MoPGEYNw_vc-FSjWiwcTNISZbvSz-RSP33URgiOIxfG4twm9dAFteuZ_u_ocf_0i8xwBmlFLLK_uNGQ5aavzJDukwDv3V9z1XQvCyYNVUe3d6TJMXqCKANEYUwWVCb05NTLc7o5lcUXXVioeAgx9G-EIkrMaUgYVCWYwI0bTBoxw6Przar5dJO49SHMlZp5QLp2izCEO_k-Th6jqgNYBnPARbMlR533uzI6WCrAd7jqUYZvjsvF5zaGcYsze1c_YJ5ALOslOWsmAPIDokVYJOVLU6cC3mhF9MUH_E31OU8XfgCouRMhIrG-BYYChP91hwMcE5ZPl8zjOJId2uE_f99Vv5gUw6ll0ZgULBL2ddYoMgrSiPGL5qt-2RvkoLARSo1odmUxGHFoRosk-irVU2nYFvpplC8EO4zGoRE5hi7NmWldZsw_Mki6COCSPdnslx-kWhF5276M4TrWmd4QMaBIaJKYs1NDESgxd3CwUm-xDHwYiiN78dp1qUTcpGunEM6aK27BEmYK6AGJRxa3YV3F2knMM5KtBRVQN6GPy29GhWtsDSaTMjig4qLD1y0gH1GunNf-mplphnfbe-pWGGLNHraWaNBUWj4-azqH8HsqjrwWf84PsDEEQzLHpQm9pQSJiPknG5YEHS1t5j7fTJVBsANgPWP4LVXO7I4U9rv5LsYKkA5DjI_BfwQtb0I0ZFXdq8n7Xf5uwHFEeGqlfTeMzDsJnPyBGgq03AWxYhaOSpHcqdu4wJAf2nFcPJERjTj8OT2Zk8fEyaFIBz-Don9OnvxYMHqwx4B74KObUYrItbZfKf2LZVYr1l-Gsxd8y7xiM6ajA49mgj_pclSYjjcv6LPnVOV5Y6ibvktxhVK1_Gd47vh_GSS8Tdz82-Dc08P-vbjxJ6_RRwlsxqKazrdF-ci-JWRO91Bkm8P0TwPozzpFGQksas_DRo4z9WJLtnkIAGk8KKYRY9HtqmVuF)
 
 ## Module layout
 
