@@ -46,7 +46,7 @@ database "Local" {
 }
 
 User -[#red]-> CLI : audio path + opts
-CLI -[#blue]-> Pipeline : PipelineOptions
+CLI -[#red]-> Pipeline : PipelineOptions (audio path)
 
 Pipeline -[#red]-> WAV : input audio
 WAV -[#red]-> ASR : 16 kHz mono WAV
@@ -60,8 +60,8 @@ Merge -[#blue]-> Post : Segment[]\n(text + pyannote label)
 Post -[#blue]-> Ident : Segment[]\n(content proof-read)
 Ident -[#blue]-> Struct : Segment[] + {label: name}
 Struct -[#blue]-> TLDR : StructuredDialog\n(sections + segments)
-TLDR -[#90EE90]-> Render : Markdown TL;DR string
-Render -[#90EE90]-> User : transcript.md
+TLDR -[#7CCD7C]-> Render : Markdown TL;DR string
+Render -[#7CCD7C]-> User : transcript.md
 
 WAV ..> Ffmpeg
 FF ..> Ffmpeg
@@ -79,13 +79,13 @@ MlxLm ..> LMSCache
 legend right
   <color:red>Red</color>: audio bytes
   <color:blue>Blue</color>: structured data (dataclass / JSON)
-  <color:#90EE90>Green</color>: Markdown
+  <color:#7CCD7C>Green</color>: Markdown
   Dotted arrows: library / file dependencies
 end legend
 @enduml
 ```
 
-![Architecture overview](https://www.plantuml.com/plantuml/svg/RLNDRXit4BxpAGRgHK8XoKxQj5O38Mvi9Ica9h1Sju2x1ufBhGXnoGN9jQq4AVeGVS8-IMT8hRJQ-g0LP-QR_ndoZG_SXRhKBAYW9JnO9UGmE6wyS6eb7VpxzpyWR5bP8qq0-o3TWvAFp6-LgRZZvL6u33kquAG8t1HQjY2Npjd7suqIMoEzXnUCSH6iWz-yT8nLN6nv8Q4NdSFR-OSUV67GyjeJMlM0UvAT2YfLIQsCZD9FUu9zRHbjc82P5jB_p_JzUGRhTUNiAXcPpJho5ndqr-koaWKyA0w-NY5OO1w3YF_zygwZy393lel2o-LDH_XT1hdYJdrEtgxmt45ydq4fNP7a2pfr0AyogAmF-oXIvaXtK3zae78yglKkGZuGqS7yc65LN2r2xPAxPQGwg8iCWivJGhVpgsv6vsSPDjtaCY5kul4KetK9_L8_3V7_qV6gaYuLRpvVKBE4jdKElUkd89tXElNeVb_qSTEUBBOdCabyX-Dv5ySLgnnRGnvudIiRaOlv7mIhTjmO6oIy79r7_gSzWuJxcFhA39kc9btzD2yfifm7lk8UvsXkHHFPscfC4Nf_ZKU2YuqSwtBe0paUbpQNElLalbY-9IafA5oC8tnJ5uKonPeBEGvsAqt4lv_Tqfcyqbx0yFuR9_DiEAMfXmd4pA3YOGFVWgs2PyH7r4hNac27IPySZX-heApnZ1raHwiuk8Z45Qr3iis8SvHJLITm_Wgsxpz3QOsDe_wCeTciOmSPhR3IG23aaeGB6JXZPBi5YLDE2E-MiYXnPkwpFqq_oAU0kHBOLv9lqSf6cJ1uBWXQ9BH08SRZCzQ9Vrix4sqVnYAeCjeQi8Hh5nIt2lMU2UcWhVbAQWo8a2tDk6mTLM5D82uEcbqFdUJvW2LSIp4jO5iJlNs9NYPWU2c_iZsafKHBIIhDAkUOgRO5-lHu6TC0e16V3Fe1Yt1KlpYxlhuuEsdHWhjjRXyDclm9GNWvu9oolVX49Oxe19gNeWgZCcTnWaQZQREbE0WjYlf892qc_kBvi2InQSGvhEU1qon6B79KmbiZLQwXzZLfo9XXG-0lkOqx7R-dhfcM1MO8JXKRkljU2wkjcs0TfpSoVpsEvBHPmDKkI7z4KG-cF-FdY3jSgJdGzG5z-WhDyUKRmo_BZxyEZkhxYaxVEIdDqKJJ1mHUsH3G4gSdr4z0gvNZRaUt8bqgkQoeEKOe38gIIBcmD_Z1L_q_)
+![Architecture overview](https://www.plantuml.com/plantuml/svg/RLLVRzis47_dfpXuBpOAsqkxDPjN6CsSUUrWhqMSPGCoFT0IBHEcI86aahX5Xts8VS9zajsHaYLhUR3Ck_lT_plohVFS-gfGp4kl13mOcOgnjroxrCgjiF3lt_z0QehIQA4zc0TX7wHuPEuWTSajBrhXnX_HWXMfvpfNeWEvijOytkvbUj32ENZ964-ziV2R4vQnagS7dWiO1EUmMBqVm6S67Q-3LCa1S4UoSq4fIw6a5a7wiIRObuxHXWcOQIxS_qpVNoImsvNMRAEHvR8dVvd0SBShIf73W-JWgYs2KynZ5F2_Nztr55uboBT1UBMvwGc_II2JtCfFqTirddk8RnCeXCsZV4sd7k1r0gLnleuYPevq3tMPWCpmA7V707bFH0_pNO9LiLNgAnlTRGBLGtsVW5TPJEXsTTtFwEBh19kkCn4HD-5uZb6gW66XdiRu_sXvMGeRYxTQhQbPgJ9L1eEVdhomcglOe_kwwDEcFKbeJs2I-0x7yowCArOvj8Oyy2gJ9Y3Ngpy8LXwvriOBU3Mv2FoFDOE4TKn3gSTDKwEkUbeL55d6FTzoXtEqCcaJsSueJ146VqqdAK_tOggAiVFaU5gOJAZOazLwio0fAKXSZ1Q-h_9Swdp7Kp7rvY1qmBzRtjAPlD9UmFZ-AokoP3odgOSPXCoWv7uFBy2KtZ7YjwZJeCzEnm-bbqOx6BQw8yPEm5ONXnZLS5qh7_qmuhHogl0CBbx3uTqdA8msOUoVCRHSzkmW0wLRLGaIn-50o1K9ry9pniXs1n8cdX3ERaHUuFpS9t_geHTF7lCci2i5Fw2LlTH-z5mGj5HeWK8CnsUi4_-siZhOFes8bqMmDM8Hrr6a3KEzPq8wQIk-5Ge38cH7ConUJpKrsXCNXyxinbRmRCGYhgCObx6hYTu-1oypqBmGNrWDwIZHWf9AizOPPgfCZZuTNinX6bw0YmRTY0Kugbyk5jUNYxCMhRazPEPHeyaV48GN1SuigyLdAc5SPz2y6gMV51aB4pIPp9kDnK7eKDH78cb9yHVEfuK9JIFEQLLFd6P9Gf634juWiN8DLTUa8KE63O6_w3RiT_YUksPAv9WXM9dlwHvyanfbx0phEByHsPjf8EVDCcwFNhWMHJsO_uYV5dUwNZEWgmI6z4qLnrTm2hziFlmwQjNhYiv_jaBeraJJ1mHU6-_H4gVdrCr0oQtbzaWt95qmcIYfEJgL61Gb4NDXR_63B_n_)
 
 ## Module layout
 
