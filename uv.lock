@@ -3192,7 +3192,7 @@ wheels = [
 
 [[package]]
 name = "voice"
-version = "0.9.2"
+version = "0.10.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },

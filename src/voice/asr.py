@@ -31,12 +31,22 @@ VIBEVOICE_REPOS: dict[int, str] = {
 
 LM_STUDIO_MODELS_DIR = Path("~/.cache/lm-studio/models").expanduser()
 
+# VibeVoice was trained on up to 60-minute single-pass inputs and explicitly
+# benefits from long context — short chunks make it lose linguistic continuity
+# and drift between languages. 45 s is a comfortable middle ground: ~1.4 GB
+# of KV cache, plenty of headroom on a 16 GB Mac, and long enough that the
+# model can carry phonetic context across most natural utterances.
+DEFAULT_CHUNK_DURATION = 45.0
+
+# Greedy decoding (temperature 0) gives deterministic output run-to-run.
+# The earlier 0.1 was a band-aid to escape repetition loops; raise the
+# repetition penalty instead so we get the same loop-prevention without
+# the run-to-run quality lottery.
 DEFAULT_GEN_KWARGS: dict[str, object] = {
-    "repetition_penalty": 1.2,
+    "repetition_penalty": 1.3,
     "repetition_context_size": 64,
-    "temperature": 0.1,
+    "temperature": 0.0,
 }
-DEFAULT_CHUNK_DURATION = 15.0
 
 
 class AsrError(RuntimeError):
@@ -79,11 +89,22 @@ def transcribe(
     bitness: int = 6,
     language: str = "uk",
     context: str | None = None,
+    chunk_duration: float | None = None,
+    temperature: float | None = None,
     log: Callable[[str], None] = print,
 ) -> list[AsrSegment]:
-    """Run VibeVoice-ASR on a WAV. Returns a list of AsrSegment."""
+    """Run VibeVoice-ASR on a WAV. Returns a list of AsrSegment.
+
+    `chunk_duration` and `temperature` override the defaults when given; pass
+    `None` to use the values tuned for Ukrainian dialogue.
+    """
     model_path = resolve_model_path(bitness)
     log(f"VibeVoice-ASR-{bitness}bit at {model_path}")
+
+    gen_kwargs = dict(DEFAULT_GEN_KWARGS)
+    if temperature is not None:
+        gen_kwargs["temperature"] = temperature
+    effective_chunk = chunk_duration if chunk_duration is not None else DEFAULT_CHUNK_DURATION
 
     # generate_transcription writes its output to a file even when we want it
     # in memory; route it to a temp path and discard.
@@ -97,9 +118,9 @@ def transcribe(
             output_path=out_path.removesuffix(".json"),  # generate appends extension
             format="json",
             language=language,
-            chunk_duration=DEFAULT_CHUNK_DURATION,
+            chunk_duration=effective_chunk,
             context=context,
-            gen_kwargs=DEFAULT_GEN_KWARGS,
+            gen_kwargs=gen_kwargs,
             verbose=False,
         )
         log(f"ASR finished in {time.time() - t0:.1f}s.")

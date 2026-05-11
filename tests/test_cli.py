@@ -19,6 +19,10 @@ def test_minimal_invocation_defaults():
     assert opts.audio_path == "/tmp/a.m4a"
     assert opts.language == "uk"
     assert opts.asr_bits == 6
+    # New ASR tuning knobs default to None — meaning "use module defaults
+    # (chunk_duration=45, temperature=0.0)".
+    assert opts.asr_chunk_duration is None
+    assert opts.asr_temperature is None
     assert opts.unknown_speaker == "ask"
     assert opts.names_override is None
     assert opts.datetime_override is None
@@ -26,6 +30,17 @@ def test_minimal_invocation_defaults():
     assert opts.run_tldr is True
     assert opts.run_structure is True
     assert opts.verbose is False
+
+
+def test_asr_tuning_knobs_parsed():
+    ns = _parse([
+        "transcribe", "/tmp/a.m4a",
+        "--asr-chunk-duration", "60",
+        "--asr-temperature", "0.2",
+    ])
+    opts = _opts_from_args(ns)
+    assert opts.asr_chunk_duration == 60.0
+    assert opts.asr_temperature == 0.2
 
 
 def test_names_parsed_into_list():

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] — 2026-05-11
+
+### Changed
+- ASR `chunk_duration` raised from 15 s to **45 s**. VibeVoice was trained for up to 60-minute single-pass inputs and explicitly benefits from long context — short chunks were the dominant cause of language drift (Ukrainian → Russian / nonsense). At 45 s the KV cache stays comfortably under 2 GB.
+- ASR `temperature` lowered from 0.1 to **0.0** (greedy decoding). The 0.1 was a band-aid against repetition loops; raising `repetition_penalty` from 1.2 to **1.3** prevents the same loops without the run-to-run quality lottery — output is now reproducible for the same input.
+
+### Added
+- `--asr-chunk-duration SECONDS` and `--asr-temperature T` CLI flags so users can experiment without editing constants.
+- `asr.transcribe()` gains optional `chunk_duration` and `temperature` kwargs; `None` keeps the module defaults.
+
 ## [0.9.2] — 2026-05-11
 
 ### Added
