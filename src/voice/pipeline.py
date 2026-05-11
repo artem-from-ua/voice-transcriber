@@ -21,6 +21,7 @@ from . import diarize as diarize_module
 from . import ffprobe as ffprobe_module
 from . import identify as identify_module
 from . import postprocess as postprocess_module
+from ._dump import StageDumper
 from . import structure as structure_module
 from . import tldr as tldr_module
 from ._progress import ProgressReporter
@@ -45,6 +46,7 @@ class PipelineOptions:
     run_postprocess: bool = True
     run_tldr: bool = True
     run_structure: bool = True
+    dump_stages_dir: str | None = None
     verbose: bool = False
 
 
@@ -97,6 +99,11 @@ def run(options: PipelineOptions) -> str:
 
     tmpdir = Path(tempfile.mkdtemp(prefix="voice-pipeline-"))
     progress = ProgressReporter()
+    dumper = StageDumper(
+        Path(options.dump_stages_dir).expanduser() if options.dump_stages_dir else None
+    )
+    if dumper.enabled():
+        log(f"      Dumping stage artefacts to {dumper.target}")
     try:
         with progress:
             wav_path = tmpdir / "audio.wav"
@@ -109,6 +116,7 @@ def run(options: PipelineOptions) -> str:
                 )
             log(f"      Початок: {audio_meta.started_at} ({audio_meta.source})")
             log(f"      Тривалість: {audio_meta.duration_s:.1f}s")
+            dumper.write("01-meta.json", audio_meta)
 
             # ASR and diarize each load their own ~7 GB / 1.5 GB model and free
             # it on return. The LLM is loaded *after* both, so the three models
@@ -126,13 +134,16 @@ def run(options: PipelineOptions) -> str:
                     log=log,
                 )
             log(f"      {len(asr_segments)} ASR-сегментів")
+            dumper.write("02-asr.json", asr_segments)
 
             with progress.spinner("[4/9] Діаризація (pyannote 3.1)"):
                 turns = diarize_module.diarize(wav_path, log=log)
             log(f"      {len({t.speaker for t in turns})} мовців")
+            dumper.write("03-diarize.json", turns)
 
             with progress.spinner("[5/9] Merge"):
                 segments: list[Segment] = merge(asr_segments, turns)
+            dumper.write("04-merge.json", segments)
 
             # One LLM, four stages, in-process. close() drops the model and
             # clears MLX cache so the render step does not contend with weights.
@@ -152,6 +163,7 @@ def run(options: PipelineOptions) -> str:
                         log=log,
                         progress=progress,
                     )
+                    dumper.write("05-postprocess.json", segments)
                 else:
                     log(f"[6/9] ASR-постобробка пропущена")
 
@@ -168,6 +180,8 @@ def run(options: PipelineOptions) -> str:
                     if seg.speaker in name_map:
                         seg.name = name_map[seg.speaker]
                 log(f"      {len(name_map)} мовців іменовано: {name_map}")
+                dumper.write("06-identify.json", name_map)
+                dumper.write("07-segments-named.json", segments)
 
                 if options.run_structure and llm is not None:
                     dialog = structure_module.structure_dialog(
@@ -179,6 +193,7 @@ def run(options: PipelineOptions) -> str:
                     dialog = structure_module.structure_dialog(
                         segments, llm=None, language=options.language, log=log,
                     )
+                dumper.write("08-structure.json", dialog)
 
                 if options.run_tldr and llm is not None:
                     tldr_text = tldr_module.generate_tldr(
@@ -188,6 +203,7 @@ def run(options: PipelineOptions) -> str:
                 else:
                     tldr_text = ""
                     log(f"[9/9] TL;DR пропущено")
+                dumper.write("09-tldr.txt", tldr_text)
             finally:
                 if llm is not None:
                     with progress.spinner("Unloading LLM"):

@@ -78,6 +78,15 @@ def _build_parser() -> argparse.ArgumentParser:
     t.add_argument("--no-postprocess", action="store_true", help="Skip per-segment ASR proof-reading.")
     t.add_argument("--no-tldr", action="store_true", help="Skip TL;DR generation.")
     t.add_argument("--no-structure", action="store_true", help="Skip section structuring.")
+    t.add_argument(
+        "--dump-stages", dest="dump_stages_dir", default=None, metavar="DIR",
+        help=(
+            "Write each stage's output to DIR as JSON for troubleshooting "
+            "(01-meta.json, 02-asr.json, 03-diarize.json, 04-merge.json, "
+            "05-postprocess.json, 06-identify.json, 07-segments-named.json, "
+            "08-structure.json, 09-tldr.txt). Disabled when omitted."
+        ),
+    )
     t.add_argument("-v", "--verbose", action="store_true", help="Verbose progress logs to stderr.")
     return p
 
@@ -97,6 +106,7 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         run_postprocess=not args.no_postprocess,
         run_tldr=not args.no_tldr,
         run_structure=not args.no_structure,
+        dump_stages_dir=args.dump_stages_dir,
         verbose=args.verbose,
     )
 

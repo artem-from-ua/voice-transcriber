@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] — 2026-05-11
+
+### Added
+- New `--dump-stages DIR` CLI flag writes each stage's output as JSON for troubleshooting. Layout under DIR:
+  - `01-meta.json` — `AudioMeta` (ffprobe)
+  - `02-asr.json` — `list[AsrSegment]` (raw VibeVoice)
+  - `03-diarize.json` — `list[DiarTurn]` (pyannote)
+  - `04-merge.json` — `list[Segment]` after merge (no LLM touches yet)
+  - `05-postprocess.json` — `list[Segment]` after the LLM proof-reader
+  - `06-identify.json` — `{pyannote-label → name}` map
+  - `07-segments-named.json` — `list[Segment]` with `.name` filled in
+  - `08-structure.json` — `StructuredDialog` (sections + segments)
+  - `09-tldr.txt` — raw Markdown TL;DR string
+- `voice._dump.StageDumper` is a thin no-op when the flag isn't passed; the pipeline always calls `dumper.write(...)` so call sites don't branch.
+
 ## [0.10.0] — 2026-05-11
 
 ### Changed
