@@ -7,10 +7,8 @@ The pipeline writes a single Markdown file. Its structure is fixed; what varies 
 ```markdown
 # Транскрипт: <audio basename>
 
-> 📅 **Початок:** <ISO datetime>
+> 📅 **Початок:** <ISO datetime, UTC>
 > ⏱️ **Тривалість:** <H:MM:SS or MM:SS>
-> 🏁 **Кінець:** <ISO datetime>
-> 🎙️ **Транскрипція:** VibeVoice-ASR-<Nbit> + pyannote 3.1
 > 🌐 **Мова:** <language code>
 
 ## TL;DR                              # optional — omitted with --no-tldr
@@ -77,10 +75,8 @@ The LLM is asked to omit the `## TL;DR` heading; the renderer adds the heading a
 ```markdown
 # Транскрипт: hello.m4a
 
-> 📅 **Початок:** 2026-05-10T15:44:02+00:00
+> 📅 **Початок:** 2026-05-10 15:44 UTC
 > ⏱️ **Тривалість:** 0:04
-> 🏁 **Кінець:** 2026-05-10T15:44:06+00:00
-> 🎙️ **Транскрипція:** VibeVoice-ASR-6bit + pyannote 3.1
 > 🌐 **Мова:** uk
 
 ## Привітання
@@ -95,10 +91,8 @@ The LLM is asked to omit the `## TL;DR` heading; the renderer adds the heading a
 ```markdown
 # Транскрипт: standup.m4a
 
-> 📅 **Початок:** 2026-05-11T09:01:00+02:00
+> 📅 **Початок:** 2026-05-11 07:01 UTC
 > ⏱️ **Тривалість:** 14:32
-> 🏁 **Кінець:** 2026-05-11T09:15:32+02:00
-> 🎙️ **Транскрипція:** VibeVoice-ASR-6bit + pyannote 3.1
 > 🌐 **Мова:** uk
 
 ## TL;DR
