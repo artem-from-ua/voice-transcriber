@@ -12,7 +12,7 @@ import sys
 from typing import Callable, Iterable
 
 from ._prompts import render as render_prompt
-from .llm import LLMClient, LLMError
+from .llm import LLMError, MlxLLM
 from .types import Segment
 
 
@@ -37,7 +37,7 @@ def _format_dialogue(segments: list[Segment]) -> str:
 def generate_tldr(
     segments: Iterable[Segment],
     *,
-    llm: LLMClient,
+    llm: MlxLLM,
     language: str = "uk",
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
 ) -> str:

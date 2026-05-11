@@ -23,7 +23,7 @@ from . import identify as identify_module
 from . import postprocess as postprocess_module
 from . import structure as structure_module
 from . import tldr as tldr_module
-from .llm import LLMClient
+from .llm import MlxLLM
 from .merge import merge
 from .render import render_markdown
 from .types import Segment
@@ -39,7 +39,6 @@ class PipelineOptions:
     names_override: list[str] | None = None
     datetime_override: datetime | None = None
     llm_model: str | None = None
-    llm_base_url: str | None = None
     run_postprocess: bool = True
     run_tldr: bool = True
     run_structure: bool = True
@@ -87,9 +86,7 @@ def run(options: PipelineOptions) -> str:
 
     llm_kwargs: dict = {}
     if options.llm_model:
-        llm_kwargs["model"] = options.llm_model
-    if options.llm_base_url:
-        llm_kwargs["base_url"] = options.llm_base_url
+        llm_kwargs["model_path"] = options.llm_model
 
     llm_required = options.run_postprocess or options.run_tldr or options.run_structure or (
         options.unknown_speaker == "ask" or options.names_override is None
@@ -107,20 +104,9 @@ def run(options: PipelineOptions) -> str:
         log(f"      Початок: {audio_meta.started_at} ({audio_meta.source})")
         log(f"      Тривалість: {audio_meta.duration_s:.1f}s")
 
-        # Pre-flight the LLM server and ask it to drop the LLM weights now —
-        # ASR + diarize will use ~9 GB by themselves on a 16 GB Mac. The LLM
-        # will reload on the first chat call after merge.
-        if llm_required:
-            log(f"[~] Перевірка LM Studio і вивантаження LLM перед ASR")
-            llm = LLMClient(**llm_kwargs)
-            llm.health_check()
-            if llm.unload_model():
-                log(f"      LLM вивантажено перед ASR")
-            else:
-                log(f"      Не вдалося вивантажити LLM — продовжую без цього")
-        else:
-            llm = None  # type: ignore[assignment]
-
+        # ASR and diarize each load their own ~7 GB / 1.5 GB model and free
+        # it on return. The LLM is loaded *after* both, so the three models
+        # are never co-resident.
         log(f"[3/9] ASR (VibeVoice-{options.asr_bits}bit)")
         asr_segments = asr_module.transcribe(
             wav_path,
@@ -138,7 +124,13 @@ def run(options: PipelineOptions) -> str:
         log(f"[5/9] Merge")
         segments: list[Segment] = merge(asr_segments, turns)
 
+        # One LLM, four stages, in-process. close() drops the model and
+        # clears MLX cache so the render step does not contend with weights.
+        llm = MlxLLM(log=log, **llm_kwargs) if llm_required else None
         try:
+            if llm is not None:
+                llm.load()
+
             if options.run_postprocess and llm is not None:
                 log(f"[6/9] ASR-постобробка")
                 segments = postprocess_module.fix_asr_errors(
@@ -163,9 +155,6 @@ def run(options: PipelineOptions) -> str:
 
             if options.run_structure and llm is not None:
                 log(f"[8/9] Структурування на секції")
-                # Many short postprocess prompts can fragment Metal allocator —
-                # nudge LM Studio to reload before the long structure prompt.
-                llm.unload_model()
                 dialog = structure_module.structure_dialog(
                     segments, llm=llm, language=options.language, log=log,
                 )
@@ -177,8 +166,6 @@ def run(options: PipelineOptions) -> str:
 
             if options.run_tldr and llm is not None:
                 log(f"[9/9] TL;DR")
-                # Same memory hygiene before the second long prompt.
-                llm.unload_model()
                 tldr_text = tldr_module.generate_tldr(
                     segments, llm=llm, language=options.language, log=log,
                 )

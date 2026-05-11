@@ -49,11 +49,10 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     t.add_argument(
         "--llm-model", default=None,
-        help="LLM model id (default: mlx-community/gemma-3-12b-it-qat-4bit).",
-    )
-    t.add_argument(
-        "--llm-base-url", default=None,
-        help="LM Studio base URL (default: http://localhost:1234/v1).",
+        help=(
+            "Path to a local MLX model directory (default: "
+            "~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit)."
+        ),
     )
     t.add_argument(
         "--output", "-o", default=None,
@@ -76,7 +75,6 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         names_override=args.names,
         datetime_override=args.datetime_override,
         llm_model=args.llm_model,
-        llm_base_url=args.llm_base_url,
         run_postprocess=not args.no_postprocess,
         run_tldr=not args.no_tldr,
         run_structure=not args.no_structure,

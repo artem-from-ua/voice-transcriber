@@ -19,7 +19,7 @@ from typing import Callable, Iterable
 import Levenshtein
 
 from ._prompts import render as render_prompt
-from .llm import LLMClient, LLMError
+from .llm import LLMError, MlxLLM
 from .types import Segment
 
 
@@ -58,7 +58,7 @@ def _strip_quotes(s: str) -> str:
 def fix_segment(
     text: str,
     *,
-    llm: LLMClient,
+    llm: MlxLLM,
     language: str,
 ) -> str:
     """Return a corrected segment text, or the original if the LLM reply
@@ -82,7 +82,7 @@ def fix_segment(
 def fix_asr_errors(
     segments: Iterable[Segment],
     *,
-    llm: LLMClient,
+    llm: MlxLLM,
     language: str = "uk",
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
 ) -> list[Segment]:
