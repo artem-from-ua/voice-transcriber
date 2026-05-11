@@ -41,7 +41,7 @@ sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
 
 These are **not from our code**. They come from a SWIG-generated C extension somewhere under our heavy ML deps (verified via `PYTHONWARNINGS=error::DeprecationWarning` against `import voice` and every `voice.*` module — all clean). SWIG hasn't yet caught up with Python 3.12's rule that built-in types must expose `__module__`. The warnings are emitted in C via `PyErr_WarnEx` *before* any pytest filter can intercept them, which is why `filterwarnings = ["ignore::DeprecationWarning"]` in `pyproject.toml` does nothing — we tried.
 
-So the right reaction is: ignore them. Don't try to `filterwarnings` these specific three away (won't work for the C-level emission path), don't silence DeprecationWarnings globally either (would hide legitimate ones). They will disappear on their own when our transitive deps rebuild against a newer SWIG.
+So the right reaction is: ignore them. Don't try to `filterwarnings` these specific three away (won't work for the C-level emission path), don't silence DeprecationWarnings globally either (would hide legitimate ones). They will disappear on their own when our transitive deps rebuild against a newer SWIG — the underlying bug is [swig/swig#2881](https://github.com/swig/swig/issues/2881), fixed in the `swig-4.4` milestone (May 2025).
 
 ## Versioning
 
