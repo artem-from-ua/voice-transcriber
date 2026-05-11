@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file. The format 
   - `--clearspeech-agc-target-dbfs FLOAT` (default `-20.0`).
   - `--clearspeech-agc-max-gain-db FLOAT` (default `16.0`).
   - `--clearspeech-bandpass` — opt into the new effect (default off).
-  - `--clearspeech-bandpass-low-hz HZ` (default `150.0` — tuned by listening test, see [`docs/adr/0011-clearspeech-bandpass-defaults.md`](docs/adr/0011-clearspeech-bandpass-defaults.md)).
+  - `--clearspeech-bandpass-low-hz HZ` (default `150.0` — tuned by listening test, see [`docs/adr/0011-clearspeech-bandpass-defaults.md`](docs/adr/0011-clearspeech-bandpass-defaults.md)). Note: Metric A (Russian-glyph language drift) was flat in measurement, so bandpass stays opt-in.
   - `--clearspeech-bandpass-high-hz HZ` (default `5500.0` — tuned by listening test; the 16 kHz Nyquist of 8 kHz is a hard upper bound, issue #48's nominal 10 kHz is unreachable at this SR).
 - New runtime dependency: `scipy>=1.14` for filter design.
 - New dump artefact `02b-clearspeech-config.json` records the active chain, per-effect parameters, and AGC stats (turn count, RMS spread before/after, ceiling hits) for `--dump-stages` reproducibility.

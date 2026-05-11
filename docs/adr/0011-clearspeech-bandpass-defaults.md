@@ -57,17 +57,32 @@ The 150 Hz default is therefore tuned to this kind of input — phone-recorded, 
 
 At round 4 the report shifted from confident "better" to hedging "mildly better" — a sign that the ear was saturating on the 30-second clip. Round 5 confirmed the wall ("no difference") and stopped. The PR could have pushed for 165 or 180 with another fresh-ear session, but the marginal gain past 150 was clearly under the noise floor of human A/B judgement on this material, and the asymmetric risk (overcutting low → tinny voice on lower-fundamental speakers; undercutting → mild residual rumble) favours stopping shy of the wall.
 
+## Metric A — language-drift measurement
+
+After the listening loop set the cutoffs, two full ASR runs were executed on the reference recording — one with bandpass off (AGC only, the v0.13.0-equivalent baseline) and one with bandpass on at `150 / 5500`. Russian-only glyphs `ы`/`ъ`/`э` are an unambiguous fingerprint of VibeVoice sliding into Russian (the same metric ADR 0007 used for AGC).
+
+| Run | ASR segments | RU-glyph segments | Share |
+| --- | ------------ | ----------------- | ----- |
+| Baseline (`--no-clearspeech-bandpass`, AGC only) | 39 | 2 | 5.1 % |
+| Bandpass on (`--clearspeech-bandpass`, 150 / 5500) | **62** | 4 | 6.5 % |
+
+The expected result, by analogy with AGC's −69 % drop in ADR 0007, would be a clear reduction in the RU-glyph share. **Bandpass did not deliver that.** Absolute RU-glyph count went up (+2 segments); the share went up slightly (+1.4 pp); the per-segment drift rate is statistically indistinguishable.
+
+What did change, dramatically, was the **segment count**: 39 → 62 (+59 %). VibeVoice's internal VAD slices the cleaned audio into many more chunks. Inspecting the new chunks, this is segmentation, not regression — short English code-switches that baseline ran into one Ukrainian segment ("Hugging Face", "couple of directions", "White spectrum недоступний") now land as their own short segments. Several of the new short segments do carry RU-glyph drift, which is what drives the absolute count up.
+
+Conclusion: bandpass changes how the ASR slices the timeline, not how often it confuses Ukrainian for Russian on a per-second-of-speech basis. The perceptual listening win was real (each individual round in the table above stands), but it does **not** translate into a Metric A win on this recording.
+
 ## Consequences
 
-- Default-on for the AGC effect (kept from v0.13.0); default-**off** for bandpass. A user gets the v0.13.0 behaviour out of the box and opts into bandpass with one flag.
+- Default-on for the AGC effect (kept from v0.13.0); default-**off** for bandpass. The listening-loop produced a perceptual win, but Metric A is flat — without an objective improvement that matches AGC's −69 % bar, opt-in is the responsible ship.
 - `--clearspeech-bandpass` with no further arguments applies `150 / 5500` to the test-recording-class of inputs out of the box. Other recording conditions will likely need explicit `--clearspeech-bandpass-low-hz` / `--clearspeech-bandpass-high-hz`.
 - The 5500 Hz high cut sits noticeably below the 16 kHz Nyquist (8 kHz). The pipeline does not enforce this gap — `_validate_bandpass_cutoffs` accepts any `0 < low < high < 8000`. Users who experimentally want more high-frequency information can raise the cut, but the default reflects what was perceptually best on the reference recording.
-- The Metric A (Russian-glyph language drift) acceptance criterion from issue #48 was *not* run in this listening loop — the loop produced WAVs for ear-judgement, not full ASR transcripts. If a future PR turns bandpass default-on, that change should land with an updated ADR carrying the Metric A numbers.
+- The Metric A result here applies to a single recording; future E2-sub-experiments (E2b presence, E2c de-ess, E2d denoise, E2e dereverb) may shift the picture by addressing different artefacts. The default-on question is re-opened when the clearspeech chain has more than one optional effect to compose.
 
 ## Alternatives considered
 
 - **Ship issue-proposed defaults (`80 / 7900` after Nyquist clamp).** Rejected: round 1 already showed `80 / 7900` is the *threshold* of usefulness, not the optimum. Walking to `150 / 5500` raised perceived quality on every round-by-round comparison.
 - **Auto-tune per recording (estimate the input's noise floor and set cuts).** Tempting but the same trap as auto-tuning AGC (ADR 0007, *Alternatives considered*): a recording that happens to be clean would get a useless tight cut, hiding the issue the next time levels drift. Static defaults are more predictable; users with unusual material set the flags.
-- **Default-on bandpass with `150 / 5500`.** Rejected pending Metric A: the listening loop confirmed perceptual quality on a slice, not ASR accuracy on the full recording. Until we have a numeric reduction in Russian-glyph segments comparable to ADR 0007's −69 % for AGC, the safer ship is opt-in. Bandpass becomes default-on in a follow-up if Metric A confirms.
+- **Default-on bandpass with `150 / 5500`.** Rejected. The post-listening-loop Metric A run (table above) showed flat language drift (5.1 % → 6.5 %) with a large segmentation shift (39 → 62 segments). Opt-in stays. Re-opens if a future E2-sub-experiment moves the needle.
 - **Symmetric 12 dB/octave (Butterworth order 2) instead of order 4.** Order 2 is gentler, less ringing on transients. Not tested — the user did not report ringing or transient smearing on any of the order-4 candidates, and `sosfiltfilt` cancels phase distortion either way. Order 4 stays; revisit if a future recording shows audible artefacts.
 - **Replace the bandpass with high-pass alone (no high cut at all).** The round-2 result rules this out — `80 / 5500` was preferred over `80 / 7900`, so the high cut is contributing perceptual value, not just a fixed safety margin against Nyquist artefacts.
