@@ -4,11 +4,13 @@ voice-transcriber is a thin CLI on top of a linear in-process pipeline. The CLI 
 
 External work — ASR inference, diarization, LLM prompting — is delegated to local libraries so the pipeline contains no model code itself: mlx-audio drives the VibeVoice model directly, pyannote.audio runs the diarization graph on the local GPU/CPU, and `llm.py` loads the LLM in-process via `mlx-lm` (no HTTP).
 
-## Component diagram
+## High-level architecture
+
+The CLI hands a `PipelineOptions` (whose load-bearing field is the audio path) to `pipeline.run()`. The orchestrator delegates the heavy work to four external libraries — `ffmpeg`/`ffprobe`, `mlx-audio` (VibeVoice-ASR), `pyannote.audio`, `mlx-lm` — and writes a single Markdown file back to the user.
 
 ```plantuml
 @startuml
-title voice-transcriber — component overview
+title voice-transcriber — high-level architecture
 skinparam componentStyle rectangle
 skinparam ArrowThickness 2
 
@@ -19,73 +21,92 @@ package "voice CLI" {
   component "pipeline" as Pipeline
 }
 
-package "Pipeline stages" {
-  component "[1] ffprobe" as FF
-  component "[2] (ffmpeg via subprocess)" as WAV
-  component "[3] asr" as ASR
-  component "[4] diarize" as Diar
-  component "[5] merge" as Merge
-  component "[6] postprocess" as Post
-  component "[7] identify" as Ident
-  component "[8] structure" as Struct
-  component "[9] tldr" as TLDR
-  component "[10] render" as Render
-  component "llm (mlx-lm wrapper)" as LLM
-}
-
-cloud "External" {
+cloud "External libraries" {
   [ffmpeg / ffprobe] as Ffmpeg
   [VibeVoice-ASR via mlx-audio] as MLX
   [pyannote 3.1] as Pyannote
   [mlx-lm (in-process)] as MlxLm
 }
 
-database "Local" {
+database "Local files" {
   folder "~/.cache/lm-studio/models" as LMSCache
   file "~/.cache/huggingface/token" as HFToken
 }
 
 User -[#red]-> CLI : audio path + opts
 CLI -[#red]-> Pipeline : PipelineOptions (audio path)
+Pipeline -[#7CCD7C]-> User : transcript.md
 
-Pipeline -[#red]-> WAV : input audio
-WAV -[#red]-> ASR : 16 kHz mono WAV
-WAV -[#red]-> Diar : 16 kHz mono WAV
-Pipeline -[#red]-> FF : input audio
-FF -[#blue]-> Render : AudioMeta
+Pipeline ..> Ffmpeg : ffmpeg / ffprobe subprocess
+Pipeline ..> MLX : ASR inference
+Pipeline ..> Pyannote : diarization
+Pipeline ..> MlxLm : LLM stages (postprocess / identify / structure / tldr)
 
-ASR -[#blue]-> Merge : AsrSegment[]\n(text + ASR speaker hint)
-Diar -[#blue]-> Merge : DiarTurn[]\n(pyannote timeline)
-Merge -[#blue]-> Post : Segment[]\n(text + pyannote label)
-Post -[#blue]-> Ident : Segment[]\n(content proof-read)
-Ident -[#blue]-> Struct : Segment[] + {label: name}
-Struct -[#blue]-> TLDR : StructuredDialog\n(sections + segments)
-TLDR -[#7CCD7C]-> Render : Markdown TL;DR string
-Render -[#7CCD7C]-> User : transcript.md
-
-WAV ..> Ffmpeg
-FF ..> Ffmpeg
-ASR ..> MLX
 MLX ..> LMSCache
-Diar ..> Pyannote
-Diar ..> HFToken
-Post ..> LLM
-Ident ..> LLM
-Struct ..> LLM
-TLDR ..> LLM
-LLM ..> MlxLm
 MlxLm ..> LMSCache
+Pyannote ..> HFToken
 
 legend right
-  <color:red>Red</color>: audio bytes
-  <color:blue>Blue</color>: structured data (dataclass / JSON)
-  <color:#7CCD7C>Green</color>: Markdown
+  <color:red>Red</color>: audio in
+  <color:#7CCD7C>Green</color>: Markdown out
   Dotted arrows: library / file dependencies
 end legend
 @enduml
 ```
 
-![Architecture overview](https://www.plantuml.com/plantuml/svg/RLLVRzis47_dfpXuBpOAsqkxDPjN6CsSUUrWhqMSPGCoFT0IBHEcI86aahX5Xts8VS9zajsHaYLhUR3Ck_lzUBn_v5ldkVLLePYNNWbuC38LOs-vTgcLMs7Xtx__WTGKfT52Up0FmZv8ySZSGUgIMrwqneq_uWvMf9xhN8aEvCfQytYxb-b12-VW9MCyzSR2RqvOnagU7dWkO12SmsBrVW2V6NIy3b8b1y0TsSuDfIo5abe4wyTQO5ywcpPAm4XpuVwtzVr50hjTQSqsRh9Szkml4nZkTaKfSdYG75orHN2ASOm2_lUhknxXLO9w6unNcvkUyPi4Cicj_1IzNUEwX_WsWKBOFDhNjEe1NYTG6kVhKyJ8KUwXBXEG6IxbxXWWxqdeORvBC2ksIdrbexjDa7gexnFmAei1tQwk-n5TV9rWqNKc8k8cBCynIXKmBDJJ6FyVBIzBOMFoLgir5IjLfifWyDEJ5rPp5MjqNoTzsfGd2UK9IZBVONlUXNR5B8VIa0TUPT84v7hr1y7A8zVQU06l9XT1_x5MaB4-qr3gSLFKo5LFgu9Ebd7FjznX7wrCsfniPnI628E_ffEKftinLSNOUN8yBKmcLAp9QhrPa9K84WUZXU-hF9Swt_5KJBqv21tmxvQtj2QlD1Smll_AYYmPpwdhOGOXCYYvtyCBCALtZFGjwjJeizFoG-cbqGw6BNV4s0dOSh69aORZMldeXv6cjLE6Pt3n6WxlFa5Xj0bjVuwXLdu6z8otvRBd31LetQfAa3bs44AkoBWMdZD61-X0mbWGmjcDo0jiillaJptquibZSWZiIi4FkCjUQZzYuMpFy4b_MraTsATEyR88HnwnYEiGQT2GzupJ4rlnhL0Z5f0TPfY_7ZKrsfCMUy_inbRmRCGYhaECCzbbehVFmSiCD2_45rP3EYIQKw8qqvrXfChawDFX_HoQuWMukA4RiG17-kLYSNsvE2l2cjj3PXurRla3Wl2-mDPbjVcC4hfs1itZKVf9aR7G99F9l1bSB7L7eagHIBEAlx0-pKqe6cbE4tlIDBCIaXn8U974p3LIdPD6314s0lwYsp3cuNlkcYcHOuHWPRwdw_1DQfInCypZ_4PaRwP1d3SpkJrwuLeKrM3-8tvQtEcMpO1k51ZIDrKS7yCf_BBvyEkefTSPdVziXT3j5aqT47XjlCUTEBsgRWPARYstHxeewPx9H4d5qQd4Gr4GCHRs5Z_uqFy7)
+![High-level architecture](https://www.plantuml.com/plantuml/svg/NLJDRjim3BxhAGZlqc9mWcs70a4Hj4ZNRO235KrN32XwK2JQ5Y9BWYJtPyE6FSIUS4yoIh6JfXT38Z-I7_c9FWkH-zXtcaKLDSA3LGBBwBa9mgirUlZtvo-qgcbBZG-eWNlHgeWYzXvPs2ZZkEST2DivQz34LNocD9u0t3Jw9UJSU_juqognCHW2l6UCYsWzV0le6NDSR7Y3K6G6iAY-5F2JmJun54Ah0dX8laE7KmwrCfYzLyE5_M9CQDjBA3u-HVI6Qz1gxRbN6BQvx-gwSzZ05EhQURl6-vJWCXkJ-vO6S9i7ShwwXWV5eTDF9U-biXcvhBudc7lcnjY8y67oBjkl1aDofWZTmP4o9PKGrFdnDbO_LLtYA7daQnweyyeAubWhFVAhhPQaGF5xEX5Sj3ZLNHbYAZ_jh4GTSiFLShL8tXH0iI_WRTyqoZGr5pYDTeCcupzVtgHpgfr63-NT6u_olfodmS8CSd_WU6pXBLWN0qlsFMeSC477urSNbJK1ZlQnnso7ez2JnUBYP96YSyaPZ2_CnKadsHuxcSm70GZqMXu8_NeOuc442K7m998oDNeq0Wy1eoA4aefUm0-U2BzAaXGXG5KjWRQYGUh7sH27YaH3INfkgdwcOuY-ppj0vwYbFsOiaKXvTdfi4nwOTZoITHI2QMpGIF2qPP5KF1LMMp-ZSS-lKPvEytK-2gFC7ZBCTVx98vezSCdzHjf70xPF-IviZ2XfSsd_mcnOWjH4VYuI7HMdaT5Qi4HZouQTqOV-2_y1)
+
+## Pipeline stages
+
+`pipeline.run()` runs ten steps in order. ffprobe and the ffmpeg-WAV conversion both start from the user's input file; ASR and diarize then read the same temp WAV in parallel. Everything from merge onwards passes structured Python dataclasses around. Only the final two edges (TL;DR string → render → file) are Markdown.
+
+```plantuml
+@startuml
+title voice-transcriber — pipeline stages
+skinparam componentStyle rectangle
+skinparam ArrowThickness 2
+
+[input audio] as Input
+[transcript.md] as Output
+
+component "[1] ffprobe" as FF
+component "[2] (ffmpeg via subprocess)" as WAV
+component "[3] asr" as ASR
+component "[4] diarize" as Diar
+component "[5] merge" as Merge
+component "[6] postprocess" as Post
+component "[7] identify" as Ident
+component "[8] structure" as Struct
+component "[9] tldr" as TLDR
+component "[10] render" as Render
+
+Input -[#red]-> FF
+Input -[#red]-> WAV
+
+WAV -[#red]-> ASR : 16 kHz mono WAV
+WAV -[#red]-> Diar : 16 kHz mono WAV
+
+ASR -[#blue]-> Merge : AsrSegment[]\n(text + ASR speaker hint)
+Diar -[#blue]-> Merge : DiarTurn[]\n(pyannote timeline)
+
+Merge -[#blue]-> Post : Segment[]\n(text + pyannote label)
+Post -[#blue]-> Ident : Segment[]\n(content proof-read)
+Ident -[#blue]-> Struct : Segment[] + {label: name}
+Struct -[#blue]-> TLDR : StructuredDialog\n(sections + segments)
+
+FF -[#blue]-> Render : AudioMeta
+TLDR -[#7CCD7C]-> Render : Markdown TL;DR string
+Render -[#7CCD7C]-> Output
+
+legend right
+  <color:red>Red</color>: audio bytes
+  <color:blue>Blue</color>: structured data (dataclass / JSON)
+  <color:#7CCD7C>Green</color>: Markdown
+end legend
+@enduml
+```
+
+![Pipeline stages](https://www.plantuml.com/plantuml/svg/RPJFRXCn4CRlVefHkIH2eQH00w6A6XA55X6AaWWEOG_UzMHZPTTUsTwM527n43mXJyBOcp-xLIwMxVbz_kmPszVMSUFAF6DEkWpXNii4EyvmPHCZOpJmxyzVA6I1cLG8HATecTr8LN33SqXqNcY5oitTbkG64yTLcc4D6HgZ7nPhcMmKMWiNZ2qfL3hWfP0w0cxXre_PSczRk1Uv286xqla8EzZ0sR8RmMfL61tZcKScaqRq8eBMQfKNcCAzv63BcD24ZDk1_Zxyri1VUHiJGiFvh15w7O6GtCZ7ocTC_KRyJGGvchIAJdsl4RwCeD3MxTm3z9N63QONWHJKbQjj06xze46yZIZdfanSQIgZUHWrc7SHk4nKXrXy7ZTFqNqPKLMKm2e-2rt6GiQXitncK4ITWS_YqocVAaPDROfI17teNiBcvX5ohNI0cepFqmc8UIrHSLQYnqB2Y1jQCySqfyqken-gvV2dW-V1o1R8DtG1rrAvDWlBdj3x-KLfL50NMwwKTWXEvk72jXchm9hILu649rmFyep7cBLP86lAK9udqaGhvsUfpdhLCSX5crLSJLWLhQuajr_1fG-Av_YRxP2Qo9VII_Rb5tJKJAVaQUcLIQqiBMAh1IqTT3Afgwj2-mJxLpP5nrbOa93UQ3JkZHhGb9kDq0-AJDyJH5TEgfJjmWt9_aLcc58KZ4pNZW5S9JhJfa-x7CnGN9s7uQ1VlN68juv-ZGFbzpZuGCsHErno0O8x3YtV9Xcd3-CSFitllhIFyjrk1XyDeZekiJy3y_kgjiUkgQ7FxJy0)
 
 ## Module layout
 
