@@ -88,3 +88,39 @@ def test_blank_content_is_skipped():
         llm=llm, language="uk", log=lambda _s: None,
     )
     assert llm.last_user.strip() == "Артем: hi"
+
+
+# ---------------------------------------------------------------------------
+# Leading "TL;DR" heading from the model — the renderer adds its own.
+
+import pytest
+
+
+@pytest.mark.parametrize("reply,expected_start", [
+    ("## TL;DR\n\nReal content.", "Real content."),
+    ("# TL;DR\nReal content.", "Real content."),
+    ("### TL;DR\n\nReal content.", "Real content."),
+    ("**TL;DR**\n\nReal content.", "Real content."),
+    ("**TL;DR:**\n\nReal content.", "Real content."),
+    ("## tl;dr\n\nReal content.", "Real content."),
+    ("## TLDR\n\nReal content.", "Real content."),
+    ("Real content from the start.", "Real content from the start."),
+])
+def test_strips_leading_tldr_heading(reply, expected_start):
+    llm = StubLLM(reply=reply)
+    out = generate_tldr(
+        [_seg(0, 1, "hi", name="Артем")],
+        llm=llm, language="uk", log=lambda _s: None,
+    )
+    assert out.startswith(expected_start)
+
+
+def test_keeps_tldr_inside_body():
+    """Only the *leading* TL;DR heading is stripped; inline mentions stay."""
+    reply = "Summary.\n\n## TL;DR\nSecond paragraph."
+    llm = StubLLM(reply=reply)
+    out = generate_tldr(
+        [_seg(0, 1, "hi", name="Артем")],
+        llm=llm, language="uk", log=lambda _s: None,
+    )
+    assert "## TL;DR" in out
