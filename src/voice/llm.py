@@ -58,6 +58,30 @@ class LLMClient:
         data = resp.json()
         return [m["id"] for m in data.get("data", [])]
 
+    def unload_model(self, instance_id: str | None = None) -> bool:
+        """Best-effort unload of the LLM in LM Studio.
+
+        Uses LM Studio's native `/api/v1/models/unload` endpoint, which sits
+        next to the OpenAI-compatible `/v1/` (one path up). Returns True if
+        the server acknowledged, False on any failure — this is purely a
+        memory-pressure hint, never a hard precondition.
+
+        A reload happens automatically on the next chat request.
+        """
+        assert self._client is not None
+        target = instance_id or self.model
+        native_root = self.base_url.rsplit("/v1", 1)[0]
+        url = f"{native_root}/api/v1/models/unload"
+        try:
+            resp = httpx.post(
+                url,
+                json={"instance_id": target},
+                timeout=self.timeout,
+            )
+            return resp.status_code < 400
+        except httpx.HTTPError:
+            return False
+
     def chat(
         self,
         messages: list[dict[str, str]],

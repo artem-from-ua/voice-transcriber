@@ -107,6 +107,20 @@ def run(options: PipelineOptions) -> str:
         log(f"      Початок: {audio_meta.started_at} ({audio_meta.source})")
         log(f"      Тривалість: {audio_meta.duration_s:.1f}s")
 
+        # Pre-flight the LLM server and ask it to drop the LLM weights now —
+        # ASR + diarize will use ~9 GB by themselves on a 16 GB Mac. The LLM
+        # will reload on the first chat call after merge.
+        if llm_required:
+            log(f"[~] Перевірка LM Studio і вивантаження LLM перед ASR")
+            llm = LLMClient(**llm_kwargs)
+            llm.health_check()
+            if llm.unload_model():
+                log(f"      LLM вивантажено перед ASR")
+            else:
+                log(f"      Не вдалося вивантажити LLM — продовжую без цього")
+        else:
+            llm = None  # type: ignore[assignment]
+
         log(f"[3/9] ASR (VibeVoice-{options.asr_bits}bit)")
         asr_segments = asr_module.transcribe(
             wav_path,
@@ -123,13 +137,6 @@ def run(options: PipelineOptions) -> str:
 
         log(f"[5/9] Merge")
         segments: list[Segment] = merge(asr_segments, turns)
-
-        if llm_required:
-            log(f"[~] Підключення до LM Studio")
-            llm = LLMClient(**llm_kwargs)
-            llm.health_check()
-        else:
-            llm = None  # type: ignore[assignment]
 
         try:
             if options.run_postprocess and llm is not None:
@@ -156,6 +163,9 @@ def run(options: PipelineOptions) -> str:
 
             if options.run_structure and llm is not None:
                 log(f"[8/9] Структурування на секції")
+                # Many short postprocess prompts can fragment Metal allocator —
+                # nudge LM Studio to reload before the long structure prompt.
+                llm.unload_model()
                 dialog = structure_module.structure_dialog(
                     segments, llm=llm, language=options.language, log=log,
                 )
@@ -167,6 +177,8 @@ def run(options: PipelineOptions) -> str:
 
             if options.run_tldr and llm is not None:
                 log(f"[9/9] TL;DR")
+                # Same memory hygiene before the second long prompt.
+                llm.unload_model()
                 tldr_text = tldr_module.generate_tldr(
                     segments, llm=llm, language=options.language, log=log,
                 )
