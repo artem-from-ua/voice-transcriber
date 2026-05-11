@@ -84,12 +84,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--clearspeech-chain", type=str, default="agc", metavar="EFFECTS",
         help=(
             "Comma-separated effect names in execution order. Known effects: "
-            "agc, bandpass, presence. Default: 'agc' (matches v0.14.0 "
-            "behaviour). Use '' to disable preprocessing entirely. "
-            "Recommended full chain: 'agc,bandpass,presence'. "
+            "agc, bandpass, presence, denoise. Default: 'agc' (matches "
+            "v0.14.0/v0.15.0 behaviour). Use '' to disable preprocessing "
+            "entirely. WARNING: enabling 'denoise' degrades ASR on Ukrainian "
+            "content even at its empirically best position (after AGC); see "
+            "ADR 0014 for Metric A and the OpenAI Whisper-rule check. "
             "WARNING: using 'presence' without 'bandpass' first "
-            "catastrophically breaks ASR on Ukrainian content "
-            "(see ADR 0013); enable bandpass whenever you enable presence."
+            "catastrophically breaks ASR (see ADR 0013); enable bandpass "
+            "whenever you enable presence."
         ),
     )
     cs.add_argument(
@@ -132,6 +134,19 @@ def _build_parser() -> argparse.ArgumentParser:
         "--clearspeech-presence-q", type=float, default=1.0, metavar="Q",
         help="Presence boost Q / sharpness; higher = narrower peak (default: 1.0).",
     )
+    cs.add_argument(
+        "--clearspeech-denoise-noise-floor-db", type=float, default=-25.0, metavar="DB",
+        help=(
+            "ffmpeg afftdn noise-floor estimate in dB (default: -25, tuned by "
+            "listening test, see ADR 0014)."
+        ),
+    )
+    cs.add_argument(
+        "--clearspeech-denoise-reduction-db", type=float, default=12.0, metavar="DB",
+        help=(
+            "ffmpeg afftdn subtraction amount in dB (default: 12)."
+        ),
+    )
 
     t.add_argument(
         "--dump-stages", dest="dump_stages_dir", default=None, metavar="DIR",
@@ -171,6 +186,8 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         clearspeech_presence_center_hz=args.clearspeech_presence_center_hz,
         clearspeech_presence_boost_db=args.clearspeech_presence_boost_db,
         clearspeech_presence_q=args.clearspeech_presence_q,
+        clearspeech_denoise_noise_floor_db=args.clearspeech_denoise_noise_floor_db,
+        clearspeech_denoise_reduction_db=args.clearspeech_denoise_reduction_db,
         dump_stages_dir=args.dump_stages_dir,
         verbose=args.verbose,
     )

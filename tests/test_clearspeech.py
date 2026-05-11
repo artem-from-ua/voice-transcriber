@@ -383,6 +383,74 @@ def test_presence_writes_sibling_presence_wav(tmp_path: Path) -> None:
     assert dst.parent == src.parent
 
 
+# ----------------------------- Denoise effect ------------------------------
+
+
+def test_denoise_ffmpeg_writes_valid_wav(tmp_path: Path) -> None:
+    """ffmpeg afftdn produces a valid 16 kHz mono WAV with recorded params."""
+    src = tmp_path / "in.wav"
+    rng = np.random.default_rng(seed=7)
+    noise = rng.standard_normal(2 * SR).astype(np.float32) * 0.05
+    _write(src, noise + _sine(1_000.0, 2.0, -20.0))
+
+    dst, config = clearspeech(
+        src, chain=("denoise",),
+        denoise_noise_floor_db=-25.0, denoise_reduction_db=12.0,
+    )
+
+    assert dst.exists() and dst.name == "in.denoise.wav"
+    step = config["steps"][0]
+    assert step["params"] == {"noise_floor_db": -25.0, "reduction_db": 12.0}
+    out, sr = sf.read(dst, dtype="float32")
+    assert sr == SR
+    assert out.ndim == 1
+
+
+def test_denoise_invalid_params_raise(tmp_path: Path) -> None:
+    src = tmp_path / "in.wav"
+    _write(src, _sine(440, 0.25, -20))
+    with pytest.raises(ClearspeechError, match="noise_floor_db"):
+        clearspeech(src, chain=("denoise",), denoise_noise_floor_db=10.0)
+    with pytest.raises(ClearspeechError, match="reduction_db"):
+        clearspeech(src, chain=("denoise",), denoise_reduction_db=200.0)
+
+
+def test_denoise_writes_sibling_denoise_wav(tmp_path: Path) -> None:
+    src = tmp_path / "voice.raw.wav"
+    _write(src, _sine(1_000.0, 0.5, -20))
+
+    dst, _ = clearspeech(src, chain=("denoise",))
+
+    assert dst.name == "voice.raw.denoise.wav"
+    assert dst.parent == src.parent
+
+
+def test_full_chain_agc_denoise_bandpass_presence(tmp_path: Path) -> None:
+    """Four effects, denoise placed after AGC (the Metric-A-best order)."""
+    src = tmp_path / "audio.wav"
+    rng = np.random.default_rng(seed=1)
+    noise = rng.standard_normal(SR).astype(np.float32) * 0.03
+    _write(src, _sine(2_000.0, 1.0, -25.0) + noise)
+    turns = [DiarTurn(0.0, 1.0, "A")]
+
+    seen: list[tuple[int, str, str]] = []
+
+    def dump(idx, name, path):
+        seen.append((idx, name, path.name))
+
+    dst, config = clearspeech(
+        src, chain=("agc", "denoise", "bandpass", "presence"),
+        agc_turns=turns, dump=dump,
+    )
+
+    assert dst.name == "audio.agc.denoise.bandpass.presence.wav"
+    assert config["chain"] == ["agc", "denoise", "bandpass", "presence"]
+    assert [s["name"] for s in config["steps"]] == [
+        "agc", "denoise", "bandpass", "presence",
+    ]
+    assert [s[1] for s in seen] == ["agc", "denoise", "bandpass", "presence"]
+
+
 def test_full_chain_agc_bandpass_presence(tmp_path: Path) -> None:
     """Three effects in canonical order; intermediate WAVs all written."""
     src = tmp_path / "audio.wav"

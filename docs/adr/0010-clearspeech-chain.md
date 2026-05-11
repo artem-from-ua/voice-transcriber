@@ -59,3 +59,7 @@ For PR-1 the order is **canonically fixed** at `agc → bandpass` (validated by 
 ## Note (v0.15.0)
 
 PR-2 (`feature/clearspeech-presence`) added the `presence` effect and lifted the `_PR1_ALLOWED_CHAINS` gate — `clearspeech()` now accepts any permutation of known effects (`agc`, `bandpass`, `presence`); duplicates and unknown names raise `ValueError`. The CLI also collapsed from per-effect toggles to a single `--clearspeech-chain` string. See [ADR 0012](0012-clearspeech-chain-string-cli.md) for the new CLI shape and rationale. The chain-of-effects architecture decision from this ADR remains in force.
+
+## Note (v0.16.0)
+
+PR-3 (`feature/clearspeech-denoise`) added the `denoise` effect (FFT-domain spectral subtraction via `ffmpeg afftdn`). Default chain stays `"agc"` — no Metric A win at any tested position. The interesting finding for the chain abstraction is that physics intuition about effect ordering (denoise must run on raw signal, i.e. pre-AGC) lost to empirical measurement — pre-AGC denoise is catastrophic on this material (27.5 % RU drift), post-AGC denoise is "merely worse than nothing" (8.2 % vs 5.1 % baseline). See [ADR 0014](0014-clearspeech-denoise.md) for the five-run grid and the chain-position reasoning.

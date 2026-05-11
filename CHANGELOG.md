@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] — 2026-05-12
+
+### Added
+- New clearspeech effect **denoise** (issue #48, E2d): FFT-domain spectral subtraction via `ffmpeg afftdn`, exposed by two knobs — `--clearspeech-denoise-noise-floor-db` (default `-25`) and `--clearspeech-denoise-reduction-db` (default `12`). No new Python dependency: the existing ffmpeg subprocess used by stage `[1]` is reused. **Default off; experimental opt-in.** Metric A on the reference recording shows denoise degrades ASR at every position measured — the bare-AGC default (5.1 % RU-glyph drift) stays the empirical best, and the best chain involving denoise lands at 8.2 % (post-AGC). Pre-AGC denoise is catastrophic (27.5 %, comparable to the `agc,presence`-without-bandpass foot-gun from ADR 0013). See [`docs/adr/0014-clearspeech-denoise.md`](docs/adr/0014-clearspeech-denoise.md) for the five-run grid, the backend bake-off (`noisereduce` was dropped on the listening A/B), and the OpenAI Whisper-rule verification.
+- The `--clearspeech-chain` `--help` warning now flags two foot-guns: enabling `presence` without `bandpass` first (ADR 0013) and enabling `denoise` at all on Ukrainian content (ADR 0014).
+
+### Changed
+- Pipeline log line `[4/10] Clearspeech (…)` now includes `denoise` when present. No change to dump layout — denoise writes `02b-clearspeech-N-denoise.wav` per the existing per-effect numbering.
+
 ## [0.15.0] — 2026-05-11
 
 ### Added
