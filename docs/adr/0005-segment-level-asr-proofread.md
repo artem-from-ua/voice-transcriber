@@ -5,6 +5,8 @@ date: 2026-05-11
 
 # ADR 0005 — Proof-read ASR per segment, not over the whole transcript
 
+> **Note (v0.13.0):** the stage was originally called `postprocess` in code; the module, CLI flag, dump filename, and prompt files were renamed to `proofread` to match the terminology this ADR has always used in prose. Behaviour is unchanged. See [CHANGELOG `[0.13.0]`](../../CHANGELOG.md) and ADR 0008 for the order decision that affects this stage.
+
 ## Context
 
 VibeVoice mishears some terms in a recurring way ("Hugging Space" → "Hugging Face", "градіо" → "Gradio", "CloudCop" → "Claude Code"). An LLM is well placed to fix those — but at what scope?
