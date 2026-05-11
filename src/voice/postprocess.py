@@ -18,6 +18,7 @@ from typing import Callable, Iterable
 
 import Levenshtein
 
+from ._prompts import render as render_prompt
 from .llm import LLMClient, LLMError
 from .types import Segment
 
@@ -25,24 +26,6 @@ from .types import Segment
 MIN_LEN_FOR_FIX = 10
 MAX_EDIT_RATIO = 0.5
 MAX_LENGTH_RATIO = 2.0
-
-
-_SYSTEM_PROMPT = """You are a careful ASR transcript proofreader.
-
-Fix ONLY obvious speech-recognition mistakes: mis-heard proper nouns and
-technical terms ("Hugging Space" → "Hugging Face", "градіо" → "Gradio",
-"CloudCop" → "Claude Code"). Output the corrected line in {language} and
-nothing else — no quotes, no commentary, no explanations.
-
-Hard rules:
-- Do NOT paraphrase, summarise, or reorder words.
-- Do NOT regularise dialect/slang ("шо" stays "шо").
-- Do NOT add or remove punctuation beyond what's clearly already there.
-- If you are not confident a word is mis-heard, leave it as-is.
-- Preserve the speaker's voice and length."""
-
-
-_USER_TEMPLATE = "Text: {text}"
 
 
 def _is_marker(text: str) -> bool:
@@ -83,8 +66,8 @@ def fix_segment(
     if _is_marker(text) or len(text.strip()) < MIN_LEN_FOR_FIX:
         return text
     messages = [
-        {"role": "system", "content": _SYSTEM_PROMPT.format(language=language)},
-        {"role": "user", "content": _USER_TEMPLATE.format(text=text)},
+        {"role": "system", "content": render_prompt("postprocess_system", language=language)},
+        {"role": "user", "content": render_prompt("postprocess_user", text=text)},
     ]
     try:
         reply = llm.chat(messages, temperature=0.1, max_tokens=512)

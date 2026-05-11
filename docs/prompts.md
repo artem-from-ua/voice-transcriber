@@ -1,140 +1,52 @@
 # LLM prompts
 
-Every prompt below lives in code under `src/voice/<stage>.py`. This file is the source of truth for *why* each prompt looks the way it does and what its contract with the rest of the pipeline is.
+Prompts are kept as plain Markdown files in `src/voice/prompts/` and loaded by `voice._prompts.render()`. The Python modules only describe *how* a prompt is used (parameters, response parsing, safety net); the prompt text itself lives in one canonical place.
 
-All prompts run against an OpenAI-compatible chat-completions endpoint (LM Studio by default). Prompts that need a structured reply use `LLMClient.chat_json()` which sets `response_format={"type": "json_object"}` and retries once if the reply is not valid JSON.
+## Files
 
-## Speaker identification — `identify.py`
+| File | Role | Used by | Placeholders |
+|------|------|---------|--------------|
+| [`identify_system.md`](../src/voice/prompts/identify_system.md) | system | `voice.identify` | `language` |
+| [`identify_user.md`](../src/voice/prompts/identify_user.md) | user | `voice.identify` | `snippet` |
+| [`postprocess_system.md`](../src/voice/prompts/postprocess_system.md) | system | `voice.postprocess` | `language` |
+| [`postprocess_user.md`](../src/voice/prompts/postprocess_user.md) | user | `voice.postprocess` | `text` |
+| [`structure_system.md`](../src/voice/prompts/structure_system.md) | system | `voice.structure` | `language` |
+| [`structure_user.md`](../src/voice/prompts/structure_user.md) | user | `voice.structure` | `total_start_ms`, `total_end_ms`, `script` |
+| [`tldr_system_uk.md`](../src/voice/prompts/tldr_system_uk.md) | system | `voice.tldr` (uk) | — |
+| [`tldr_system_en.md`](../src/voice/prompts/tldr_system_en.md) | system | `voice.tldr` (en) | — |
 
-**Goal:** decide whether the first ~60 s of a pyannote cluster contains a self-introduction, and, if so, extract the name.
+## Template syntax
 
-**LLM contract:**
-- Request: `chat_json`, `temperature=0.1`, `max_tokens=64`
-- Reply schema: `{"name": "<string>" or null, "confidence": "high" | "medium" | "low"}`
+Each file starts with a YAML frontmatter (`name`, `used_by`, `role`, `placeholders`, sometimes `response_format` or `language`). The loader strips the frontmatter; only the body reaches the model.
 
-**System prompt (verbatim):**
+Placeholder substitution uses `<<key>>` delimiters — not `{}` or `${}` — to keep JSON examples in the prompt body intact. `render("identify_system", language="uk")` returns the prompt with `<<language>>` replaced; a missing argument raises `KeyError`.
 
-```text
-You identify whether a speaker introduces themselves in a short transcript snippet.
+`list_placeholders(name)` returns the order-preserving, de-duplicated set of placeholders a file uses. The `test_all_pipeline_prompts_load` test exercises every shipped file with empty values to guarantee everything resolves at startup.
 
-Respond ONLY with a JSON object of the form:
-  {"name": "<name>" or null, "confidence": "high" | "medium" | "low"}
+## LLM call contracts
 
-Rules:
-- Return a name only when the speaker explicitly names themselves ("я Артем", "this is Sam", "мене звати Олена").
-- Naming someone else does NOT count ("Артем сказав, що…" → null).
-- Filler words like "я", "I" alone → null.
-- The transcript may be in any language; the current expected language is {language}.
-- Output JSON only, no commentary.
-```
+The wire-level contract (temperature, max_tokens, response_format) stays in the Python module that calls each prompt. The combinations are:
 
-**Safety net:**
-- The returned `name` must start with an uppercase letter and be ≥ 2 chars.
-- `low` confidence is treated as no match.
-- If two clusters claim the same name, the higher-confidence one wins; the other becomes unidentified.
+| Stage | Function | Temperature | max_tokens | response_format | Retries |
+|-------|----------|-------------|------------|-----------------|---------|
+| identify | `LLMClient.chat_json` | 0.1 | 64 | json_schema (object) | 1 |
+| postprocess | `LLMClient.chat` | 0.1 | 512 | text (default) | 0 |
+| structure | `LLMClient.chat_json` | 0.2 | 2048 | json_schema (object) | 1 |
+| tldr | `LLMClient.chat` | 0.3 | 1024 | text (default) | 0 |
 
-## ASR proof-reading — `postprocess.py`
+For LM Studio's MLX runtime the response format value is sent as `{"type": "json_schema", "json_schema": {"name": "response", "strict": false, "schema": {"type": "object"}}}` — the OpenAI-classic `{"type": "json_object"}` is rejected with HTTP 400. See [ADR 0001](adr/0001-local-llm-via-lm-studio.md) for the LM Studio choice and `CHANGELOG.md` 0.6.1 for the fix.
 
-**Goal:** fix obvious ASR mishearings *one segment at a time* — never globally.
+## Safety nets
 
-**LLM contract:**
-- Request: `chat`, `temperature=0.1`, `max_tokens=512`
-- Reply schema: plain text — the corrected segment only.
+| Stage | Validation |
+|-------|------------|
+| identify | name must start with an uppercase letter, ≥ 2 chars, confidence ≠ low; duplicate-name conflicts resolved by confidence then first appearance |
+| postprocess | reply rejected if length ratio > 2× either way or Levenshtein / max length > 0.5; surrounding quotes stripped |
+| structure | JSON must be `{"sections":[…]}` with 2–7 entries, contiguous, covering the dialogue exactly; otherwise fallback to single "Розмова" / "Conversation" section |
+| tldr | LLM error → empty string; renderer omits the whole "## TL;DR" block silently |
 
-**System prompt (verbatim):**
+See each module under `src/voice/` for the implementation of these checks.
 
-```text
-You are a careful ASR transcript proofreader.
+## Editing prompts
 
-Fix ONLY obvious speech-recognition mistakes: mis-heard proper nouns and
-technical terms ("Hugging Space" → "Hugging Face", "градіо" → "Gradio",
-"CloudCop" → "Claude Code"). Output the corrected line in {language} and
-nothing else — no quotes, no commentary, no explanations.
-
-Hard rules:
-- Do NOT paraphrase, summarise, or reorder words.
-- Do NOT regularise dialect/slang ("шо" stays "шо").
-- Do NOT add or remove punctuation beyond what's clearly already there.
-- If you are not confident a word is mis-heard, leave it as-is.
-- Preserve the speaker's voice and length.
-```
-
-**Safety net:**
-- Segments under 10 chars and marker segments (`[Human Sounds]`) skip the LLM.
-- The reply is rejected when length differs by more than 2× or Levenshtein distance / max length exceeds 0.5.
-- Surrounding quotes are stripped before comparison.
-
-See [ADR 0005](adr/0005-segment-level-asr-postprocess.md) for the rationale of per-segment rather than whole-transcript proofreading.
-
-## Section structuring — `structure.py`
-
-**Goal:** split the dialogue into 2–7 thematic sections, each titled by content (not stage directions).
-
-**LLM contract:**
-- Request: `chat_json`, `temperature=0.2`, `max_tokens=2048`
-- Reply schema:
-  ```json
-  {
-    "sections": [
-      {"title": "<short>", "start_ms": <int>, "end_ms": <int>},
-      ...
-    ]
-  }
-  ```
-
-**System prompt (verbatim):**
-
-```text
-You split a dialogue into thematic sections.
-
-Output JSON of the form:
-  {"sections": [{"title": "<short title>", "start_ms": <int>, "end_ms": <int>}, ...]}
-
-Rules:
-- 2 to 7 sections; cover the whole timeline; sections must NOT overlap.
-- The first section starts at 0 ms; the last ends at the dialogue end.
-- Titles describe WHAT the speakers discuss (a topic), not stage directions.
-- Title language: {language}.
-- Use the supplied [HH:MM:SS] marks to pick boundaries; long pauses are good places to split.
-- Respond with valid JSON only, no commentary, no markdown fences.
-```
-
-**Safety net:**
-- Validate count (2..7), contiguity (`sections[i].end == sections[i+1].start`), coverage (first start == dialogue start, last end == dialogue end), and integer types.
-- On any validation failure, fall back to a single section titled `Розмова` / `Conversation`.
-
-## TL;DR — `tldr.py`
-
-**Goal:** a short Markdown summary in the target language.
-
-**LLM contract:**
-- Request: `chat`, `temperature=0.3`, `max_tokens=1024`
-- Reply schema: free-form Markdown, no leading `## TL;DR` heading (the renderer adds it).
-
-**System prompt — Ukrainian (verbatim):**
-
-```text
-Згенеруй TL;DR розмови у форматі Markdown:
-
-- 2–3 речення основного підсумку
-- 3–5 ключових тез у вигляді буллет-списку
-- розділ **Action items:** (якщо є явні плани, домовленості або задачі — інакше пропусти)
-
-Не додавай заголовок "TL;DR" (його додасть інша частина системи).
-Не вигадуй фактів, яких немає в тексті.
-```
-
-**System prompt — English (verbatim):**
-
-```text
-Generate a Markdown TL;DR of the conversation:
-
-- 2–3 sentences of the main summary
-- 3–5 key points as a bullet list
-- a **Action items:** section if explicit plans, agreements, or tasks were mentioned (omit otherwise)
-
-Do not add a "TL;DR" heading (the rest of the system adds it).
-Do not invent facts that are not in the transcript.
-```
-
-The selector strips locale suffixes (`en-US` → `en`) and treats anything that does not start with `en` as Ukrainian.
+Prompt edits do not require a code change: edit the `.md` file and rerun. The loader is `lru_cache`-d, so a fresh Python process is needed to pick up the change (the CLI is single-shot anyway). The frontmatter is informational; keep `placeholders:` honest for the test suite to remain green.
