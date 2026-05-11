@@ -5,12 +5,9 @@ All notable changes to this project will be documented in this file. The format 
 ## [0.9.1] — 2026-05-11
 
 ### Changed
-- Markdown header: `📅 Початок` now prints as `2026-05-10 15:44 UTC` (normalised to UTC), `🌐 Мова` shows the full Ukrainian name (`Українська`, `Бразильська португальська`) read from `src/voice/data/language_names.json`. Unknown codes pass through verbatim.
-- Removed: `🏁 Кінець` line (redundant with `Початок` + `Тривалість`).
+- Markdown header: `📅 Початок` now prints as `2026-05-10 15:44 UTC` (normalised to UTC). `🌐 Мова` continues to show the raw ISO code passed in via `--language`.
+- Removed lines from the header: `🏁 Кінець` (redundant with `Початок` + `Тривалість`) and `🎙️ Транскрипція` (the toolchain doesn't belong in the transcript itself). `render_markdown(asr_label=…)` is still accepted for backward-compatibility but is no longer rendered.
 - Memory line in progress UI: `RAM 9.4 GB (59%) · MLX 8.0 GB`. Dropped `/16.0 GB` total (never changes) and `peak N.N GB` (only ratchets up — duplicates info from the active value).
-
-### Added
-- `src/voice/data/language_names.json` — editable mapping of language codes to Ukrainian names; new languages need only a JSON edit, no Python change.
 
 ## [0.9.0] — 2026-05-11
 

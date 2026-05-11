@@ -1,7 +1,5 @@
 # Output format
 
-> The friendly names shown in the `🌐 Мова` line come from `src/voice/data/language_names.json`. Adding a new entry there is enough to support a new language code — no Python change needed.
-
 The pipeline writes a single Markdown file. Its structure is fixed; what varies is whether the TL;DR and section H2 headings are present.
 
 ## Anatomy

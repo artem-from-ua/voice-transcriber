@@ -44,26 +44,12 @@ def test_render_minimal_dialogue():
     assert "# Транскрипт: foo.m4a" in out
     assert "📅 **Початок:** 2026-05-10 15:44 UTC" in out
     assert "⏱️ **Тривалість:** 6:14" in out
-    assert "🌐 **Мова:** Українська" in out
+    # Language is rendered as the raw ISO code; no friendly translation.
+    assert "🌐 **Мова:** uk" in out
     assert "🏁" not in out, "no 'Кінець' line expected"
     assert "## Привітання" in out
     assert "🔵 **Артем:** Привіт!" in out
     assert "🟢 **Остап:** Привіт-привіт." in out
-
-
-def test_render_uses_friendly_language_name_with_fallback():
-    """Known codes (uk, pt-br) render full names; unknowns pass through."""
-    segs = [Segment(start=0, end=1, content="hi", speaker="A", name="Sam")]
-    dialog = StructuredDialog(
-        sections=[Section(title="Test", start_ms=0, end_ms=1000)],
-        segments=segs,
-    )
-    out_uk = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
-    out_ptbr = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="pt-br")
-    out_xx = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="xx-YY")
-    assert "🌐 **Мова:** Українська" in out_uk
-    assert "🌐 **Мова:** Бразильська португальська" in out_ptbr
-    assert "🌐 **Мова:** xx-YY" in out_xx
 
 
 def test_render_normalises_started_at_with_offset():

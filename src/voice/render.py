@@ -17,10 +17,7 @@ speaker are dropped unless they are long enough to warrant an explicit
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
-from functools import lru_cache
-from importlib.resources import files
 from pathlib import Path
 
 from .speaker_emojis import assign_emojis
@@ -29,22 +26,6 @@ from .types import AudioMeta, Section, Segment, StructuredDialog
 
 PARAGRAPH_GAP_S = 2.0
 EXPLICIT_PAUSE_S = 3.0
-
-
-@lru_cache(maxsize=1)
-def _language_names() -> dict[str, str]:
-    """Load friendly language names from the packaged JSON file.
-
-    Keys are normalised to lowercase. The `_comment` field is dropped.
-    Adding a new language only takes editing
-    `src/voice/data/language_names.json` — no Python change.
-    """
-    raw = files("voice.data").joinpath("language_names.json").read_text(encoding="utf-8")
-    return {
-        k.lower(): v
-        for k, v in json.loads(raw).items()
-        if not k.startswith("_")
-    }
 
 
 def _format_duration(seconds: float) -> str:
@@ -66,9 +47,6 @@ def _format_started_at(iso: str) -> str:
     return dt_utc.strftime("%Y-%m-%d %H:%M UTC")
 
 
-def _language_name(code: str) -> str:
-    """Friendly Ukrainian name for a language code; pass-through if unknown."""
-    return _language_names().get(code.lower(), code)
 
 
 def _speakers_in_order(segments: list[Segment]) -> list[str]:
@@ -139,9 +117,14 @@ def render_markdown(
     dialog: StructuredDialog,
     tldr: str = "",
     language: str = "uk",
-    asr_label: str = "VibeVoice-ASR",
+    asr_label: str | None = None,  # noqa: ARG001 — kept for backward-compatible signature
 ) -> str:
-    """Compose the full Markdown output."""
+    """Compose the full Markdown output.
+
+    `asr_label` is accepted but no longer rendered (the header no longer
+    advertises the toolchain). Kept in the signature so existing callers
+    that still pass it don't break.
+    """
     basename = Path(audio_meta.path).name
     speakers = _speakers_in_order(dialog.segments)
     emoji_for = assign_emojis(speakers)
@@ -151,8 +134,7 @@ def render_markdown(
     lines.append("")
     lines.append(f"> 📅 **Початок:** {_format_started_at(audio_meta.started_at)}")
     lines.append(f"> ⏱️ **Тривалість:** {_format_duration(audio_meta.duration_s)}")
-    lines.append(f"> 🎙️ **Транскрипція:** {asr_label} + pyannote 3.1")
-    lines.append(f"> 🌐 **Мова:** {_language_name(language)}")
+    lines.append(f"> 🌐 **Мова:** {language}")
     lines.append("")
 
     if tldr:
