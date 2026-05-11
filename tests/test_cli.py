@@ -43,6 +43,16 @@ def test_asr_tuning_knobs_parsed():
     assert opts.asr_temperature == 0.2
 
 
+def test_dump_stages_flag_parsed():
+    ns = _parse(["transcribe", "/tmp/a.m4a", "--dump-stages", "/tmp/dump-dir"])
+    assert _opts_from_args(ns).dump_stages_dir == "/tmp/dump-dir"
+
+
+def test_dump_stages_defaults_to_none():
+    ns = _parse(["transcribe", "/tmp/a.m4a"])
+    assert _opts_from_args(ns).dump_stages_dir is None
+
+
 def test_names_parsed_into_list():
     ns = _parse(["transcribe", "/tmp/a.m4a", "--names", "Артем,Остап,Богдан"])
     assert _opts_from_args(ns).names_override == ["Артем", "Остап", "Богдан"]
