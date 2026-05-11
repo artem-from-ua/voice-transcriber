@@ -3211,7 +3211,7 @@ wheels = [
 
 [[package]]
 name = "voice"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
@@ -3222,6 +3222,7 @@ dependencies = [
     { name = "pyannote-audio" },
     { name = "python-levenshtein" },
     { name = "rich" },
+    { name = "scipy" },
     { name = "soundfile" },
     { name = "torch" },
     { name = "torchaudio" },
@@ -3242,6 +3243,7 @@ requires-dist = [
     { name = "pyannote-audio", specifier = ">=3.1" },
     { name = "python-levenshtein", specifier = ">=0.27.3" },
     { name = "rich", specifier = ">=13" },
+    { name = "scipy", specifier = ">=1.14" },
     { name = "soundfile", specifier = ">=0.12" },
     { name = "torch", specifier = ">=2.11.0" },
     { name = "torchaudio", specifier = ">=2.11.0" },
