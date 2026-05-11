@@ -42,13 +42,19 @@ The model's greedy decoder got stuck. The pipeline already enables `repetition_p
 - Re-encode the input to clean WAV first if it's a heavily compressed file (e.g. low-bitrate MP3).
 - For investigation only: run the affected segment through the standalone `mlx_audio.stt.generate` CLI with `--verbose` to see the loop in the log.
 
-## "LLM returned invalid JSON after 2 attempt(s)"
+## JSON-constrained LLM call (`identify` / `structure`) still failed
 
-The LLM failed to produce valid JSON twice in a row for an identify or structure call.
+Since v0.7.0 (ADR 0006) `MlxLLM.chat_json()` uses `lm-format-enforcer` as a logits processor against a JSON schema — output is guaranteed to be parseable on the first try, there is no retry loop. If a call still fails it means generation itself blew up (the model crashed mid-stream, hit an OOM, or the schema is unsatisfiable), not that the model returned text instead of JSON.
 
-- `identify`: the affected cluster will fall back to the `--unknown-speaker` policy. No crash, but no name.
+The pipeline degrades gracefully in both cases:
+
+- `identify`: the affected cluster falls back to the `--unknown-speaker` policy (`ask` prompts on stdin; `keep` leaves `SPEAKER_XX`). No crash, but no name.
 - `structure`: the whole dialogue collapses to one fallback section called `Розмова`. No crash.
-- Likely cause: the model isn't following the `response_format` hint. Swap to a more capable model: `--llm-model mlx-community/gemma-3-12b-it-4bit` (or QAT variant).
+
+If you see this repeatedly:
+
+- Check for OOM / Metal allocator errors in the same run (see *"Out of memory" / Metal allocator errors* below) — exhaustion mid-generation is the most common cause.
+- Try a more capable or differently-quantised model: `--llm-model /path/to/mlx-community/gemma-3-12b-it-4bit`.
 
 ## Speaker still labelled `SPEAKER_00` / `SPEAKER_01`
 
