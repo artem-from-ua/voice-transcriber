@@ -11,35 +11,14 @@ from __future__ import annotations
 import sys
 from typing import Callable, Iterable
 
+from ._prompts import render as render_prompt
 from .llm import LLMClient, LLMError
 from .types import Segment
 
 
-_PROMPT_UK = """Згенеруй TL;DR розмови у форматі Markdown:
-
-- 2–3 речення основного підсумку
-- 3–5 ключових тез у вигляді буллет-списку
-- розділ **Action items:** (якщо є явні плани, домовленості або задачі — інакше пропусти)
-
-Не додавай заголовок "TL;DR" (його додасть інша частина системи).
-Не вигадуй фактів, яких немає в тексті.
-"""
-
-_PROMPT_EN = """Generate a Markdown TL;DR of the conversation:
-
-- 2–3 sentences of the main summary
-- 3–5 key points as a bullet list
-- a **Action items:** section if explicit plans, agreements, or tasks were mentioned (omit otherwise)
-
-Do not add a "TL;DR" heading (the rest of the system adds it).
-Do not invent facts that are not in the transcript.
-"""
-
-
 def _pick_prompt(language: str) -> str:
-    if language.lower().startswith("en"):
-        return _PROMPT_EN
-    return _PROMPT_UK
+    name = "tldr_system_en" if language.lower().startswith("en") else "tldr_system_uk"
+    return render_prompt(name)
 
 
 def _format_dialogue(segments: list[Segment]) -> str:

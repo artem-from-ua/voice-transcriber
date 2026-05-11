@@ -14,33 +14,12 @@ import sys
 from collections import defaultdict
 from typing import Callable, Iterable, Literal
 
+from ._prompts import render as render_prompt
 from .llm import LLMClient, LLMError
 from .types import Segment
 
 
 INTRO_WINDOW_S = 60.0
-
-
-_SYSTEM_PROMPT = """You identify whether a speaker introduces themselves in a short transcript snippet.
-
-Respond ONLY with a JSON object of the form:
-  {{"name": "<name>" or null, "confidence": "high" | "medium" | "low"}}
-
-Rules:
-- Return a name only when the speaker explicitly names themselves ("я Артем", "this is Sam", "мене звати Олена").
-- Naming someone else does NOT count ("Артем сказав, що…" → null).
-- Filler words like "я", "I" alone → null.
-- The transcript may be in any language; the current expected language is {language}.
-- Output JSON only, no commentary."""
-
-
-_USER_PROMPT = """Does the speaker introduce themselves in the following snippet?
-
-Snippet:
-\"\"\"
-{snippet}
-\"\"\"
-"""
 
 
 Policy = Literal["ask", "keep"]
@@ -83,8 +62,8 @@ def _ask_llm_for_name(
     language: str,
 ) -> tuple[str | None, str]:
     messages = [
-        {"role": "system", "content": _SYSTEM_PROMPT.format(language=language)},
-        {"role": "user", "content": _USER_PROMPT.format(snippet=snippet)},
+        {"role": "system", "content": render_prompt("identify_system", language=language)},
+        {"role": "user", "content": render_prompt("identify_user", snippet=snippet)},
     ]
     try:
         payload = llm.chat_json(messages, temperature=0.1, max_tokens=64)

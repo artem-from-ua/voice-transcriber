@@ -12,6 +12,7 @@ from __future__ import annotations
 import sys
 from typing import Callable, Iterable
 
+from ._prompts import render as render_prompt
 from .llm import LLMClient, LLMError
 from .types import Section, Segment, StructuredDialog
 
@@ -19,20 +20,6 @@ from .types import Section, Segment, StructuredDialog
 PAUSE_GAP_S = 3.0
 MIN_SECTIONS = 2
 MAX_SECTIONS = 7
-
-
-_SYSTEM_PROMPT = """You split a dialogue into thematic sections.
-
-Output JSON of the form:
-  {{"sections": [{{"title": "<short title>", "start_ms": <int>, "end_ms": <int>}}, ...]}}
-
-Rules:
-- 2 to 7 sections; cover the whole timeline; sections must NOT overlap.
-- The first section starts at 0 ms; the last ends at the dialogue end.
-- Titles describe WHAT the speakers discuss (a topic), not stage directions.
-- Title language: {language}.
-- Use the supplied [HH:MM:SS] marks to pick boundaries; long pauses are good places to split.
-- Respond with valid JSON only, no commentary, no markdown fences."""
 
 
 def _format_timestamp(seconds: float) -> str:
@@ -119,13 +106,20 @@ def structure_dialog(
         return StructuredDialog(sections=_fallback_section(segs, language), segments=segs)
 
     script = _build_script(speech, PAUSE_GAP_S)
-    user = (
-        f"Dialogue spans {total_start_ms} ms to {total_end_ms} ms.\n\n"
-        f"Script:\n{script}"
-    )
     messages = [
-        {"role": "system", "content": _SYSTEM_PROMPT.format(language=language)},
-        {"role": "user", "content": user},
+        {
+            "role": "system",
+            "content": render_prompt("structure_system", language=language),
+        },
+        {
+            "role": "user",
+            "content": render_prompt(
+                "structure_user",
+                total_start_ms=total_start_ms,
+                total_end_ms=total_end_ms,
+                script=script,
+            ),
+        },
     ]
 
     try:
