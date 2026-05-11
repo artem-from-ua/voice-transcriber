@@ -11,5 +11,7 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | 5   | [Proof-read ASR per segment, not over the whole transcript](0005-segment-level-asr-proofread.md) | accepted           |
 | 6   | [Run the LLM in-process via mlx-lm](0006-mlx-lm-over-lm-studio.md)                     | accepted (supersedes 0001)   |
 | 7   | [Defaults for the loudness-normalize stage](0007-loudness-normalize-defaults.md)       | accepted                     |
+| 8   | [Keep proofread before identify; do not reorder](0008-keep-proofread-before-identify.md) | accepted                   |
+| 9   | [Single diarize pass on the raw WAV](0009-single-diarize-pass.md)                      | accepted                     |
 
 New decisions land here as `NNNN-kebab-case-title.md` with the same frontmatter (`status`, `date`, optional `supersedes` / `superseded_by`).
