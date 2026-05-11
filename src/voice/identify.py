@@ -14,6 +14,7 @@ import sys
 from collections import defaultdict
 from typing import Callable, Iterable, Literal
 
+from ._progress import NullProgress, ProgressReporter
 from ._prompts import call_kwargs, render as render_prompt
 from .llm import LLMError, MlxLLM
 from .types import Segment
@@ -130,6 +131,7 @@ def identify_speakers(
     names_override: list[str] | None = None,
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
     read_input: Callable[[str], str] = input,
+    progress: "ProgressReporter | None" = None,
 ) -> dict[str, str]:
     """Return mapping `pyannote_label → human_name`.
 
@@ -147,14 +149,20 @@ def identify_speakers(
         candidates: dict[str, tuple[str, str]] = {}
     else:
         candidates = {}
-        for cluster in clusters:
-            snippet = _cluster_snippet(segs, cluster, INTRO_WINDOW_S)
-            if not snippet:
-                continue
-            name, confidence = _ask_llm_for_name(llm, snippet, language)
-            if name and confidence != "low":
-                candidates[cluster] = (name, confidence)
-                log(f"identify: {cluster} → {name} ({confidence})")
+        reporter = progress if progress is not None else NullProgress()
+        with reporter.task(
+            "[7/9] Ідентифікація мовців", total=len(clusters)
+        ) as advance:
+            for cluster in clusters:
+                snippet = _cluster_snippet(segs, cluster, INTRO_WINDOW_S)
+                if not snippet:
+                    advance(1)
+                    continue
+                name, confidence = _ask_llm_for_name(llm, snippet, language)
+                if name and confidence != "low":
+                    candidates[cluster] = (name, confidence)
+                    log(f"identify: {cluster} → {name} ({confidence})")
+                advance(1, suffix=f"{len(candidates)} named")
 
     mapping = _resolve_conflicts(candidates, first_seen)
 

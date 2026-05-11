@@ -24,19 +24,19 @@ def free_mlx(log: Callable[[str], None] = lambda _s: None) -> None:
         import mlx.core as mx  # type: ignore[import-not-found]
     except ImportError:
         return
-    for fn_name in ("clear_cache",):
-        fn = getattr(mx, fn_name, None)
-        if callable(fn):
-            try:
-                fn()
-            except Exception as exc:  # noqa: BLE001
-                log(f"memory: mx.{fn_name}() raised {exc!r}; continuing")
-    metal = getattr(mx, "metal", None)
-    if metal is not None and callable(getattr(metal, "clear_cache", None)):
+    # `mx.clear_cache` is the canonical entry point in mlx ≥ 0.21; older
+    # versions exposed it under `mx.metal.clear_cache`. Try the new one
+    # first and fall back if it's missing so we never trigger a Metal
+    # deprecation warning on a current install.
+    fn = getattr(mx, "clear_cache", None)
+    if fn is None:
+        metal = getattr(mx, "metal", None)
+        fn = getattr(metal, "clear_cache", None) if metal is not None else None
+    if callable(fn):
         try:
-            metal.clear_cache()
+            fn()
         except Exception as exc:  # noqa: BLE001
-            log(f"memory: mx.metal.clear_cache() raised {exc!r}; continuing")
+            log(f"memory: clear_cache() raised {exc!r}; continuing")
 
 
 def free_torch_mps(log: Callable[[str], None] = lambda _s: None) -> None:

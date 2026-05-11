@@ -11,6 +11,7 @@ from __future__ import annotations
 import sys
 from typing import Callable, Iterable
 
+from ._progress import NullProgress, ProgressReporter
 from ._prompts import call_kwargs, render as render_prompt
 from .llm import LLMError, MlxLLM
 from .types import Segment
@@ -39,6 +40,7 @@ def generate_tldr(
     llm: MlxLLM,
     language: str = "uk",
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
+    progress: "ProgressReporter | None" = None,
 ) -> str:
     """Return a Markdown TL;DR string, or empty string on failure."""
     transcript = _format_dialogue(list(segments))
@@ -50,8 +52,12 @@ def generate_tldr(
         {"role": "system", "content": render_prompt(prompt_name)},
         {"role": "user", "content": transcript},
     ]
+    reporter = progress if progress is not None else NullProgress()
     try:
-        text = llm.chat(messages, **call_kwargs(prompt_name))
+        with reporter.token_counter("[9/9] TL;DR") as advance:
+            text = llm.chat(
+                messages, on_token=advance, **call_kwargs(prompt_name),
+            )
     except LLMError as exc:
         log(f"tldr: LLM error — {exc}; skipping")
         return ""
