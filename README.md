@@ -13,7 +13,7 @@ The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR
 - macOS on Apple Silicon
 - [`ffmpeg`](https://ffmpeg.org/) in `PATH`
 - [`uv`](https://github.com/astral-sh/uv) for dependency management
-- [LM Studio](https://lmstudio.ai/) installed (used only to download models into its cache; no server needed at runtime)
+- [LM Studio](https://lmstudio.ai/) — for downloading models only; the server does not need to run. The pipeline loads the LLM in-process via `mlx-lm` and just reuses LM Studio's model cache at `~/.cache/lm-studio/models/`.
 - A Hugging Face account with **accepted licenses** for:
   - [`pyannote/speaker-diarization-3.1`](https://huggingface.co/pyannote/speaker-diarization-3.1)
   - [`pyannote/segmentation-3.0`](https://huggingface.co/pyannote/segmentation-3.0)

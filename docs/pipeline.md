@@ -19,7 +19,7 @@ participant ffprobe
 participant asr
 participant diarize
 participant merge
-participant llm as "LM Studio"
+participant llm as "mlx-lm\n(in-process)"
 participant identify
 participant postprocess
 participant structure
@@ -37,7 +37,7 @@ pipeline -> diarize : diarize(wav)
 diarize --> pipeline : DiarTurn[]
 pipeline -> merge : merge(asr, turns)
 merge --> pipeline : Segment[]
-pipeline -> llm : GET /v1/models (health)
+pipeline -> llm : MlxLLM.load() + health_check()
 llm --> pipeline : ok
 pipeline -> postprocess : fix_asr_errors(segments)
 postprocess --> pipeline : Segment[] (proof-read)
@@ -58,7 +58,7 @@ end legend
 @enduml
 ```
 
-![Pipeline sequence](https://www.plantuml.com/plantuml/svg/XLJ1ZjCm4BtxAqRBWLJgjbG23ZsWBRi89BeIqYvmG2XoaqbYrR63FUakYv0uyG68BzmlOPmctJe2eKgjFVFyPlh6psUUfAEsre8KQOHtga6j3CBzZzzGj5g3QmqKpjOWsrnP80kNqcrpUsD4fNA4mbhQs5lXjyeqqiaQF7vfqMIuSixUN5Sgsnhq7XQpPqUWjIfmpOLUMfUZExVQEdXq_YHyX90PyVQzHoSOJIfJZJG4cLRHlkcRZO95KJTOWlHmib-UZDADivluYFHndLn9f-vYJ8skZ2DQrrsLzILSKT0cBiJQ65B5rxXZwudhPwn75FVasenQ5rSWdSUDEJGibX116JXz4GI19UoioX38IUCpfpRTI6RrKob2cb63J0pbOIQs8MMDduX3d36zQilXBDp__0MBvx1zSmUrDHO-hZwC3dGwyWcyvT8PfJMIp2N9fAUOY05p6ZUn2c9TCZeYv25mxk5V93ToDuMD8Zy5BKtPoX8d8g36TDvTOLcpsfy-Hupz61dIhmBbH0pX4Sq5XwzRPqOatTmvtVqcN7uAFASWtpupOlbx9-6gBE7rgskOxnRpskQeFIGLIatLH8JiYCPke_D7roQCIDsct4YAx2_d4xyl6GPw1FjNNv0mmXQd3cKUNu7XmZ9wMAQ-GRd5gCW1DghmJSiDwYKOMUFtYFXmkHbrMASy1ctB8-87sBZt8P5VT6SYyk0HnfHeq4d2DEoFIBlqYAyUtgzZdhsrWaMwHJg0ajbiDX5zzlz41rCsagevsNbdXdnlHKvspkrTbWkXaHlFmQco8W6mEd_BzNt3zaGFlcBkxY56cLKi7JlWiGVRKjFo8-NKZa5K8HYs86HIwva8R7jISSPV_B3_0G00)
+![Pipeline sequence](https://www.plantuml.com/plantuml/svg/XLJDRjGm4BxxAKRbG2AwAPM0mnvGb_Q0nAw4H843eCYRJ18h_WcsqouW94uy0E89-oICiybs7O5GfCIU-VpDP6O-NpZFhU-LP5vuYV1QT2Y5HhZxyHkgNagmlORA6WMyBuK1Rs33RLkQMyqQKI9KnlYjsJ7N2jrnonKu_DoZBd1bhRczRaJHQdGEphEdHw2rg71DWLuOMwAzDD9OU73vE3oCySBJzgr3omZjHI4whZqKKaJxRamsCbQLwh06xk1alpoPkJjhjl4Hxk8ufU1MV8qn2cqTMwHKGnGbTmkfFkf4w0Ln5_IlQHoJogIzgBx4oHldHtXaTzxsXUzj7CpBCixHegQwCHQA18ldeJQmX1iZ2WHlkNQ55TkXEvbwmbbm4sgg646fhudfl33QfUnW9ynOmELq5kv-_eBpPz2-_0hAQ0FlL-zc1uQIqWdSKUZ2vmezBxddoKYHiWcpY9DOXPdQ43eYf7wGx_ulabj-SmfRuTqfIAxhdjUOie2Qqpdx1cj5rVxmAM8SEqgGSHKeKpQPPpHNPBxkhPwH32D0xk6RKFXJe3w5ykqzCvQ_PnAcPWaRkLklDvaql4nIU0GDSkcRl6YmQ9EK1T2CpRGHpT7qX4w9NKxvv4YAiovn-yYXhqUmVwK72I5CjR38otWIfhabzBJCNOUynIZ80JQBy4toBSebQAxmUqHyc7527TOvTKEQ-eZu7ZRFVNAKLyEPY3n8XJ0rQhJSOnxsHwI3UyQdfXljc6UliA2KOP5Fe2JBifIDtlyJ7RJPST-SUNCsQABSAvASWu17iPMCIQJ4Ix2YRZm3M5s-elYk8vMY0zSGzt0r8oyQAXq9uQ43q_kkfslBYXi2-GP1anAXu59cBB3jITa5lUYg_mC0)
 
 ## Stages
 
@@ -71,21 +71,21 @@ Approximate wall-clock figures are for a 6-minute Ukrainian conversation on an M
 | 3 | ASR | `mlx-audio` (`mlx_audio.stt.generate_transcription`) | WAV | `AsrSegment[]` | ~2–4 min |
 | 4 | Diarization | `pyannote.audio` 3.1 | WAV | `DiarTurn[]` (exclusive) | ~30 s |
 | 5 | Merge | pure Python | ASR + diar | `Segment[]` | < 1 s |
-| 6 | ASR proofread | LLM via LM Studio | `Segment[]` | `Segment[]` | ~30–60 s |
-| 7 | Identify | LLM via LM Studio | `Segment[]` | `{label: name}` | ~5–10 s |
-| 8 | Structure | LLM via LM Studio | `Segment[]` | `StructuredDialog` | ~10–20 s |
-| 9 | TL;DR | LLM via LM Studio | `Segment[]` | Markdown string | ~10–20 s |
+| 6 | ASR proofread | LLM via in-process `mlx-lm` | `Segment[]` | `Segment[]` | ~30–60 s |
+| 7 | Identify | LLM via in-process `mlx-lm` | `Segment[]` | `{label: name}` | ~5–10 s |
+| 8 | Structure | LLM via in-process `mlx-lm` | `Segment[]` | `StructuredDialog` | ~10–20 s |
+| 9 | TL;DR | LLM via in-process `mlx-lm` | `Segment[]` | Markdown string | ~10–20 s |
 | 10 | Render | pure Python | everything | Markdown file | < 1 s |
 
 ## Errors and recovery
 
 | Failure | Stage | Behaviour |
 |---------|-------|-----------|
-| LM Studio not running | health check | `RuntimeError` from CLI with the message *"LM Studio server is not reachable…"*; pipeline exits before any stage runs |
+| LLM model directory missing or invalid | health check | `MlxLLM.health_check()` raises with the actionable message *"LLM model not found at …"* pointing at LM Studio's Models tab; pipeline exits before any LLM stage runs. See [`troubleshooting.md`](troubleshooting.md) |
 | Hugging Face token missing | diarize | `DiarizationError` with path/`chmod` instructions |
 | Gated repo not accepted on HF | diarize | `GatedRepoError` from pyannote; see [`troubleshooting.md`](troubleshooting.md) |
-| ASR repetition loop | asr | model usually escapes within seconds thanks to `repetition_penalty=1.2`; if it persists, retry with `--asr-bits 8` |
-| LLM returns non-JSON for identify/structure | identify / structure | one automatic retry inside `llm.chat_json()`; on failure → cluster stays unidentified / fallback to a single "Розмова" section |
+| ASR repetition loop | asr | model usually escapes within seconds thanks to `repetition_penalty=1.3`; if it persists, retry with `--asr-bits 8` |
+| LLM returns non-JSON for identify/structure | identify / structure | `lm-format-enforcer` guarantees valid JSON on the first try; if generation itself fails (e.g. model crash) → cluster stays unidentified / fallback to a single "Розмова" section |
 | LLM rewrites text too aggressively | postprocess | Levenshtein + length ratio check rejects the reply; original kept |
 | LLM error in TL;DR | tldr | empty string returned; render simply omits the `## TL;DR` section |
 

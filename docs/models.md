@@ -35,10 +35,10 @@ Inference runs on `mps` when available and falls back to `cpu` if the move fails
 
 ## LLM — `mlx-community/gemma-3-12b-it-qat-4bit`
 
-Default for every language task: identify, postprocess, structure, TL;DR. The pipeline does not require any specific model — anything OpenAI-compatible that LM Studio can serve will work — but the prompts are tuned for a model that:
+Default for every language task: identify, postprocess, structure, TL;DR. The model is loaded in-process via `mlx-lm` against an MLX-quantised checkpoint on disk; LM Studio is only the convenient way to populate that checkpoint into `~/.cache/lm-studio/models/`, it does not need to be running. Any model file `mlx_lm.load()` accepts will work, but the prompts are tuned for one that:
 
 - Handles Ukrainian fluently (Gemma 3 12B does; smaller multilingual models often regress to Russian).
-- Honours `response_format={"type": "json_object"}` for structured tasks.
+- Behaves well under JSON-schema-constrained generation (`lm-format-enforcer` as a logits processor in `MlxLLM.chat_json()`).
 - Is willing to follow strict "output JSON only, no commentary" instructions.
 
 Verified alternatives that fit within ~8.5 GB on disk and worked in tests:
@@ -46,6 +46,6 @@ Verified alternatives that fit within ~8.5 GB on disk and worked in tests:
 - `mlx-community/gemma-3-12b-it-4bit` — same model, no QAT
 - `mlx-community/gemma-2-9b-it-4bit` — older, smaller; faster but lower quality on Ukrainian
 
-Override via `--llm-model "<repo_id>"` (and `--llm-base-url` if you run LM Studio on a different port or another machine).
+Override via `--llm-model /absolute/path/to/mlx-checkpoint`.
 
-[ADR 0001](adr/0001-local-llm-via-lm-studio.md) covers why LM Studio over ollama or `mlx-lm` directly; [ADR 0002](adr/0002-mlx-format-preference.md) covers MLX vs GGUF on Apple Silicon.
+[ADR 0006](adr/0006-mlx-lm-over-lm-studio.md) covers why the pipeline runs `mlx-lm` in-process rather than against LM Studio's HTTP API; [ADR 0001](adr/0001-local-llm-via-lm-studio.md) records the earlier LM Studio decision and is now superseded. [ADR 0002](adr/0002-mlx-format-preference.md) covers MLX vs GGUF on Apple Silicon.
