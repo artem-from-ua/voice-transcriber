@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] — 2026-05-11
+
+### Changed
+- Markdown header: `📅 Початок` now prints as `2026-05-10 15:44 UTC` (normalised to UTC). `🌐 Мова` continues to show the raw ISO code passed in via `--language`.
+- Removed lines from the header: `🏁 Кінець` (redundant with `Початок` + `Тривалість`) and `🎙️ Транскрипція` (the toolchain doesn't belong in the transcript itself). `render_markdown(asr_label=…)` is still accepted for backward-compatibility but is no longer rendered.
+- Memory line in progress UI: `RAM 9.4 GB (59%) · MLX 8.0 GB`. Dropped `/16.0 GB` total (never changes) and `peak N.N GB` (only ratchets up — duplicates info from the active value).
+
 ## [0.9.0] — 2026-05-11
 
 ### Added

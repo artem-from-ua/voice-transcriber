@@ -17,6 +17,7 @@ speaker are dropped unless they are long enough to warrant an explicit
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .speaker_emojis import assign_emojis
@@ -34,6 +35,18 @@ def _format_duration(seconds: float) -> str:
     if h:
         return f"{h}:{m:02d}:{s2:02d}"
     return f"{m}:{s2:02d}"
+
+
+def _format_started_at(iso: str) -> str:
+    """ISO datetime → `YYYY-MM-DD HH:MM UTC` (always normalised to UTC)."""
+    try:
+        dt = datetime.fromisoformat(iso)
+    except ValueError:
+        return iso  # fall back to the raw string; better than crashing
+    dt_utc = dt.astimezone(timezone.utc) if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return dt_utc.strftime("%Y-%m-%d %H:%M UTC")
+
+
 
 
 def _speakers_in_order(segments: list[Segment]) -> list[str]:
@@ -104,9 +117,14 @@ def render_markdown(
     dialog: StructuredDialog,
     tldr: str = "",
     language: str = "uk",
-    asr_label: str = "VibeVoice-ASR",
+    asr_label: str | None = None,  # noqa: ARG001 — kept for backward-compatible signature
 ) -> str:
-    """Compose the full Markdown output."""
+    """Compose the full Markdown output.
+
+    `asr_label` is accepted but no longer rendered (the header no longer
+    advertises the toolchain). Kept in the signature so existing callers
+    that still pass it don't break.
+    """
     basename = Path(audio_meta.path).name
     speakers = _speakers_in_order(dialog.segments)
     emoji_for = assign_emojis(speakers)
@@ -114,10 +132,8 @@ def render_markdown(
     lines: list[str] = []
     lines.append(f"# Транскрипт: {basename}")
     lines.append("")
-    lines.append(f"> 📅 **Початок:** {audio_meta.started_at}")
+    lines.append(f"> 📅 **Початок:** {_format_started_at(audio_meta.started_at)}")
     lines.append(f"> ⏱️ **Тривалість:** {_format_duration(audio_meta.duration_s)}")
-    lines.append(f"> 🏁 **Кінець:** {audio_meta.ended_at}")
-    lines.append(f"> 🎙️ **Транскрипція:** {asr_label} + pyannote 3.1")
     lines.append(f"> 🌐 **Мова:** {language}")
     lines.append("")
 

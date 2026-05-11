@@ -42,11 +42,31 @@ def test_render_minimal_dialogue():
 
     out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
     assert "# Транскрипт: foo.m4a" in out
-    assert "📅 **Початок:** 2026-05-10T15:44:02+00:00" in out
+    assert "📅 **Початок:** 2026-05-10 15:44 UTC" in out
     assert "⏱️ **Тривалість:** 6:14" in out
+    # Language is rendered as the raw ISO code; no friendly translation.
+    assert "🌐 **Мова:** uk" in out
+    assert "🏁" not in out, "no 'Кінець' line expected"
     assert "## Привітання" in out
     assert "🔵 **Артем:** Привіт!" in out
     assert "🟢 **Остап:** Привіт-привіт." in out
+
+
+def test_render_normalises_started_at_with_offset():
+    """A non-UTC ISO string is converted to UTC for display."""
+    meta = AudioMeta(
+        path="/tmp/foo.m4a",
+        started_at="2026-05-10T17:44:02+02:00",  # +02 → 15:44 UTC
+        ended_at="2026-05-10T17:50:16+02:00",
+        duration_s=374.0,
+        source="ffprobe creation_time",
+    )
+    dialog = StructuredDialog(
+        sections=[Section(title="T", start_ms=0, end_ms=1000)],
+        segments=[Segment(start=0, end=1, content="hi", speaker="A", name="Sam")],
+    )
+    out = render_markdown(audio_meta=meta, dialog=dialog, tldr="", language="uk")
+    assert "📅 **Початок:** 2026-05-10 15:44 UTC" in out
 
 
 def test_render_includes_tldr_section_when_provided():
