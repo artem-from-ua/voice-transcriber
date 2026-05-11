@@ -143,4 +143,4 @@ The pipeline passes increasingly enriched `Segment` lists from stage to stage. N
 9. **TL;DR** — LLM emits a Markdown summary string.
 10. **Render** — combines `AudioMeta`, `StructuredDialog`, and the TL;DR into the final Markdown file.
 
-See [`pipeline.md`](pipeline.md) for the step-by-step sequence with timing details, and [`adr/`](adr/) for the decisions behind these boundaries.
+See [`pipeline.md`](pipeline.md) for the step-by-step sequence with timing details, [`prompts.md`](prompts.md) for the LLM call contracts powering stages 6–9, and [`adr/README.md`](adr/README.md) for the index of architectural decisions behind these boundaries.

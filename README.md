@@ -14,10 +14,7 @@ The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR
 - [`ffmpeg`](https://ffmpeg.org/) in `PATH`
 - [`uv`](https://github.com/astral-sh/uv) for dependency management
 - [LM Studio](https://lmstudio.ai/) — for downloading models only; the server does not need to run. The pipeline loads the LLM in-process via `mlx-lm` and just reuses LM Studio's model cache at `~/.cache/lm-studio/models/`.
-- A Hugging Face account with **accepted licenses** for:
-  - [`pyannote/speaker-diarization-3.1`](https://huggingface.co/pyannote/speaker-diarization-3.1)
-  - [`pyannote/segmentation-3.0`](https://huggingface.co/pyannote/segmentation-3.0)
-  - [`pyannote/speaker-diarization-community-1`](https://huggingface.co/pyannote/speaker-diarization-community-1)
+- A Hugging Face account with **accepted licenses** for the three gated pyannote repositories — see [`docs/troubleshooting.md`](docs/troubleshooting.md) under *GatedRepoError* for the exact list and instructions
 
 ## Setup
 
@@ -52,12 +49,24 @@ uv run voice transcribe a.m4a --no-tldr --no-structure # plain dialogue only
 uv run voice transcribe a.m4a --verbose                # progress logs to stderr
 ```
 
-Full CLI reference: [`docs/cli.md`](docs/cli.md). Output format: [`docs/output-format.md`](docs/output-format.md). When something breaks: [`docs/troubleshooting.md`](docs/troubleshooting.md). Architecture overview: [`docs/architecture.md`](docs/architecture.md).
+## Onboarding
+
+Each topic has one canonical home under [`docs/`](docs/). Read these in order before changing anything:
+
+| Topic                              | Canonical source                                 |
+| ---------------------------------- | ------------------------------------------------ |
+| What runs end-to-end and in what order | [`docs/architecture.md`](docs/architecture.md), then [`docs/pipeline.md`](docs/pipeline.md) for per-stage detail |
+| Every CLI flag                     | [`docs/cli.md`](docs/cli.md)                     |
+| Shape of the produced Markdown     | [`docs/output-format.md`](docs/output-format.md) |
+| ASR / diarization / LLM model defaults and overrides | [`docs/models.md`](docs/models.md) |
+| LLM call contracts (temperature, JSON schema, safety nets) | [`docs/prompts.md`](docs/prompts.md) |
+| Setup failures, gated repos, OOMs, repetition loops | [`docs/troubleshooting.md`](docs/troubleshooting.md) |
+| Why each major choice was made     | [`docs/adr/README.md`](docs/adr/README.md)       |
+
+If you find the same fact in two places under `docs/`, the canonical-source column wins; the other copy should link back rather than re-state.
 
 ## Development
 
 ```bash
 uv run pytest -q     # unit tests; no live LLM or ffprobe required
 ```
-
-All architectural decisions live in [`docs/adr/`](docs/adr/).
