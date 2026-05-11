@@ -18,6 +18,7 @@ from typing import Callable, Iterable
 
 import Levenshtein
 
+from ._progress import NullProgress, ProgressReporter
 from ._prompts import call_kwargs, render as render_prompt
 from .llm import LLMError, MlxLLM
 from .types import Segment
@@ -85,6 +86,7 @@ def fix_asr_errors(
     llm: MlxLLM,
     language: str = "uk",
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
+    progress: "ProgressReporter | None" = None,
 ) -> list[Segment]:
     """Return new segments with each `content` proof-read.
 
@@ -92,12 +94,17 @@ def fix_asr_errors(
     passed through unchanged. The function never aborts on an LLM error —
     a failed segment falls back to its original text.
     """
+    segs = list(segments)
     fixed_count = 0
     out: list[Segment] = []
-    for seg in segments:
-        new_text = fix_segment(seg.content, llm=llm, language=language)
-        if new_text != seg.content:
-            fixed_count += 1
-        out.append(replace(seg, content=new_text))
+
+    reporter = progress if progress is not None else NullProgress()
+    with reporter.task("[6/9] ASR-постобробка", total=len(segs)) as advance:
+        for seg in segs:
+            new_text = fix_segment(seg.content, llm=llm, language=language)
+            if new_text != seg.content:
+                fixed_count += 1
+            out.append(replace(seg, content=new_text))
+            advance(1, suffix=f"{fixed_count} fixed")
     log(f"postprocess: {fixed_count}/{len(out)} segments adjusted")
     return out

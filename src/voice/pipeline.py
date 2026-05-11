@@ -23,6 +23,7 @@ from . import identify as identify_module
 from . import postprocess as postprocess_module
 from . import structure as structure_module
 from . import tldr as tldr_module
+from ._progress import ProgressReporter
 from .llm import MlxLLM
 from .merge import merge
 from .render import render_markdown
@@ -93,88 +94,100 @@ def run(options: PipelineOptions) -> str:
     )
 
     tmpdir = Path(tempfile.mkdtemp(prefix="voice-pipeline-"))
+    progress = ProgressReporter()
     try:
-        wav_path = tmpdir / "audio.wav"
-        _to_wav_16k_mono(audio, wav_path, log)
+        with progress:
+            wav_path = tmpdir / "audio.wav"
+            with progress.spinner("[1/9] Конвертування → WAV 16 kHz mono"):
+                _to_wav_16k_mono(audio, wav_path, log)
 
-        log(f"[2/9] Метадані")
-        audio_meta = ffprobe_module.extract_metadata(
-            audio, override_started_at=options.datetime_override
-        )
-        log(f"      Початок: {audio_meta.started_at} ({audio_meta.source})")
-        log(f"      Тривалість: {audio_meta.duration_s:.1f}s")
-
-        # ASR and diarize each load their own ~7 GB / 1.5 GB model and free
-        # it on return. The LLM is loaded *after* both, so the three models
-        # are never co-resident.
-        log(f"[3/9] ASR (VibeVoice-{options.asr_bits}bit)")
-        asr_segments = asr_module.transcribe(
-            wav_path,
-            bitness=options.asr_bits,
-            language=options.language,
-            context=f"Розмова мовою {options.language}.",
-            log=log,
-        )
-        log(f"      {len(asr_segments)} ASR-сегментів")
-
-        log(f"[4/9] Діаризація (pyannote 3.1)")
-        turns = diarize_module.diarize(wav_path, log=log)
-        log(f"      {len({t.speaker for t in turns})} мовців")
-
-        log(f"[5/9] Merge")
-        segments: list[Segment] = merge(asr_segments, turns)
-
-        # One LLM, four stages, in-process. close() drops the model and
-        # clears MLX cache so the render step does not contend with weights.
-        llm = MlxLLM(log=log, **llm_kwargs) if llm_required else None
-        try:
-            if llm is not None:
-                llm.load()
-
-            if options.run_postprocess and llm is not None:
-                log(f"[6/9] ASR-постобробка")
-                segments = postprocess_module.fix_asr_errors(
-                    segments, llm=llm, language=options.language, log=log,
+            with progress.spinner("[2/9] Метадані"):
+                audio_meta = ffprobe_module.extract_metadata(
+                    audio, override_started_at=options.datetime_override
                 )
-            else:
-                log(f"[6/9] ASR-постобробка пропущена")
+            log(f"      Початок: {audio_meta.started_at} ({audio_meta.source})")
+            log(f"      Тривалість: {audio_meta.duration_s:.1f}s")
 
-            log(f"[7/9] Ідентифікація мовців")
-            name_map = identify_module.identify_speakers(
-                segments,
-                language=options.language,
-                llm=llm,
-                unknown_policy=options.unknown_speaker,  # type: ignore[arg-type]
-                names_override=options.names_override,
-                log=log,
-            )
-            for seg in segments:
-                if seg.speaker in name_map:
-                    seg.name = name_map[seg.speaker]
-            log(f"      {len(name_map)} мовців іменовано: {name_map}")
+            # ASR and diarize each load their own ~7 GB / 1.5 GB model and free
+            # it on return. The LLM is loaded *after* both, so the three models
+            # are never co-resident.
+            with progress.spinner(
+                f"[3/9] ASR (VibeVoice-{options.asr_bits}bit)"
+            ):
+                asr_segments = asr_module.transcribe(
+                    wav_path,
+                    bitness=options.asr_bits,
+                    language=options.language,
+                    context=f"Розмова мовою {options.language}.",
+                    log=log,
+                )
+            log(f"      {len(asr_segments)} ASR-сегментів")
 
-            if options.run_structure and llm is not None:
-                log(f"[8/9] Структурування на секції")
-                dialog = structure_module.structure_dialog(
-                    segments, llm=llm, language=options.language, log=log,
-                )
-            else:
-                log(f"[8/9] Структурування пропущене")
-                dialog = structure_module.structure_dialog(
-                    segments, llm=None, language=options.language, log=log,
-                )
+            with progress.spinner("[4/9] Діаризація (pyannote 3.1)"):
+                turns = diarize_module.diarize(wav_path, log=log)
+            log(f"      {len({t.speaker for t in turns})} мовців")
 
-            if options.run_tldr and llm is not None:
-                log(f"[9/9] TL;DR")
-                tldr_text = tldr_module.generate_tldr(
-                    segments, llm=llm, language=options.language, log=log,
+            with progress.spinner("[5/9] Merge"):
+                segments: list[Segment] = merge(asr_segments, turns)
+
+            # One LLM, four stages, in-process. close() drops the model and
+            # clears MLX cache so the render step does not contend with weights.
+            llm = MlxLLM(log=log, **llm_kwargs) if llm_required else None
+            try:
+                if llm is not None:
+                    with progress.spinner(
+                        f"Loading LLM ({Path(llm.model_path).name})"
+                    ):
+                        llm.load()
+
+                if options.run_postprocess and llm is not None:
+                    segments = postprocess_module.fix_asr_errors(
+                        segments,
+                        llm=llm,
+                        language=options.language,
+                        log=log,
+                        progress=progress,
+                    )
+                else:
+                    log(f"[6/9] ASR-постобробка пропущена")
+
+                name_map = identify_module.identify_speakers(
+                    segments,
+                    language=options.language,
+                    llm=llm,
+                    unknown_policy=options.unknown_speaker,  # type: ignore[arg-type]
+                    names_override=options.names_override,
+                    log=log,
+                    progress=progress,
                 )
-            else:
-                tldr_text = ""
-                log(f"[9/9] TL;DR пропущено")
-        finally:
-            if llm is not None:
-                llm.close()
+                for seg in segments:
+                    if seg.speaker in name_map:
+                        seg.name = name_map[seg.speaker]
+                log(f"      {len(name_map)} мовців іменовано: {name_map}")
+
+                if options.run_structure and llm is not None:
+                    dialog = structure_module.structure_dialog(
+                        segments, llm=llm, language=options.language,
+                        log=log, progress=progress,
+                    )
+                else:
+                    log(f"[8/9] Структурування пропущене")
+                    dialog = structure_module.structure_dialog(
+                        segments, llm=None, language=options.language, log=log,
+                    )
+
+                if options.run_tldr and llm is not None:
+                    tldr_text = tldr_module.generate_tldr(
+                        segments, llm=llm, language=options.language,
+                        log=log, progress=progress,
+                    )
+                else:
+                    tldr_text = ""
+                    log(f"[9/9] TL;DR пропущено")
+            finally:
+                if llm is not None:
+                    with progress.spinner("Unloading LLM"):
+                        llm.close()
 
         markdown = render_markdown(
             audio_meta=audio_meta,

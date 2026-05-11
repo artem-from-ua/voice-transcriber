@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] — 2026-05-11
+
+### Added
+- `voice._progress.ProgressReporter` — `rich.Progress` wrapper with three context managers: `task(label, total)` for deterministic counters, `spinner(label)` for indeterminate ops, `token_counter(label)` for token-streaming LLM generation. On a TTY, it renders in-place bars; on a non-TTY (CI, `2> log`), it prints a single `✓ {label} in N.Ns` line per stage so log files stay clean.
+- `voice._progress.NullProgress` — drop-in no-op replacement so stage modules don't need to branch on `progress is None`.
+- Stage modules (`postprocess`, `identify`, `structure`, `tldr`) and `pipeline` accept an optional `progress=` argument and emit per-stage UI: per-segment for postprocess, per-cluster for identify, live token count + tokens/sec for structure and TL;DR.
+- Model loads (VibeVoice, pyannote, Gemma) each run inside a `progress.spinner(...)` so the user never stares at a silent terminal for 10 seconds.
+
+### Changed
+- `MlxLLM.chat()` and `MlxLLM.chat_json()` accept an optional `on_token` callback. Internally they switch from `mlx_lm.generate` to `mlx_lm.stream_generate` so the progress reporter can advance once per token. The non-streaming behaviour for callers that pass `on_token=None` is unchanged.
+- `rich` added as a runtime dependency.
+
 ## [0.8.0] — 2026-05-11
 
 ### Changed

@@ -12,6 +12,7 @@ from __future__ import annotations
 import sys
 from typing import Callable, Iterable
 
+from ._progress import NullProgress, ProgressReporter
 from ._prompts import call_kwargs, render as render_prompt
 from .llm import LLMError, MlxLLM
 from .types import Section, Segment, StructuredDialog
@@ -91,6 +92,7 @@ def structure_dialog(
     llm: MlxLLM | None = None,
     language: str = "uk",
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
+    progress: "ProgressReporter | None" = None,
 ) -> StructuredDialog:
     """Return a `StructuredDialog`. Falls back to a single section on error."""
     segs = list(segments)
@@ -122,8 +124,14 @@ def structure_dialog(
         },
     ]
 
+    reporter = progress if progress is not None else NullProgress()
     try:
-        payload = llm.chat_json(messages, **call_kwargs("structure_system"))
+        with reporter.token_counter("[8/9] Структурування на секції") as advance:
+            payload = llm.chat_json(
+                messages,
+                on_token=advance,
+                **call_kwargs("structure_system"),
+            )
     except LLMError as exc:
         log(f"structure: LLM error — {exc}; falling back to single section")
         return StructuredDialog(sections=_fallback_section(segs, language), segments=segs)

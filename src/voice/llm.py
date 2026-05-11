@@ -152,6 +152,30 @@ class MlxLLM:
             list(messages), add_generation_prompt=True, tokenize=False
         )
 
+    def _stream_generate(
+        self,
+        *,
+        prompt: str,
+        max_tokens: int,
+        sampler: Callable,
+        logits_processors: list,
+        on_token: Callable[[int], None] | None,
+    ) -> str:
+        """Run mlx_lm.stream_generate, accumulate text, ping on_token."""
+        parts: list[str] = []
+        for response in mlx_lm.stream_generate(
+            self._model,
+            self._tokenizer,
+            prompt=prompt,
+            max_tokens=max_tokens,
+            sampler=sampler,
+            logits_processors=logits_processors,
+        ):
+            parts.append(response.text)
+            if on_token is not None:
+                on_token(1)
+        return "".join(parts)
+
     # ------------------------------------------------------------------ chat
 
     def chat(
@@ -162,8 +186,9 @@ class MlxLLM:
         max_tokens: int = 512,
         top_p: float = 1.0,
         repetition_penalty: float | None = None,
+        on_token: Callable[[int], None] | None = None,
     ) -> str:
-        """Plain-text generation."""
+        """Plain-text generation. `on_token(1)` is called for each emitted token."""
         self._ensure_loaded()
         prompt = self._build_prompt(messages)
         sampler = mlx_lm.sample_utils.make_sampler(
@@ -172,14 +197,12 @@ class MlxLLM:
         logits_processors = mlx_lm.sample_utils.make_logits_processors(
             repetition_penalty=repetition_penalty,
         )
-        text = mlx_lm.generate(
-            self._model,
-            self._tokenizer,
+        text = self._stream_generate(
             prompt=prompt,
             max_tokens=max_tokens,
             sampler=sampler,
             logits_processors=logits_processors,
-            verbose=False,
+            on_token=on_token,
         )
         # Free KV cache between calls so postprocess's 60+ short prompts
         # don't poison the long structure prompt that follows.
@@ -194,6 +217,7 @@ class MlxLLM:
         temperature: float = 0.2,
         max_tokens: int = 1024,
         top_p: float = 1.0,
+        on_token: Callable[[int], None] | None = None,
     ) -> Any:
         """Schema-constrained generation. Returns parsed JSON.
 
@@ -211,14 +235,12 @@ class MlxLLM:
             self._tokenizer_data,
             schema or {"type": "object"},
         )
-        text = mlx_lm.generate(
-            self._model,
-            self._tokenizer,
+        text = self._stream_generate(
             prompt=prompt,
             max_tokens=max_tokens,
             sampler=sampler,
             logits_processors=[json_processor],
-            verbose=False,
+            on_token=on_token,
         )
         mx.clear_cache()
 

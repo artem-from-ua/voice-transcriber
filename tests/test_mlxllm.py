@@ -57,17 +57,26 @@ class _FakeTokenizer:
         return self
 
 
+class _FakeResponse:
+    """One chunk of mlx_lm.stream_generate output."""
+    def __init__(self, text: str):
+        self.text = text
+        self.token = 0
+
+
 def _install_fake_runtime(monkeypatch, *, generate_reply: str):
-    """Replace mlx_lm.load/generate so tests don't touch real weights."""
+    """Replace mlx_lm.load and mlx_lm.stream_generate so tests don't touch real weights."""
     captured: dict = {}
 
     def fake_load(_path):
         return ("FAKE_MODEL", _FakeTokenizer())
 
-    def fake_generate(model, tokenizer, *, prompt, **kwargs):
+    def fake_stream_generate(model, tokenizer, *, prompt, **kwargs):
         captured["prompt"] = prompt
         captured["kwargs"] = kwargs
-        return generate_reply
+        # Yield the reply token-by-token (one char per chunk) so on_token fires.
+        for ch in generate_reply:
+            yield _FakeResponse(ch)
 
     # Skip the heavy tokenizer-data build (it iterates the vocab) and the
     # JSON-constrained logits processor (it needs that data).
@@ -77,7 +86,7 @@ def _install_fake_runtime(monkeypatch, *, generate_reply: str):
         lambda _td, _schema: (lambda _tokens, logits: logits),
     )
     monkeypatch.setattr(llm_module.mlx_lm, "load", fake_load)
-    monkeypatch.setattr(llm_module.mlx_lm, "generate", fake_generate)
+    monkeypatch.setattr(llm_module.mlx_lm, "stream_generate", fake_stream_generate)
     return captured
 
 
