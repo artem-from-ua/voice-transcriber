@@ -8,7 +8,7 @@ supersedes: 0001-local-llm-via-lm-studio.md
 
 ## Context
 
-ADR 0001 chose LM Studio as the LLM runtime because it was already installed, managed model downloads, and served an OpenAI-compatible HTTP API. Subsequent end-to-end runs against real 6-minute Ukrainian audio uncovered a hard limit: LM Studio's Metal allocator fragments after dozens of short postprocess prompts, and the next long-context prompt (structure or TL;DR) crashes with `Insufficient Memory (kIOGPUCommandBufferCallbackErrorOutOfMemory)`. The server then enters a state where every subsequent chat request fails with "model has crashed" until the app is restarted manually.
+ADR 0001 chose LM Studio as the LLM runtime because it was already installed, managed model downloads, and served an OpenAI-compatible HTTP API. Subsequent end-to-end runs against real 6-minute Ukrainian audio uncovered a hard limit: LM Studio's Metal allocator fragments after dozens of short proofread prompts, and the next long-context prompt (structure or TL;DR) crashes with `Insufficient Memory (kIOGPUCommandBufferCallbackErrorOutOfMemory)`. The server then enters a state where every subsequent chat request fails with "model has crashed" until the app is restarted manually.
 
 Bandaids (best-effort `unload_model()` between stages, MLX/MPS cache eviction in our own modules) reduced the symptom but did not eliminate it. The underlying cause is that LM Studio's MLX runtime does not expose the controls we need to keep the allocator clean between prompts.
 

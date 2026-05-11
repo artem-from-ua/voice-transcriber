@@ -3,7 +3,7 @@
 `ProgressReporter` wraps `rich.Progress` so each stage announces itself
 through one of three context managers:
 
-- `.task(label, total)` for deterministic counters (postprocess, identify)
+- `.task(label, total)` for deterministic counters (proofread, identify)
 - `.spinner(label)` for indeterminate ops (model loads, diarization)
 - `.token_counter(label)` for streaming-LLM generation (structure, tldr)
 

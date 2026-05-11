@@ -10,7 +10,7 @@ File layout:
     02b-normalized.wav      WAV after per-segment AGC (loudness normalize)
     03-asr.json             list[AsrSegment] (raw VibeVoice on normalised WAV)
     04-merge.json           list[Segment] after merge (no LLM touches yet)
-    05-postprocess.json     list[Segment] after the LLM proof-reader
+    05-proofread.json       list[Segment] after the LLM proof-reader
     06-identify.json        {pyannote label → human name}
     07-segments-named.json  list[Segment] with .name filled in
     08-structure.json       StructuredDialog (sections + segments)

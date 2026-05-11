@@ -22,7 +22,7 @@ This applies equally to background invocations from agentic tools (Claude Code's
 
 ## Troubleshooting a regression
 
-Run with `--dump-stages DIR` to write one JSON file per stage (`01-meta.json` … `09-tldr.txt`). Diffing `02-asr.json` against `05-postprocess.json` is the fastest way to tell whether a bad output came from the raw ASR or the LLM proof-reader. See [`docs/architecture.md`](docs/architecture.md) for the stage map.
+Run with `--dump-stages DIR` to write one JSON file per stage (`01-meta.json` … `09-tldr.txt`). Diffing `03-asr.json` against `05-proofread.json` is the fastest way to tell whether a bad output came from the raw ASR or the LLM proof-reader. See [`docs/architecture.md`](docs/architecture.md) for the stage map.
 
 ## Dependencies
 
@@ -74,7 +74,7 @@ We've also gone version skipping in past PRs (0.4.0 was reserved for a PR that l
 Before changing an edge, grep the code:
 
 ```bash
-grep -nE "^\s*(asr_module|diarize_module|merge|postprocess|identify|structure|tldr|render)" src/voice/pipeline.py
+grep -nE "^\s*(asr_module|diarize_module|merge|proofread|identify|structure|tldr|render)" src/voice/pipeline.py
 ```
 
 The stage that *appears* to feed the next one in the file order isn't always the truth — for example, ASR and diarize both read the same `wav_path` written by ffmpeg, so their incoming edge is from `[2] WAV`, not from `pipeline`. Match the diagram to the code, not to intuition.

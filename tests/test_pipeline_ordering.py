@@ -108,7 +108,7 @@ def patched_pipeline(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_module.asr_module, "transcribe", fake_transcribe)
 
     # LLM: never actually instantiate one. The pipeline only uses LLM if
-    # run_postprocess / run_tldr / run_structure are true; we'll disable
+    # run_proofread / run_tldr / run_structure are true; we'll disable
     # those for ordering tests. But the unknown_speaker="ask" branch + names
     # override path still pull in identify+structure, so monkey-patch those
     # too as light stubs.
@@ -161,7 +161,7 @@ def test_default_order_is_diarize_then_normalize_then_asr(patched_pipeline, tmp_
         PipelineOptions(
             audio_path=str(fake_audio),
             output_path=str(out),
-            run_postprocess=False,
+            run_proofread=False,
             run_tldr=False,
             run_structure=False,
             names_override=["A", "B"],
@@ -200,7 +200,7 @@ def test_no_loudness_normalize_keeps_raw_wav_for_asr(patched_pipeline, tmp_path)
         PipelineOptions(
             audio_path=str(fake_audio),
             output_path=str(out),
-            run_postprocess=False,
+            run_proofread=False,
             run_tldr=False,
             run_structure=False,
             names_override=["A", "B"],

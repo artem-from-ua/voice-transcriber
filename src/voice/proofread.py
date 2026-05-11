@@ -67,11 +67,11 @@ def fix_segment(
     if _is_marker(text) or len(text.strip()) < MIN_LEN_FOR_FIX:
         return text
     messages = [
-        {"role": "system", "content": render_prompt("postprocess_system", language=language)},
-        {"role": "user", "content": render_prompt("postprocess_user", text=text)},
+        {"role": "system", "content": render_prompt("proofread_system", language=language)},
+        {"role": "user", "content": render_prompt("proofread_user", text=text)},
     ]
     try:
-        reply = llm.chat(messages, **call_kwargs("postprocess_system"))
+        reply = llm.chat(messages, **call_kwargs("proofread_system"))
     except LLMError:
         return text
     candidate = _strip_quotes(reply)
@@ -99,12 +99,12 @@ def fix_asr_errors(
     out: list[Segment] = []
 
     reporter = progress if progress is not None else NullProgress()
-    with reporter.task("[7/10] ASR-постобробка", total=len(segs)) as advance:
+    with reporter.task("[7/10] Proofread", total=len(segs)) as advance:
         for seg in segs:
             new_text = fix_segment(seg.content, llm=llm, language=language)
             if new_text != seg.content:
                 fixed_count += 1
             out.append(replace(seg, content=new_text))
             advance(1, suffix=f"{fixed_count} fixed")
-    log(f"postprocess: {fixed_count}/{len(out)} segments adjusted")
+    log(f"proofread: {fixed_count}/{len(out)} segments adjusted")
     return out

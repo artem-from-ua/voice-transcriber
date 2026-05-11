@@ -1,6 +1,6 @@
 ---
-name: postprocess_system
-used_by: voice.postprocess
+name: proofread_system
+used_by: voice.proofread
 role: system
 placeholders: [language]
 temperature: 0.1

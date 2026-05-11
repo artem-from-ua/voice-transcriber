@@ -62,8 +62,8 @@ def test_all_pipeline_prompts_load():
     for name in [
         "identify_system",
         "identify_user",
-        "postprocess_system",
-        "postprocess_user",
+        "proofread_system",
+        "proofread_user",
         "structure_system",
         "structure_user",
         "tldr_system_uk",
@@ -80,7 +80,7 @@ def test_all_pipeline_prompts_load():
 
 @pytest.mark.parametrize("name", [
     "identify_system",
-    "postprocess_system",
+    "proofread_system",
     "structure_system",
     "tldr_system_uk",
     "tldr_system_en",
@@ -96,7 +96,7 @@ def test_system_prompts_declare_temperature_and_max_tokens(name):
 @pytest.mark.parametrize("name,expected", [
     ("identify_system", "json_object"),
     ("structure_system", "json_object"),
-    ("postprocess_system", "text"),
+    ("proofread_system", "text"),
     ("tldr_system_uk", "text"),
     ("tldr_system_en", "text"),
 ])

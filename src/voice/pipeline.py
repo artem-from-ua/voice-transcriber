@@ -21,7 +21,7 @@ from . import audio_preprocess as audio_preprocess_module
 from . import diarize as diarize_module
 from . import ffprobe as ffprobe_module
 from . import identify as identify_module
-from . import postprocess as postprocess_module
+from . import proofread as proofread_module
 from ._dump import StageDumper
 from . import structure as structure_module
 from . import tldr as tldr_module
@@ -44,7 +44,7 @@ class PipelineOptions:
     names_override: list[str] | None = None
     datetime_override: datetime | None = None
     llm_model: str | None = None
-    run_postprocess: bool = True
+    run_proofread: bool = True
     run_tldr: bool = True
     run_structure: bool = True
     run_loudness_normalize: bool = True
@@ -70,7 +70,7 @@ def _to_wav_16k_mono(src: Path, dst: Path, log: Callable[[str], None]) -> None:
         "-c:a", "pcm_s16le",
         str(dst),
     ]
-    log(f"[1/10] Конвертування → WAV 16 kHz mono")
+    log(f"[1/10] audiotranscode → WAV 16 kHz mono")
     try:
         subprocess.run(cmd, check=True, capture_output=True, text=True)
     except FileNotFoundError as exc:
@@ -97,7 +97,7 @@ def run(options: PipelineOptions) -> str:
     if options.llm_model:
         llm_kwargs["model_path"] = options.llm_model
 
-    llm_required = options.run_postprocess or options.run_tldr or options.run_structure or (
+    llm_required = options.run_proofread or options.run_tldr or options.run_structure or (
         options.unknown_speaker == "ask" or options.names_override is None
     )
 
@@ -111,10 +111,10 @@ def run(options: PipelineOptions) -> str:
     try:
         with progress:
             wav_path = tmpdir / "audio.wav"
-            with progress.spinner("[1/10] Конвертування → WAV 16 kHz mono"):
+            with progress.spinner("[1/10] audiotranscode → WAV 16 kHz mono"):
                 _to_wav_16k_mono(audio, wav_path, log)
 
-            with progress.spinner("[2/10] Метадані"):
+            with progress.spinner("[2/10] audiometa"):
                 audio_meta = ffprobe_module.extract_metadata(
                     audio, override_started_at=options.datetime_override
                 )
@@ -175,17 +175,17 @@ def run(options: PipelineOptions) -> str:
                     ):
                         llm.load()
 
-                if options.run_postprocess and llm is not None:
-                    segments = postprocess_module.fix_asr_errors(
+                if options.run_proofread and llm is not None:
+                    segments = proofread_module.fix_asr_errors(
                         segments,
                         llm=llm,
                         language=options.language,
                         log=log,
                         progress=progress,
                     )
-                    dumper.write("05-postprocess.json", segments)
+                    dumper.write("05-proofread.json", segments)
                 else:
-                    log(f"[7/10] ASR-постобробка пропущена")
+                    log(f"[7/10] Proofread пропущено")
 
                 name_map = identify_module.identify_speakers(
                     segments,

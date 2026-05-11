@@ -37,7 +37,7 @@ Inference runs on `mps` when available and falls back to `cpu` if the move fails
 
 ## LLM — `mlx-community/gemma-3-12b-it-qat-4bit`
 
-Default for every language task: identify, postprocess, structure, TL;DR. The model is loaded in-process via `mlx-lm` against an MLX-quantised checkpoint on disk; LM Studio is only the convenient way to populate that checkpoint into `~/.cache/lm-studio/models/`, it does not need to be running. Any model file `mlx_lm.load()` accepts will work, but the prompts are tuned for one that:
+Default for every language task: identify, proofread, structure, TL;DR. The model is loaded in-process via `mlx-lm` against an MLX-quantised checkpoint on disk; LM Studio is only the convenient way to populate that checkpoint into `~/.cache/lm-studio/models/`, it does not need to be running. Any model file `mlx_lm.load()` accepts will work, but the prompts are tuned for one that:
 
 - Handles Ukrainian fluently (Gemma 3 12B does; smaller multilingual models often regress to Russian).
 - Behaves well under JSON-schema-constrained generation (`lm-format-enforcer` as a logits processor in `MlxLLM.chat_json()`).

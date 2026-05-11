@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] — 2026-05-11
+
+### Changed
+- **Renamed pipeline stage `postprocess` → `proofread`** (no behaviour change; rename only). Aligns with ADR 0005's "proof-read" terminology, which the codebase had already internalised in prose but not yet in identifiers.
+  - **Breaking CLI:** `--no-postprocess` → `--no-proofread`. No deprecation alias — pre-1.0 project; update scripts directly.
+  - **Breaking dump layout:** `05-postprocess.json` → `05-proofread.json` (when `--dump-stages DIR` is used).
+  - Module `voice.postprocess` → `voice.proofread`. Prompt files `prompts/postprocess_{system,user}.md` → `prompts/proofread_{system,user}.md`. ADR `0005-segment-level-asr-postprocess.md` → `0005-segment-level-asr-proofread.md`.
+  - Internal field `PipelineOptions.run_postprocess` → `run_proofread`.
+- **Architecture diagram: stages colour-coded by category.** `docs/architecture.md` pipeline-stages PlantUML now annotates each box with the underlying library / model on extra lines, and fills the box with a category-specific pastel: light-salmon for subprocess (ffprobe/ffmpeg), light-sky-blue for pyannote diarization, light-green for VibeVoice ASR, plum for the four LLM stages (gemma-3-12b), light-grey for pure-Python stages (merge / render / normalize). Legend text uses dark grey `#404040` for visual consistency.
+
 ## [0.12.0] — 2026-05-11
 
 ### Added

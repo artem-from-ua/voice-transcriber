@@ -204,7 +204,7 @@ class MlxLLM:
             logits_processors=logits_processors,
             on_token=on_token,
         )
-        # Free KV cache between calls so postprocess's 60+ short prompts
+        # Free KV cache between calls so proofread's 60+ short prompts
         # don't poison the long structure prompt that follows.
         mx.clear_cache()
         return text
