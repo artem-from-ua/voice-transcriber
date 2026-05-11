@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import asr as asr_module
+from . import audio_preprocess as audio_preprocess_module
 from . import diarize as diarize_module
 from . import ffprobe as ffprobe_module
 from . import identify as identify_module
@@ -46,6 +47,9 @@ class PipelineOptions:
     run_postprocess: bool = True
     run_tldr: bool = True
     run_structure: bool = True
+    run_loudness_normalize: bool = True
+    loudness_target_dbfs: float = -20.0
+    loudness_max_gain_db: float = 16.0
     dump_stages_dir: str | None = None
     verbose: bool = False
 
@@ -66,7 +70,7 @@ def _to_wav_16k_mono(src: Path, dst: Path, log: Callable[[str], None]) -> None:
         "-c:a", "pcm_s16le",
         str(dst),
     ]
-    log(f"[1/9] Конвертування → WAV 16 kHz mono")
+    log(f"[1/10] Конвертування → WAV 16 kHz mono")
     try:
         subprocess.run(cmd, check=True, capture_output=True, text=True)
     except FileNotFoundError as exc:
@@ -107,10 +111,10 @@ def run(options: PipelineOptions) -> str:
     try:
         with progress:
             wav_path = tmpdir / "audio.wav"
-            with progress.spinner("[1/9] Конвертування → WAV 16 kHz mono"):
+            with progress.spinner("[1/10] Конвертування → WAV 16 kHz mono"):
                 _to_wav_16k_mono(audio, wav_path, log)
 
-            with progress.spinner("[2/9] Метадані"):
+            with progress.spinner("[2/10] Метадані"):
                 audio_meta = ffprobe_module.extract_metadata(
                     audio, override_started_at=options.datetime_override
                 )
@@ -118,14 +122,35 @@ def run(options: PipelineOptions) -> str:
             log(f"      Тривалість: {audio_meta.duration_s:.1f}s")
             dumper.write("01-meta.json", audio_meta)
 
-            # ASR and diarize each load their own ~7 GB / 1.5 GB model and free
-            # it on return. The LLM is loaded *after* both, so the three models
+            # Diarize first on the raw WAV — its per-turn boundaries are the
+            # guard-rails the next stage needs for per-segment AGC. ASR then
+            # runs on the normalised WAV. Each module loads its own model and
+            # frees it on return; the LLM is loaded after both, so the three
             # are never co-resident.
+            with progress.spinner("[3/10] Діаризація (pyannote 3.1)"):
+                turns = diarize_module.diarize(wav_path, log=log)
+            log(f"      {len({t.speaker for t in turns})} мовців")
+            dumper.write("02-diarize.json", turns)
+
+            if options.run_loudness_normalize:
+                with progress.spinner("[4/10] Loudness-нормалізація"):
+                    normalized_wav_path = audio_preprocess_module.loudness_normalize(
+                        wav_path,
+                        turns,
+                        target_dbfs=options.loudness_target_dbfs,
+                        max_gain_db=options.loudness_max_gain_db,
+                        log=log,
+                    )
+                dumper.write_binary("02b-normalized.wav", normalized_wav_path)
+            else:
+                normalized_wav_path = wav_path
+                log("[4/10] Loudness-нормалізація пропущена")
+
             with progress.spinner(
-                f"[3/9] ASR (VibeVoice-{options.asr_bits}bit)"
+                f"[5/10] ASR (VibeVoice-{options.asr_bits}bit)"
             ):
                 asr_segments = asr_module.transcribe(
-                    wav_path,
+                    normalized_wav_path,
                     bitness=options.asr_bits,
                     language=options.language,
                     context=f"Розмова мовою {options.language}.",
@@ -134,14 +159,9 @@ def run(options: PipelineOptions) -> str:
                     log=log,
                 )
             log(f"      {len(asr_segments)} ASR-сегментів")
-            dumper.write("02-asr.json", asr_segments)
+            dumper.write("03-asr.json", asr_segments)
 
-            with progress.spinner("[4/9] Діаризація (pyannote 3.1)"):
-                turns = diarize_module.diarize(wav_path, log=log)
-            log(f"      {len({t.speaker for t in turns})} мовців")
-            dumper.write("03-diarize.json", turns)
-
-            with progress.spinner("[5/9] Merge"):
+            with progress.spinner("[6/10] Merge"):
                 segments: list[Segment] = merge(asr_segments, turns)
             dumper.write("04-merge.json", segments)
 
@@ -165,7 +185,7 @@ def run(options: PipelineOptions) -> str:
                     )
                     dumper.write("05-postprocess.json", segments)
                 else:
-                    log(f"[6/9] ASR-постобробка пропущена")
+                    log(f"[7/10] ASR-постобробка пропущена")
 
                 name_map = identify_module.identify_speakers(
                     segments,
@@ -189,7 +209,7 @@ def run(options: PipelineOptions) -> str:
                         log=log, progress=progress,
                     )
                 else:
-                    log(f"[8/9] Структурування пропущене")
+                    log(f"[9/10] Структурування пропущене")
                     dialog = structure_module.structure_dialog(
                         segments, llm=None, language=options.language, log=log,
                     )
@@ -202,7 +222,7 @@ def run(options: PipelineOptions) -> str:
                     )
                 else:
                     tldr_text = ""
-                    log(f"[9/9] TL;DR пропущено")
+                    log(f"[10/10] TL;DR пропущено")
                 dumper.write("09-tldr.txt", tldr_text)
             finally:
                 if llm is not None:

@@ -151,7 +151,7 @@ def identify_speakers(
         candidates = {}
         reporter = progress if progress is not None else NullProgress()
         with reporter.task(
-            "[7/9] Ідентифікація мовців", total=len(clusters)
+            "[8/10] Ідентифікація мовців", total=len(clusters)
         ) as advance:
             for cluster in clusters:
                 snippet = _cluster_snippet(segs, cluster, INTRO_WINDOW_S)

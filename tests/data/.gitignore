@@ -1,0 +1,4 @@
+# Local-only test fixtures (private audio + reference transcripts).
+*.reference.txt
+*.m4a
+*.wav

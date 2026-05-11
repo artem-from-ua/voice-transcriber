@@ -1,6 +1,6 @@
 [project]
 name = "voice"
-version = "0.11.0"
+version = "0.12.0"
 description = "End-to-end local pipeline: audio → diarized transcript + TLDR (VibeVoice-ASR + pyannote + in-process MLX LLM)"
 readme = "README.md"
 authors = [
@@ -16,6 +16,7 @@ dependencies = [
     "pyannote-audio>=3.1",
     "python-levenshtein>=0.27.3",
     "rich>=13",
+    "soundfile>=0.12",
     "torch>=2.11.0",
     "torchaudio>=2.11.0",
 ]
