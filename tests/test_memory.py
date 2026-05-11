@@ -8,7 +8,10 @@ import types
 from voice import _memory
 
 
-def test_free_mlx_runs_clear_cache_when_present(monkeypatch):
+def test_free_mlx_prefers_top_level_clear_cache(monkeypatch):
+    """mlx ≥ 0.21 exposes clear_cache on the top level; the legacy
+    `metal.clear_cache` triggers a deprecation warning and must be
+    skipped when the new one is available."""
     calls: list[str] = []
     fake_mx = types.SimpleNamespace(
         clear_cache=lambda: calls.append("mx.clear_cache"),
@@ -19,8 +22,22 @@ def test_free_mlx_runs_clear_cache_when_present(monkeypatch):
     monkeypatch.setitem(sys.modules, "mlx", types.SimpleNamespace(core=fake_mx))
     monkeypatch.setitem(sys.modules, "mlx.core", fake_mx)
     _memory.free_mlx(log=lambda _s: None)
-    assert "mx.clear_cache" in calls
-    assert "mx.metal.clear_cache" in calls
+    assert calls == ["mx.clear_cache"]
+
+
+def test_free_mlx_falls_back_to_metal_clear_cache(monkeypatch):
+    """Older mlx (no top-level clear_cache) still works via metal.*"""
+    calls: list[str] = []
+    fake_mx = types.SimpleNamespace(
+        # No top-level clear_cache here.
+        metal=types.SimpleNamespace(
+            clear_cache=lambda: calls.append("mx.metal.clear_cache"),
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "mlx", types.SimpleNamespace(core=fake_mx))
+    monkeypatch.setitem(sys.modules, "mlx.core", fake_mx)
+    _memory.free_mlx(log=lambda _s: None)
+    assert calls == ["mx.metal.clear_cache"]
 
 
 def test_free_mlx_swallows_missing_module(monkeypatch):

@@ -1,6 +1,6 @@
-"""Progress and spinner reporting for the pipeline.
+"""Progress and resource reporting for the pipeline.
 
-`ProgressReporter` wraps `rich.Progress` so each stage can announce itself
+`ProgressReporter` wraps `rich.Progress` so each stage announces itself
 through one of three context managers:
 
 - `.task(label, total)` for deterministic counters (postprocess, identify)
@@ -8,20 +8,26 @@ through one of three context managers:
 - `.token_counter(label)` for streaming-LLM generation (structure, tldr)
 
 On a real terminal each context renders an in-place bar/spinner with
-elapsed and ETA. When stderr is redirected (CI, `tee > log`) the same
-context exits to a single line — `✓ {label} in N.Ns` — so logs stay
-clean and ANSI-free.
+elapsed and ETA, and a persistent footer underneath shows RAM and MLX
+memory refreshed every second.
+
+On a non-TTY (CI, Claude Code Bash tool, `2> log`), bars are suppressed
+but a background heartbeat thread prints a single-line snapshot of the
+active task plus memory every 15 seconds. Stage transitions
+(`✓ {label} in N.Ns`) print immediately, never waiting for the next
+heartbeat tick.
 
 A single `ProgressReporter` lives for the whole pipeline run and is
-threaded through every stage that accepts a `progress=` kwarg. Stage
-unit tests pass `None` and behaviour is identical.
+threaded through every stage that accepts a `progress=` kwarg.
 """
 
 from __future__ import annotations
 
 import sys
+import threading
 import time
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Callable, Iterator
 
 __all__ = ["ProgressReporter", "NullProgress"]
@@ -37,40 +43,85 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
+from ._memory_stats import read_memory_snapshot
+
+
+HEARTBEAT_INTERVAL_S = 15.0
+FOOTER_REFRESH_HZ = 1.0
+
+
+@dataclass
+class _ActiveTask:
+    label: str
+    started: float
+    state_fn: Callable[[], str]  # returns "23/64 (35%) elapsed 0:32" or similar
+
 
 class ProgressReporter:
-    """Manages rich.Progress for the duration of a pipeline run.
+    """Manages rich.Progress for the duration of a pipeline run."""
 
-    Build one instance, pass it through stages, and call `start()`/`stop()`
-    around the run (or use the context manager). If stderr is not a TTY,
-    bars are suppressed entirely and only the completion line is printed —
-    no ANSI escapes leak into the log file.
-    """
-
-    def __init__(self, *, console: Console | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        console: Console | None = None,
+        heartbeat_interval_s: float = HEARTBEAT_INTERVAL_S,
+    ) -> None:
         self._console = console or Console(stderr=True)
         self._is_tty = self._console.is_terminal
         self._progress: Progress | None = None
+        self._footer_task_id = None
+        self._heartbeat_interval = heartbeat_interval_s
+
+        self._active_tasks: list[_ActiveTask] = []
+        self._tasks_lock = threading.Lock()
+
+        self._stop_event = threading.Event()
+        self._monitor_thread: threading.Thread | None = None
+
+    # ------------------------------------------------------------------ lifecycle
 
     def start(self) -> None:
-        if self._progress is not None or not self._is_tty:
+        if self._monitor_thread is not None:
             return
-        self._progress = Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("{task.completed:>4}/{task.total}"),
-            TimeElapsedColumn(),
-            TimeRemainingColumn(),
-            TextColumn("{task.fields[suffix]}"),
-            console=self._console,
-            transient=False,
-            refresh_per_second=10,
+        if self._is_tty:
+            self._progress = Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("{task.completed:>4}/{task.total}"),
+                TimeElapsedColumn(),
+                TimeRemainingColumn(),
+                TextColumn("{task.fields[suffix]}"),
+                console=self._console,
+                transient=False,
+                refresh_per_second=10,
+            )
+            self._progress.start()
+            # Persistent footer at the bottom of the progress group.
+            self._footer_task_id = self._progress.add_task(
+                "[dim]resources[/]", total=None, suffix="",
+            )
+
+        self._stop_event.clear()
+        self._monitor_thread = threading.Thread(
+            target=self._monitor_loop, name="voice-progress-monitor", daemon=True,
         )
-        self._progress.start()
+        self._monitor_thread.start()
 
     def stop(self) -> None:
+        if self._monitor_thread is None:
+            return
+        self._stop_event.set()
+        self._monitor_thread.join(timeout=2.0)
+        self._monitor_thread = None
+
         if self._progress is not None:
+            if self._footer_task_id is not None:
+                try:
+                    self._progress.remove_task(self._footer_task_id)
+                except Exception:  # noqa: BLE001 — defensive cleanup
+                    pass
+                self._footer_task_id = None
             self._progress.stop()
             self._progress = None
 
@@ -91,7 +142,14 @@ class ProgressReporter:
         if self._progress is not None:
             task_id = self._progress.add_task(label, total=total, suffix="")
 
+        completed = 0
+        last_suffix = ""
+
         def advance(n: int = 1, suffix: str | None = None) -> None:
+            nonlocal completed, last_suffix
+            completed += n
+            if suffix is not None:
+                last_suffix = suffix
             if task_id is None:
                 return
             update_kwargs: dict = {"advance": n}
@@ -99,13 +157,21 @@ class ProgressReporter:
                 update_kwargs["suffix"] = suffix
             self._progress.update(task_id, **update_kwargs)  # type: ignore[union-attr]
 
+        def state() -> str:
+            elapsed = time.perf_counter() - started
+            pct = int(round(100 * completed / total)) if total else 0
+            extras = f" {last_suffix}" if last_suffix else ""
+            return f"{completed}/{total} ({pct}%) elapsed {_fmt_elapsed(elapsed)}{extras}"
+
+        active = _ActiveTask(label=label, started=started, state_fn=state)
+        self._register(active)
         try:
             yield advance
         finally:
             elapsed = time.perf_counter() - started
             if task_id is not None:
-                # Force the bar to its final 100 %; rich will redraw once.
                 self._progress.update(task_id, completed=total)  # type: ignore[union-attr]
+            self._unregister(active)
             self._finalise(label, elapsed)
 
     @contextmanager
@@ -115,12 +181,19 @@ class ProgressReporter:
         task_id = None
         if self._progress is not None:
             task_id = self._progress.add_task(label, total=None, suffix="")
+
+        def state() -> str:
+            return f"elapsed {_fmt_elapsed(time.perf_counter() - started)}"
+
+        active = _ActiveTask(label=label, started=started, state_fn=state)
+        self._register(active)
         try:
             yield
         finally:
             elapsed = time.perf_counter() - started
             if task_id is not None:
                 self._progress.remove_task(task_id)  # type: ignore[union-attr]
+            self._unregister(active)
             self._finalise(label, elapsed)
 
     @contextmanager
@@ -146,16 +219,41 @@ class ProgressReporter:
                 suffix=f"{token_count} tokens · {tps:.1f} t/s",
             )
 
+        def state() -> str:
+            elapsed = time.perf_counter() - started
+            tps = token_count / elapsed if elapsed > 0 else 0.0
+            return (
+                f"{token_count} tokens ({tps:.1f} t/s) elapsed {_fmt_elapsed(elapsed)}"
+            )
+
+        active = _ActiveTask(label=label, started=started, state_fn=state)
+        self._register(active)
         try:
             yield advance
         finally:
             elapsed = time.perf_counter() - started
             if task_id is not None:
                 self._progress.remove_task(task_id)  # type: ignore[union-attr]
+            self._unregister(active)
             tail = f"{token_count} tokens"
             self._finalise(label, elapsed, suffix=tail)
 
     # ------------------------------------------------------------------ helpers
+
+    def _register(self, task: _ActiveTask) -> None:
+        with self._tasks_lock:
+            self._active_tasks.append(task)
+
+    def _unregister(self, task: _ActiveTask) -> None:
+        with self._tasks_lock:
+            try:
+                self._active_tasks.remove(task)
+            except ValueError:
+                pass
+
+    def _current_active(self) -> _ActiveTask | None:
+        with self._tasks_lock:
+            return self._active_tasks[-1] if self._active_tasks else None
 
     def _finalise(self, label: str, elapsed: float, *, suffix: str | None = None) -> None:
         """Print a one-line completion message that survives non-TTY logs."""
@@ -167,13 +265,54 @@ class ProgressReporter:
         else:
             print(line, file=sys.stderr, flush=True)
 
+    # ------------------------------------------------------------------ background monitor
+
+    def _monitor_loop(self) -> None:
+        """Update the TTY footer ~1 Hz; emit a non-TTY heartbeat every 15 s."""
+        if self._is_tty:
+            interval = 1.0 / FOOTER_REFRESH_HZ
+        else:
+            interval = self._heartbeat_interval
+
+        while not self._stop_event.is_set():
+            self._stop_event.wait(interval)
+            if self._stop_event.is_set():
+                break
+            try:
+                if self._is_tty:
+                    self._refresh_footer()
+                else:
+                    self._emit_heartbeat()
+            except Exception:  # noqa: BLE001 — telemetry must not crash the pipeline
+                pass
+
+    def _refresh_footer(self) -> None:
+        if self._progress is None or self._footer_task_id is None:
+            return
+        snapshot = read_memory_snapshot()
+        text = snapshot.format()
+        self._progress.update(self._footer_task_id, suffix=text)
+
+    def _emit_heartbeat(self) -> None:
+        active = self._current_active()
+        if active is None:
+            return
+        snapshot = read_memory_snapshot()
+        memory_part = snapshot.format()
+        suffix = f" · {memory_part}" if memory_part else ""
+        line = f"  · {active.label}: {active.state_fn()}{suffix}"
+        print(line, file=sys.stderr, flush=True)
+
+
+def _fmt_elapsed(seconds: float) -> str:
+    s = int(round(seconds))
+    if s >= 3600:
+        return f"{s // 3600}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+    return f"{s // 60}:{s % 60:02d}"
+
 
 class NullProgress:
-    """Drop-in stand-in for `ProgressReporter` in tests and when no UI is wanted.
-
-    Every context manager yields a no-op callable so stage modules can be
-    written as if a real reporter is always present.
-    """
+    """Drop-in stand-in for `ProgressReporter` in tests and when no UI is wanted."""
 
     def start(self) -> None: ...
     def stop(self) -> None: ...

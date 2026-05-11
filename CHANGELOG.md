@@ -5,14 +5,18 @@ All notable changes to this project will be documented in this file. The format 
 ## [0.9.0] — 2026-05-11
 
 ### Added
-- `voice._progress.ProgressReporter` — `rich.Progress` wrapper with three context managers: `task(label, total)` for deterministic counters, `spinner(label)` for indeterminate ops, `token_counter(label)` for token-streaming LLM generation. On a TTY, it renders in-place bars; on a non-TTY (CI, `2> log`), it prints a single `✓ {label} in N.Ns` line per stage so log files stay clean.
+- `voice._progress.ProgressReporter` — `rich.Progress` wrapper with three context managers: `task(label, total)` for deterministic counters, `spinner(label)` for indeterminate ops, `token_counter(label)` for token-streaming LLM generation.
+- TTY mode: in-place bars with elapsed/ETA, plus a persistent resource footer underneath updated once per second: `RAM 9.4/16.0 GB (59%) · MLX 8.0 GB · peak 9.6 GB`. RAM is read with `psutil.virtual_memory().used` which matches macOS Activity Monitor's "Memory Used" formula.
+- Non-TTY mode (CI, Claude Code Bash tool, `2> log`): bars suppressed; instead a background heartbeat thread prints **one line every 15 s** while a stage is active — `· [6/9] postprocess: 23/64 (35%) elapsed 0:32 5 fixed · RAM 9.2/16 GB (57%) · MLX 8.0 GB`. Stage transitions (`✓ {label} in N.Ns`) print immediately, never blocked by the heartbeat interval.
+- `voice._memory_stats.read_memory_snapshot()` returns a best-effort RAM + MLX snapshot; each field is `None` if its source is unavailable, and the formatter silently omits missing columns.
 - `voice._progress.NullProgress` — drop-in no-op replacement so stage modules don't need to branch on `progress is None`.
-- Stage modules (`postprocess`, `identify`, `structure`, `tldr`) and `pipeline` accept an optional `progress=` argument and emit per-stage UI: per-segment for postprocess, per-cluster for identify, live token count + tokens/sec for structure and TL;DR.
-- Model loads (VibeVoice, pyannote, Gemma) each run inside a `progress.spinner(...)` so the user never stares at a silent terminal for 10 seconds.
+- Stage modules (`postprocess`, `identify`, `structure`, `tldr`) and `pipeline` accept an optional `progress=` argument and emit per-stage UI.
+- Model loads (VibeVoice, pyannote, Gemma) each run inside a `progress.spinner(...)`.
 
 ### Changed
-- `MlxLLM.chat()` and `MlxLLM.chat_json()` accept an optional `on_token` callback. Internally they switch from `mlx_lm.generate` to `mlx_lm.stream_generate` so the progress reporter can advance once per token. The non-streaming behaviour for callers that pass `on_token=None` is unchanged.
-- `rich` added as a runtime dependency.
+- `MlxLLM.chat()` and `MlxLLM.chat_json()` accept an optional `on_token` callback. Internally they switch from `mlx_lm.generate` to `mlx_lm.stream_generate` so the progress reporter can advance once per token.
+- `voice._memory.free_mlx()` now prefers `mx.clear_cache()` over the deprecated `mx.metal.clear_cache()`. Removes a deprecation warning on mlx ≥ 0.21.
+- `rich` and `psutil` added as runtime dependencies.
 
 ## [0.8.0] — 2026-05-11
 
