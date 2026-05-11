@@ -10,6 +10,7 @@ External work — ASR inference, diarization, LLM prompting — is delegated to 
 @startuml
 title voice-transcriber — component overview
 skinparam componentStyle rectangle
+skinparam ArrowThickness 2
 
 actor User
 
@@ -44,7 +45,7 @@ database "Local" {
   file "~/.cache/huggingface/token" as HFToken
 }
 
-User --> CLI : audio path + opts
+User -[#red]-> CLI : audio path + opts
 CLI -[#blue]-> Pipeline : PipelineOptions
 
 Pipeline -[#red]-> WAV : input audio
@@ -59,8 +60,8 @@ Merge -[#blue]-> Post : Segment[]\n(text + pyannote label)
 Post -[#blue]-> Ident : Segment[]\n(content proof-read)
 Ident -[#blue]-> Struct : Segment[] + {label: name}
 Struct -[#blue]-> TLDR : StructuredDialog\n(sections + segments)
-TLDR -[#green]-> Render : Markdown TL;DR string
-Render -[#green]-> User : transcript.md
+TLDR -[#90EE90]-> Render : Markdown TL;DR string
+Render -[#90EE90]-> User : transcript.md
 
 WAV ..> Ffmpeg
 FF ..> Ffmpeg
@@ -78,13 +79,13 @@ MlxLm ..> LMSCache
 legend right
   <color:red>Red</color>: audio bytes
   <color:blue>Blue</color>: structured data (dataclass / JSON)
-  <color:green>Green</color>: Markdown
+  <color:#90EE90>Green</color>: Markdown
   Dotted arrows: library / file dependencies
 end legend
 @enduml
 ```
 
-![Architecture overview](https://www.plantuml.com/plantuml/svg/RLLVRzis47_dfpXuBpO6sykwTPjN6CsQfUrWjqMSPGCoFT3IMIPCaG999N6B3lqG-uJx9BiZBLlHyc2QT_Ux_tVKIn-a2qsbHL118znPbUCuE6byxjGQ7VpxvH_8RLLRWoQ0lKDtf_1U-9qojNIoEWbNOKyM7EP1cbAZ438Fri7l7fqGjSntiaGOH0_mQl5s09y4T4mFSgq683tB7WjgLQDM1gFqmu4Gdpj6MoPGEYNw_vc-FSjWiwcTNISZbvSz-RSP33URgiOIxfG4twm9dAFteuZ_u_ocf_0i8xwBmlFLLK_uNGQ5aavzJDukwDv3V9z1XQvCyYNVUe3d6TJMXqCKANEYUwWVCb05NTLc7o5lcUXXVioeAgx9G-EIkrMaUgYVCWYwI0bTBoxw6Przar5dJO49SHMlZp5QLp2izCEO_k-Th6jqgNYBnPARbMlR533uzI6WCrAd7jqUYZvjsvF5zaGcYsze1c_YJ5ALOslOWsmAPIDokVYJOVLU6cC3mhF9MUH_E31OU8XfgCouRMhIrG-BYYChP91hwMcE5ZPl8zjOJId2uE_f99Vv5gUw6ll0ZgULBL2ddYoMgrSiPGL5qt-2RvkoLARSo1odmUxGHFoRosk-irVU2nYFvpplC8EO4zGoRE5hi7NmWldZsw_Mki6COCSPdnslx-kWhF5276M4TrWmd4QMaBIaJKYs1NDESgxd3CwUm-xDHwYiiN78dp1qUTcpGunEM6aK27BEmYK6AGJRxa3YV3F2knMM5KtBRVQN6GPy29GhWtsDSaTMjig4qLD1y0gH1GunNf-mplphnfbe-pWGGLNHraWaNBUWj4-azqH8HsqjrwWf84PsDEEQzLHpQm9pQSJiPknG5YEHS1t5j7fTJVBsANgPWP4LVXO7I4U9rv5LsYKkA5DjI_BfwQtb0I0ZFXdq8n7Xf5uwHFEeGqlfTeMzDsJnPyBGgq03AWxYhaOSpHcqdu4wJAf2nFcPJERjTj8OT2Zk8fEyaFIBz-Don9OnvxYMHqwx4B74KObUYrItbZfKf2LZVYr1l-Gsxd8y7xiM6ajA49mgj_pclSYjjcv6LPnVOV5Y6ibvktxhVK1_Gd47vh_GSS8Tdz82-Dc08P-vbjxJ6_RRwlsxqKazrdF-ci-JWRO91Bkm8P0TwPozzpFGQksas_DRo4z9WJLtnkIAGk8KKYRY9HtqmVuF)
+![Architecture overview](https://www.plantuml.com/plantuml/svg/RLNDRXit4BxpAGRgHK8XoKxQj5O38Mvi9Ica9h1Sju2x1ufBhGXnoGN9jQq4AVeGVS8-IMT8hRJQ-g0LP-QR_ndoZG_SXRhKBAYW9JnO9UGmE6wyS6eb7VpxzpyWR5bP8qq0-o3TWvAFp6-LgRZZvL6u33kquAG8t1HQjY2Npjd7suqIMoEzXnUCSH6iWz-yT8nLN6nv8Q4NdSFR-OSUV67GyjeJMlM0UvAT2YfLIQsCZD9FUu9zRHbjc82P5jB_p_JzUGRhTUNiAXcPpJho5ndqr-koaWKyA0w-NY5OO1w3YF_zygwZy393lel2o-LDH_XT1hdYJdrEtgxmt45ydq4fNP7a2pfr0AyogAmF-oXIvaXtK3zae78yglKkGZuGqS7yc65LN2r2xPAxPQGwg8iCWivJGhVpgsv6vsSPDjtaCY5kul4KetK9_L8_3V7_qV6gaYuLRpvVKBE4jdKElUkd89tXElNeVb_qSTEUBBOdCabyX-Dv5ySLgnnRGnvudIiRaOlv7mIhTjmO6oIy79r7_gSzWuJxcFhA39kc9btzD2yfifm7lk8UvsXkHHFPscfC4Nf_ZKU2YuqSwtBe0paUbpQNElLalbY-9IafA5oC8tnJ5uKonPeBEGvsAqt4lv_Tqfcyqbx0yFuR9_DiEAMfXmd4pA3YOGFVWgs2PyH7r4hNac27IPySZX-heApnZ1raHwiuk8Z45Qr3iis8SvHJLITm_Wgsxpz3QOsDe_wCeTciOmSPhR3IG23aaeGB6JXZPBi5YLDE2E-MiYXnPkwpFqq_oAU0kHBOLv9lqSf6cJ1uBWXQ9BH08SRZCzQ9Vrix4sqVnYAeCjeQi8Hh5nIt2lMU2UcWhVbAQWo8a2tDk6mTLM5D82uEcbqFdUJvW2LSIp4jO5iJlNs9NYPWU2c_iZsafKHBIIhDAkUOgRO5-lHu6TC0e16V3Fe1Yt1KlpYxlhuuEsdHWhjjRXyDclm9GNWvu9oolVX49Oxe19gNeWgZCcTnWaQZQREbE0WjYlf892qc_kBvi2InQSGvhEU1qon6B79KmbiZLQwXzZLfo9XXG-0lkOqx7R-dhfcM1MO8JXKRkljU2wkjcs0TfpSoVpsEvBHPmDKkI7z4KG-cF-FdY3jSgJdGzG5z-WhDyUKRmo_BZxyEZkhxYaxVEIdDqKJJ1mHUsH3G4gSdr4z0gvNZRaUt8bqgkQoeEKOe38gIIBcmD_Z1L_q_)
 
 ## Module layout
 
