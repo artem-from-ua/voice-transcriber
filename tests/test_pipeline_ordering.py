@@ -100,6 +100,9 @@ def patched_pipeline(monkeypatch, tmp_path):
                 "agc_max_gain_db": kwargs.get("agc_max_gain_db"),
                 "bandpass_low_hz": kwargs.get("bandpass_low_hz"),
                 "bandpass_high_hz": kwargs.get("bandpass_high_hz"),
+                "presence_center_hz": kwargs.get("presence_center_hz"),
+                "presence_boost_db": kwargs.get("presence_boost_db"),
+                "presence_q": kwargs.get("presence_q"),
             },
         )
         config = {
@@ -219,7 +222,7 @@ def test_bandpass_extends_chain(patched_pipeline, tmp_path):
             run_structure=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
-            clearspeech_bandpass=True,
+            clearspeech_chain="agc,bandpass",
         )
     )
 
@@ -232,8 +235,8 @@ def test_bandpass_extends_chain(patched_pipeline, tmp_path):
     assert rec.payload("asr").endswith(".agc.bandpass.wav")
 
 
-def test_no_clearspeech_agc_passes_raw_wav_to_asr(patched_pipeline, tmp_path):
-    """With both effects off, ASR sees the raw WAV directly."""
+def test_empty_chain_passes_raw_wav_to_asr(patched_pipeline, tmp_path):
+    """Empty chain string disables all preprocessing — ASR reads raw WAV."""
     rec, fake_audio = patched_pipeline
     out = tmp_path / "out.md"
 
@@ -246,7 +249,7 @@ def test_no_clearspeech_agc_passes_raw_wav_to_asr(patched_pipeline, tmp_path):
             run_structure=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
-            clearspeech_agc=False,
+            clearspeech_chain="",
         )
     )
 
@@ -259,3 +262,52 @@ def test_no_clearspeech_agc_passes_raw_wav_to_asr(patched_pipeline, tmp_path):
 
     # Empty chain means ASR sees the same path as diarize.
     assert rec.payload("asr") == rec.payload("diarize")
+
+
+def test_full_chain_agc_bandpass_presence(patched_pipeline, tmp_path):
+    """Three effects in canonical order; ASR sees triple-suffixed WAV."""
+    rec, fake_audio = patched_pipeline
+    out = tmp_path / "out.md"
+
+    run(
+        PipelineOptions(
+            audio_path=str(fake_audio),
+            output_path=str(out),
+            run_proofread=False,
+            run_tldr=False,
+            run_structure=False,
+            names_override=["A", "B"],
+            unknown_speaker="keep",
+            clearspeech_chain="agc,bandpass,presence",
+        )
+    )
+
+    cs = rec.payload("clearspeech")
+    assert cs["chain"] == ["agc", "bandpass", "presence"]
+    assert cs["presence_center_hz"] == 3_000.0
+    assert cs["presence_boost_db"] == 6.0
+    assert cs["presence_q"] == 1.0
+    assert rec.payload("asr").endswith(".agc.bandpass.presence.wav")
+
+
+def test_reordered_chain_runs_in_given_order(patched_pipeline, tmp_path):
+    """User-specified order overrides any canonical assumption."""
+    rec, fake_audio = patched_pipeline
+    out = tmp_path / "out.md"
+
+    run(
+        PipelineOptions(
+            audio_path=str(fake_audio),
+            output_path=str(out),
+            run_proofread=False,
+            run_tldr=False,
+            run_structure=False,
+            names_override=["A", "B"],
+            unknown_speaker="keep",
+            clearspeech_chain="presence,agc",
+        )
+    )
+
+    cs = rec.payload("clearspeech")
+    assert cs["chain"] == ["presence", "agc"]
+    assert rec.payload("asr").endswith(".presence.agc.wav")

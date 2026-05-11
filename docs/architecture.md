@@ -74,7 +74,7 @@ skinparam legendBackgroundColor #EEEEEE
 component "<b>[1] audiotranscode</b>\n<i><ffmpeg></i>" as WAV #FFA07A
 component "<b>[2] audiometa</b>\n<i><ffprobe></i>" as FF #FFA07A
 component "<b>[3] diarize</b>\n<i><pyannote-audio> speaker-diarization-3.1</i>" as Diar #87CEFA
-component "<b>[4] clearspeech</b>\n<i><soundfile> agc</i>\n<i><scipy> bandpass</i>" as CS #E8E8E8
+component "<b>[4] clearspeech</b>\n<i><soundfile> agc</i>\n<i><scipy> <s>bandpass</s></i>\n<i><scipy> <s>presence</s></i>" as CS #E8E8E8
 component "<b>[5] asr</b>\n<i><mlx-audio> VibeVoice-ASR</i>" as ASR #90EE90
 component "<b>[6] merge</b>" as Merge #E8E8E8
 component "<b>[7] proofread</b>\n<i><mlx-lm> gemma-3-12b</i>" as Post #DDA0DD
@@ -119,7 +119,7 @@ end legend
 @enduml
 ```
 
-![Pipeline stages](https://www.plantuml.com/plantuml/svg/dLR1Sk964BthAxhCnIOhm8OOGr6gnM0IRsNZBRFb71mTHj8Wff1cbD5eRUrfFo9Vc2z9pmY4Z9131LMfqAZVUwrHlsvzJ1MHAeiZIp4LKVWcc4zj9GbFVSayAk6V7tz3mX8QCKu1eqEQMkc6yOH84eCluaHmojLIvGYNr5U4Xn6jX4ob52zVrypVS9gcS5Mv5T6Gyk1Mo83AcOY41AECDv6n7aVyJIX5neCYjdLdVfRrFF4S3CqKa2nWOjBrd3_vX3bnqly0B-JR1uW714_903gTpgJB71T82lS6qfgEz658Ti-Tg4uSQ1eJzv2fQg1LFZES8URvqYra2x08QAa_MQtYX8QELZpJJ7zCdw2rM4nxm-aXozMM9QQAL0aIAJowPrWicWZwBWICIFQzef_aX7EXg6se7KWJIZPKsaKWKKnmkz-vBDddk0wjc-7iRb7Z7xZWHvH8vA3-Ug-HwXUoOX5rW8I-fjgk-op97V083nAIfgN6R8alxaOVXme_wzsMU-OuUjqb_eIb-6HASxfyBAdmFxH6lRkxKU-Gwzg5cChGx8M9_QolcfI7Bk0-YvMa97Yh7yKEX3IEYTstBw-yKlgBIB4YvlDfRpu_PBjnWGLunLRvQMJtEhg9RUIYwsJcgqpIq-YM9ho9xxBdWee2UHhNrz_cZurCMFbeLFHkkSkFvhBSPgkmcFtSaZHmRGVBjxQ4dh0iROpzaYd3CKnyRVDnQz3JXtDv3PjVlqCikD2WITVSTWwmM5ud8uqEGhqeeqtOhMK0jv-3fsiThKFJaWCnUt5Ta3K6xHfEWrrlsk8i7LlHBkgp1iQ6AaAEfWv0qLVLc7e3_B-ojmfSXSWKTer7QyCBK-jT2u68U3JQ4nbOXQOewHgFSPcjRVRsSOhm2dvRmySJ-QdCWfEuyZHRK8N6bEznaZI9c0B6bO0KfnQsmigsO9kji6oh-kZBaG7Z8GH4KKmhoAHfgYMHqKUcuMms7yxUuqepD9_CI-GsxWss64IMLOn3K281oSArik2GhTs-5Q-0NJbgj-7SJ6tmCSTGoFnYN8eWpiEXEjwE50TmeQjNd7fw7huxNm_mSzmzAZc9m6CSKxweqnKJv1swwJswCQ2H-ReususfRiDyEgih55t_P0NTuh1xnHbdAk--cIRsjSVK4OMYv_rFXKehjPco_oBA7XoNAJhbEp89zdtxIwxMbR8gqSKdoJle--u392IFX1viU_HXjPXlj7JSRjU3iBKvZxH4rmhNj3NmSbKnOWdM3d9kyTG8BsTRe4r4u5oV_GY_6A0BdvOFlrySoRi_7StxK-SNIIblPFvCv2OGB_jTqvufh6Dzn1D-zFuB)
+![Pipeline stages](https://www.plantuml.com/plantuml/svg/dLR1KkD64BthAxhm1PmLDjZ1GBbKQsoSi9KDMx153iI7aTIMfopDAAFHWlUq7v4lp9UaPsJBmhA8AwXAXKVztclDzElMnqmpfVCaTZJNCS8toGDqjM8Y2nJtKS4_F_w6bASOSu50qH5cJhRa8cMA9H3899K2XNxKAu8h33GJKOoLa95IykNhWWTBWLa6vvL7CKOemXkfGbHZ6Ki5LfaU4cCzZWNBICbSX4LiwzR-ESxpqFSeDDV0yf3BOSVt_XH3xYLfxmEyi6yV8EapkgLzE3qz7NQuDmEMmPs5j4PNvh8ac_TEzMaI6XeRTv_hQg1JlZCS4URvR5R85c0POga_dC-J52FFA1uPfZz6Jz2QJaVTmMYNvNpDag1cLO9KIH-t3DDf4q5l1Y5dYd-lwASh9eJKw5fg3x8KsHALMmGopQLmUwTd9Vk4rg5rEHZVJcly_Ha4CJ9571WijXgPEP0vZz435WM6QhqUy7JbmJ3pV2R2b6NPi9Dv-vwd2ZCK0MwUsrJ6ZtI-b-RQJUHdSoXgcq0IlsxUxuagzibMyEZneQIY_w5rrRszlUhkSbtC844LsIspiP_DhoRbmGpeEEHS8GlVwiU91n4c2NDxxjcvNqf_aHaLpcGowaucksoNC-0X_UBprM5aToQwYUrgHkPKUQ1pXOVHFThm9hwpxWnq7Ah3kBx-DdbeP2A3a9_9ukKkFzYVvJOxXHFTvvR2SEPwLEMr9RAEunZ_R9TijLx3C33TuBhLxvhBExk0vQ_V8P526j2mOnzxErWghuEHLeUWVfnZ4tRjBA3j5-0RIv33C2iv2BCLDmLPOp3c4XXkMjWQvvZOYdPHdpKmzLqP2V9-21fVTMFg3V3_ojufS1KYMzWr7gCDBrmlDfq6OkPZl2Moi0fDKT8r7kiorzZixUiKuHNykeRt9_9JcOLWIULjrg0AZItV_IHP6dCDN6W96GqtwfYLRQ5kN65PL_NUmr4X5n64J2Eb5URAzjwIoEeJqs0ydWp6xt5bEPbFhKhaEkuDjfXNZbDCJT0o1SMZXNPWbwtTlf6lGCqxRhVXs0vt22Z7IAhLoNKfGZYVPk_rUl9uG0iTi-BLq_Ffx08pvuzfzr095eFF1QLyKgSh1iqxTACxScE8iVq8ETfCiqx363kgAnHT_s05q-AeUoMvu7hLUJDDt0kVwpqAHS_xdmgLLkfoxVx5jDlVBrDqodTaKkhxxfULNbJAgaGNNoxleEywzv2oLIpDODkYTwl5Vifbr-rsFOXQc_U09RfMkBQjWR_I5IEMOECWxuPkZV1ojeN6H0oEpJs8wQi2El3fyVxtaprvzqPNazx8-qKXYaRcpqmjG_cotJNZcS8wpaUwqRVnlm00)
 
 ## Module layout
 
@@ -130,7 +130,7 @@ src/voice/
 ├── types.py         # shared dataclasses (AsrSegment, DiarTurn, Segment, Section, StructuredDialog, AudioMeta)
 ├── ffprobe.py       # extract_metadata(): start/end/duration from ffprobe → birthtime → mtime
 ├── diarize.py       # diarize(): pyannote 3.1, MPS+CPU fallback, exclusive turns
-├── clearspeech.py   # clearspeech(): chain-of-DSP-effects (AGC + bandpass in PR-1; presence / de-ess / denoise planned)
+├── clearspeech.py   # clearspeech(): chain-of-DSP-effects (AGC + bandpass + presence; de-ess / denoise planned)
 ├── asr.py           # transcribe(): mlx-audio wrapper, bitness 4/5/6/8, JSON timeline parse
 ├── merge.py         # merge(): per-segment max-overlap mapping ASR↔pyannote
 ├── proofread.py     # fix_asr_errors(): per-segment LLM proof-reader with safety net
@@ -149,7 +149,7 @@ The pipeline passes increasingly enriched `Segment` lists from stage to stage. N
 1. **audiotranscode** — `ffmpeg` subprocess writes a 16 kHz mono PCM WAV to a temp dir.
 2. **audiometa** — `ffprobe.extract_metadata(audio)` → `AudioMeta` (start/end/duration). Goes straight to render.
 3. **Diarize** — `diarize.diarize(wav)` → `DiarTurn[]` (pyannote timeline). Runs on the raw WAV so its boundaries are not influenced by AGC.
-4. **Clearspeech** — `clearspeech.clearspeech(wav, chain, agc_turns=turns, ...)` runs an ordered chain of DSP effects. PR-1 chain: `agc → bandpass`. Each enabled effect writes a sibling WAV (`<stem>.agc.wav`, `<stem>.agc.bandpass.wav`, …) and the next effect reads it; ASR consumes the last applied effect's output. With `--no-clearspeech-agc` and bandpass off, the chain is empty and ASR receives the raw WAV. See [ADR 0010](adr/0010-clearspeech-chain.md) for the chain-of-effects design rationale.
+4. **Clearspeech** — `clearspeech.clearspeech(wav, chain, agc_turns=turns, ...)` runs an ordered chain of DSP effects. Available effects: `agc`, `bandpass`, `presence`. Chain is configured by the single `--clearspeech-chain` CLI flag (default `"agc"`). Each enabled effect writes a sibling WAV (`<stem>.agc.wav`, `<stem>.agc.bandpass.wav`, `<stem>.agc.bandpass.presence.wav`, …) and the next effect reads it; ASR consumes the last applied effect's output. With `--clearspeech-chain ""` the chain is empty and ASR receives the raw WAV. See [ADR 0010](adr/0010-clearspeech-chain.md) for the chain-of-effects design and [ADR 0012](adr/0012-clearspeech-chain-string-cli.md) for the single-string CLI.
 5. **ASR** — `asr.transcribe(cleaned_wav)` → `AsrSegment[]` (text + ASR-side speaker hint).
 6. **Merge** — joins (3) and (5) into `Segment[]` (text + pyannote speaker label).
 7. **Postprocess** — LLM proof-reads `content` per segment in-place.

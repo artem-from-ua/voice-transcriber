@@ -275,16 +275,136 @@ def test_chain_missing_agc_turns_raises(tmp_path: Path) -> None:
         clearspeech(src, chain=("agc",), agc_turns=None)
 
 
-def test_pr1_rejects_reordered_chain(tmp_path: Path) -> None:
-    """`bandpass→agc` is physically meaningful but PR-1 keeps the order fixed."""
+def test_chain_rejects_unknown_effect(tmp_path: Path) -> None:
     src = tmp_path / "in.wav"
     _write(src, _sine(440, 0.25, -20))
-    with pytest.raises(ValueError, match="canonical agc"):
-        clearspeech(src, chain=("bandpass", "agc"), agc_turns=[])
+    with pytest.raises(ValueError, match="unknown effect"):
+        clearspeech(src, chain=("nonexistent",))
 
 
-def test_pr1_rejects_unknown_effect(tmp_path: Path) -> None:
+def test_chain_rejects_duplicate_effect(tmp_path: Path) -> None:
     src = tmp_path / "in.wav"
     _write(src, _sine(440, 0.25, -20))
-    with pytest.raises(ValueError):
-        clearspeech(src, chain=("presence",))
+    with pytest.raises(ValueError, match="duplicate effect"):
+        clearspeech(src, chain=("agc", "agc"), agc_turns=[])
+
+
+@pytest.mark.parametrize("chain", [
+    ("bandpass", "agc"),
+    ("presence", "agc"),
+    ("agc", "presence", "bandpass"),
+    ("presence", "bandpass", "agc"),
+])
+def test_chain_allows_any_known_order(tmp_path: Path, chain: tuple[str, ...]) -> None:
+    """Free-order is enabled in PR-2 — any permutation of known effects works."""
+    src = tmp_path / "audio.wav"
+    _write(src, _sine(1_000.0, 0.5, -20))
+    turns = [DiarTurn(0.0, 0.5, "A")]
+
+    dst, config = clearspeech(src, chain=chain, agc_turns=turns)
+
+    assert config["chain"] == list(chain)
+    assert [s["name"] for s in config["steps"]] == list(chain)
+    assert dst.exists()
+
+
+# --------------------------- Presence effect --------------------------------
+
+
+def test_presence_amplifies_at_center_freq(tmp_path: Path) -> None:
+    """Sine at center frequency rises by ~boost_db (±0.5 dB) after filtfilt.
+
+    `filtfilt` applies the biquad twice (forward + back), so the effective
+    boost is 2× the per-pass design value. We pass boost_db=3 expecting +6 dB
+    of post-filtfilt gain at center.
+    """
+    src = tmp_path / "in.wav"
+    audio = _sine(3_000.0, 1.0, -20.0)
+    _write(src, audio)
+
+    dst, config = clearspeech(
+        src, chain=("presence",),
+        presence_center_hz=3_000.0, presence_boost_db=3.0, presence_q=1.0,
+    )
+
+    assert dst.name == "in.presence.wav"
+    bp_step = config["steps"][0]
+    assert bp_step["applied"] is True
+    assert bp_step["params"] == {"center_hz": 3000.0, "boost_db": 3.0, "q": 1.0}
+
+    out, _ = sf.read(dst, dtype="float32")
+    skip = int(0.05 * SR)
+    rise_db = _rms_dbfs(out[skip:-skip]) - _rms_dbfs(audio[skip:-skip])
+    # filtfilt doubles the peak gain (each pass adds boost_db; effective 2×).
+    assert 5.5 < rise_db < 6.5, f"rise {rise_db:.2f} dB out of [5.5, 6.5]"
+
+
+def test_presence_passes_far_band_unchanged(tmp_path: Path) -> None:
+    """100 Hz sine sits below the 3 kHz peak — RMS preserved within 0.5 dB."""
+    src = tmp_path / "in.wav"
+    audio = _sine(100.0, 1.0, -20.0)
+    _write(src, audio)
+
+    dst, _ = clearspeech(
+        src, chain=("presence",),
+        presence_center_hz=3_000.0, presence_boost_db=6.0, presence_q=1.0,
+    )
+
+    out, _ = sf.read(dst, dtype="float32")
+    skip = int(0.05 * SR)
+    assert abs(_rms_dbfs(out[skip:-skip]) - _rms_dbfs(audio[skip:-skip])) < 0.5
+
+
+def test_presence_invalid_params_raise(tmp_path: Path) -> None:
+    src = tmp_path / "in.wav"
+    _write(src, _sine(440, 0.25, -20.0))
+
+    # center >= Nyquist
+    with pytest.raises(ClearspeechError, match="center_hz"):
+        clearspeech(src, chain=("presence",), presence_center_hz=9_000.0)
+    # center == 0
+    with pytest.raises(ClearspeechError, match="center_hz"):
+        clearspeech(src, chain=("presence",), presence_center_hz=0.0)
+    # boost out of range
+    with pytest.raises(ClearspeechError, match="boost_db"):
+        clearspeech(src, chain=("presence",), presence_boost_db=30.0)
+    # q out of range
+    with pytest.raises(ClearspeechError, match="q"):
+        clearspeech(src, chain=("presence",), presence_q=0.05)
+
+
+def test_presence_writes_sibling_presence_wav(tmp_path: Path) -> None:
+    src = tmp_path / "voice.agc.bandpass.wav"
+    _write(src, _sine(2_000.0, 0.5, -20))
+
+    dst, _ = clearspeech(src, chain=("presence",))
+
+    assert dst.name == "voice.agc.bandpass.presence.wav"
+    assert dst.parent == src.parent
+
+
+def test_full_chain_agc_bandpass_presence(tmp_path: Path) -> None:
+    """Three effects in canonical order; intermediate WAVs all written."""
+    src = tmp_path / "audio.wav"
+    _write(src, _sine(3_000.0, 1.0, -25.0))
+    turns = [DiarTurn(0.0, 1.0, "A")]
+
+    seen: list[tuple[int, str, str]] = []
+
+    def dump(idx, name, path):
+        seen.append((idx, name, path.name))
+
+    dst, config = clearspeech(
+        src, chain=("agc", "bandpass", "presence"),
+        agc_turns=turns, dump=dump,
+    )
+
+    assert dst.name == "audio.agc.bandpass.presence.wav"
+    assert config["chain"] == ["agc", "bandpass", "presence"]
+    assert seen == [
+        (1, "agc", "audio.agc.wav"),
+        (2, "bandpass", "audio.agc.bandpass.wav"),
+        (3, "presence", "audio.agc.bandpass.presence.wav"),
+    ]
+    for inter in seen:
+        assert (tmp_path / inter[2]).exists()

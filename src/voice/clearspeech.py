@@ -1,23 +1,23 @@
 """Audio cleanup chain between diarize and ASR.
 
-This module replaces the older `voice.audio_preprocess` (which only did
-per-turn AGC). The chain-of-effects design lets future PRs add denoise /
-presence boost / de-esser as ordered links without growing the pipeline-stage
-count ([N/10] stays constant) or rewriting dump layout per release.
+The chain-of-effects design lets future PRs add new DSP effects as ordered
+links without growing the pipeline-stage count ([N/10] stays constant) or
+rewriting dump layout per release.
 
-PR-1 chain effects (issue #48):
+Chain effects (issue #48):
   - "agc"      — per-pyannote-turn RMS normalization (was loudness_normalize)
   - "bandpass" — Butterworth IIR bandpass via scipy.signal.sosfiltfilt (E2a)
+  - "presence" — RBJ-cookbook peaking EQ via scipy.signal.filtfilt (E2b)
 
-PR-1 enforces the canonical `agc → bandpass` order; free-order arrives in PR-2
-along with the presence-boost effect, when reordering becomes meaningful.
+Effect order is the user's choice — any permutation of known effects is
+allowed; duplicates and unknown names raise `ValueError`. See ADR 0012 for
+the CLI shape (single `--clearspeech-chain` string).
 
 Hard input invariant: 16 kHz mono PCM_16 WAV — the format that the upstream
 ffmpeg stage produces. The 16 kHz Nyquist of 8 kHz caps `bandpass_high_hz`
-strictly below 8000; the default 5500 (well under that cap) was picked by a
-listening test on the project's reference recording — see ADR 0011 for the
-empirical reasoning. Issue #48's nominal 10 kHz upper bound is unreachable
-at this sample rate.
+strictly below 8000; defaults were picked by listening tests on the
+project's reference recording — see ADR 0011 (bandpass) and ADR 0013
+(presence) for the empirical reasoning.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from typing import Callable
 
 import numpy as np
 import soundfile as sf
-from scipy.signal import butter, sosfiltfilt
+from scipy.signal import butter, filtfilt, sosfiltfilt
 
 from .types import DiarTurn
 
@@ -37,14 +37,7 @@ SR = 16_000
 BANDPASS_ORDER = 4  # Butterworth IIR; 4 ≈ 24 dB/octave, doubled by sosfiltfilt
 SILENT_RMS_THRESHOLD = 1e-6
 
-# PR-1 only allows this canonical order. PR-2 will replace this gate with a
-# free-order parser once "presence" lands and reordering becomes meaningful.
-_PR1_ALLOWED_CHAINS: frozenset[tuple[str, ...]] = frozenset({
-    (),
-    ("agc",),
-    ("bandpass",),
-    ("agc", "bandpass"),
-})
+KNOWN_EFFECTS: frozenset[str] = frozenset({"agc", "bandpass", "presence"})
 
 ClearspeechDumpHook = Callable[[int, str, Path], None]
 
@@ -58,6 +51,23 @@ def _noop_log(_msg: str) -> None:
     return None
 
 
+def _validate_chain(chain: tuple[str, ...]) -> None:
+    """Reject unknown effect names and duplicates. Order is the caller's call."""
+    seen: set[str] = set()
+    for effect in chain:
+        if effect not in KNOWN_EFFECTS:
+            raise ValueError(
+                f"unknown effect in chain: {effect!r}. "
+                f"Known effects: {sorted(KNOWN_EFFECTS)}"
+            )
+        if effect in seen:
+            raise ValueError(
+                f"duplicate effect in chain: {effect!r}. "
+                f"Each effect must appear at most once."
+            )
+        seen.add(effect)
+
+
 def clearspeech(
     wav_path: str | Path,
     chain: tuple[str, ...],
@@ -68,6 +78,9 @@ def clearspeech(
     agc_crossfade_ms: float = 100.0,
     bandpass_low_hz: float = 150.0,
     bandpass_high_hz: float = 5_500.0,
+    presence_center_hz: float = 3_000.0,
+    presence_boost_db: float = 6.0,
+    presence_q: float = 1.0,
     log: Callable[[str], None] = _noop_log,
     dump: ClearspeechDumpHook | None = None,
 ) -> tuple[Path, dict]:
@@ -86,16 +99,11 @@ def clearspeech(
         step stats, suitable for `02b-clearspeech-config.json`.
 
     Raises ClearspeechError on bad inputs (wrong SR, non-mono, missing
-    `agc_turns` when "agc" is requested, invalid bandpass cutoffs).
-    Raises ValueError when `chain` is outside the PR-1 allowed set.
+    `agc_turns` when "agc" is requested, invalid bandpass / presence params).
+    Raises ValueError when `chain` contains unknown effects or duplicates.
     """
     chain = tuple(chain)
-    if chain not in _PR1_ALLOWED_CHAINS:
-        allowed = sorted(_PR1_ALLOWED_CHAINS, key=lambda c: (len(c), c))
-        raise ValueError(
-            f"PR-1 supports only canonical agc→bandpass order; got {chain!r}. "
-            f"Allowed chains: {allowed}"
-        )
+    _validate_chain(chain)
 
     src = Path(wav_path)
     config: dict = {
@@ -131,10 +139,18 @@ def clearspeech(
                 high_hz=bandpass_high_hz,
                 log=log,
             )
+        elif effect == "presence":
+            current, step_info = _apply_presence(
+                current,
+                center_hz=presence_center_hz,
+                boost_db=presence_boost_db,
+                q=presence_q,
+                log=log,
+            )
         else:
-            # Defensive — the chain validator above should make this
-            # unreachable, but the dispatch is explicit so the failure mode is
-            # clear if the validator is ever loosened.
+            # Unreachable while _validate_chain stays consistent with the
+            # dispatch arms above. Explicit so a future loosening of the
+            # validator fails loudly here rather than silently dropping work.
             raise ValueError(f"unknown effect in chain: {effect!r}")
 
         config["steps"].append({"name": effect, "applied": True, **step_info})
@@ -363,3 +379,106 @@ def _validate_bandpass_cutoffs(low_hz: float, high_hz: float) -> None:
             f"invalid bandpass cutoffs: 0 < low ({low_hz}) "
             f"< high ({high_hz}) < Nyquist ({nyquist}) is required"
         )
+
+
+# ---------------------------------------------------------------------------
+# Effect: presence (RBJ-cookbook peaking EQ, zero-phase via filtfilt). Boosts
+# (or cuts) a configurable band around `center_hz` by `boost_db`; widens or
+# narrows the boost via `q`. Used to restore consonant intelligibility for
+# distant speakers whose 2-5 kHz energy was attenuated by room transit.
+# ---------------------------------------------------------------------------
+
+
+_PRESENCE_BOOST_BOUNDS_DB = (-24.0, 24.0)
+_PRESENCE_Q_BOUNDS = (0.1, 10.0)
+
+
+def _apply_presence(
+    wav_path: Path,
+    *,
+    center_hz: float,
+    boost_db: float,
+    q: float,
+    log: Callable[[str], None],
+) -> tuple[Path, dict]:
+    src = Path(wav_path)
+    dst = src.with_suffix(".presence.wav")
+    params = {
+        "center_hz": float(center_hz),
+        "boost_db": float(boost_db),
+        "q": float(q),
+    }
+
+    _validate_presence_params(center_hz, boost_db, q)
+
+    samples, sr = sf.read(src, dtype="float32", always_2d=False)
+    if sr != SR:
+        raise ClearspeechError(
+            f"expected {SR} Hz sample rate, got {sr} Hz: {src}"
+        )
+    if samples.ndim != 1:
+        raise ClearspeechError(
+            f"expected mono input, got {samples.ndim}-D array: {src}"
+        )
+
+    b, a = _design_peaking_eq(center_hz, boost_db, q)
+    # `filtfilt` runs the biquad forward and back, doubling effective slope
+    # but cancelling phase distortion — same rationale as the bandpass effect
+    # (ASR is sensitive to consonant onset timing; min-phase IIR smears it).
+    out = filtfilt(b, a, samples).astype(np.float32)
+    np.clip(out, -1.0, 1.0 - 1e-7, out=out)
+
+    sf.write(dst, out, SR, subtype="PCM_16")
+    log(
+        f"clearspeech.presence: {center_hz:.0f} Hz, "
+        f"{boost_db:+.1f} dB, Q={q:.2f} → {dst.name}"
+    )
+    return dst, {"params": params, "stats": {}}
+
+
+def _validate_presence_params(center_hz: float, boost_db: float, q: float) -> None:
+    nyquist = SR / 2
+    if not (0.0 < center_hz < nyquist):
+        raise ClearspeechError(
+            f"invalid presence center_hz ({center_hz}): "
+            f"must satisfy 0 < center_hz < Nyquist ({nyquist})"
+        )
+    lo, hi = _PRESENCE_BOOST_BOUNDS_DB
+    if not (lo <= boost_db <= hi):
+        raise ClearspeechError(
+            f"invalid presence boost_db ({boost_db}): "
+            f"must be within [{lo}, {hi}] dB"
+        )
+    qlo, qhi = _PRESENCE_Q_BOUNDS
+    if not (qlo <= q <= qhi):
+        raise ClearspeechError(
+            f"invalid presence q ({q}): must be within [{qlo}, {qhi}]"
+        )
+
+
+def _design_peaking_eq(
+    center_hz: float, boost_db: float, q: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """Robert Bristow-Johnson Audio EQ Cookbook peaking EQ biquad.
+
+    Reference: https://www.w3.org/TR/audio-eq-cookbook/#peaking-eq
+
+    Returns (b, a) coefficient arrays normalised so a[0] == 1, suitable for
+    `scipy.signal.filtfilt`. The peak gain at `center_hz` equals `boost_db`
+    (positive = boost, negative = dip); `q` controls bandwidth (higher = narrower).
+    """
+    A = 10 ** (boost_db / 40)
+    w0 = 2 * np.pi * center_hz / SR
+    cos_w0 = np.cos(w0)
+    alpha = np.sin(w0) / (2 * q)
+
+    b0 = 1 + alpha * A
+    b1 = -2 * cos_w0
+    b2 = 1 - alpha * A
+    a0 = 1 + alpha / A
+    a1 = -2 * cos_w0
+    a2 = 1 - alpha / A
+
+    b = np.array([b0, b1, b2], dtype=np.float64) / a0
+    a = np.array([1.0, a1 / a0, a2 / a0], dtype=np.float64)
+    return b, a
