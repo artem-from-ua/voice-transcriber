@@ -71,14 +71,14 @@ skinparam ArrowThickness 2
 
 component "<b>[1] audiotranscode</b>\n<ffmpeg>" as WAV #FFA07A
 component "<b>[2] audiometa</b>\n<ffprobe>" as FF #FFA07A
-component "<b>[3] diarize</b>\n<pyannote-audio>\nspeaker-diarization-3.1" as Diar #87CEFA
+component "<b>[3] diarize</b>\n<pyannote-audio> speaker-diarization-3.1" as Diar #87CEFA
 component "<b>[4] normalize</b>\n<soundfile> + <numpy>" as Norm #E8E8E8
-component "<b>[5] asr</b>\n<mlx-audio>\nVibeVoice-ASR" as ASR #90EE90
+component "<b>[5] asr</b>\n<mlx-audio> VibeVoice-ASR" as ASR #90EE90
 component "<b>[6] merge</b>" as Merge #E8E8E8
-component "<b>[7] proofread</b>\n<mlx-lm>\ngemma-3-12b" as Post #DDA0DD
-component "<b>[8] identify</b>\n<mlx-lm>\ngemma-3-12b" as Ident #DDA0DD
-component "<b>[9] structure</b>\n<mlx-lm>\ngemma-3-12b" as Struct #DDA0DD
-component "<b>[10] tldr</b>\n<mlx-lm>\ngemma-3-12b" as TLDR #DDA0DD
+component "<b>[7] proofread</b>\n<mlx-lm> gemma-3-12b" as Post #DDA0DD
+component "<b>[8] identify</b>\n<mlx-lm> gemma-3-12b" as Ident #DDA0DD
+component "<b>[9] structure</b>\n<mlx-lm> gemma-3-12b" as Struct #DDA0DD
+component "<b>[10] tldr</b>\n<mlx-lm> gemma-3-12b" as TLDR #DDA0DD
 component "<b>[11] render</b>" as Render #E8E8E8
 
 Input -[#red]-> FF
@@ -117,7 +117,7 @@ end legend
 @enduml
 ```
 
-![Pipeline stages](https://www.plantuml.com/plantuml/svg/dLRRRkCs47tNLmpYbyI5rdQInebh2AkDussAPXF4GVgGwe6IQ8KmHQeKrOstAD2Fw1VsIpgaR5cn8iTO2A0jQiuvGt8k_9XhedIHSaSppIdyALb4NQs8o2F5GghWlt_-XOnbb3D10QqJcZlvWecCA9929DDC2YhqJ2yHhcYaYKWuhPduIicl3yyiMWYQvt3iE4_ZqCElXGPIn4oEUw4N0CdXsivr_0lpMAkr8vd-aCQLtMsXwuPEvGGS8EPf49Iy9LZ6r01_5-FvFCreuXqOYj_yH-XCftv_w6_3ZrVmb6fI8JCbGrf2fzCsv4a0CIEAVLihPaiYXDJKjOGuasUKBAXoIpEYcHJkoOU1vPtW77JEXvTNqmRpQG12gfJm3NSk2n7F6QSU_01ZKQJPilJl2nf2v-hSFDiyFvhzKok6bBzKZZtYMJ_Qi_TdzvO6Vw5pqR-wkkXlivm5a5ALM4-ixOrvQzCS1e2x9-UAahYcp5Fybz0q9Uw9EpWEBT6TpF5S9nE_Fvbiyvm7m69yO_FbUpJNngwDvoB0C5P5f0j5toEQMSCsfa4_0CrZzHxBmw-J-rOEZ5P5HKnLjPltzhNQJgTC2_UfesWSk1u6O6CAmzbnJ4nlfcmuZM0SIIxLg7FQDuytE8F5pzyWbK8QqBXdFtjRM1j2UsEj4e93Nj1sjB5wA9Hu2jP0tBBN9eS9OGAIWgZOLOJn_AZIi9mR1qrmxkjVKoR33CJJ5-1_ljn8E8Qqjemog1igVgvcD4dn07UjHDCNZNbfA5Sv3yzCwAFMJMjHssVNrbK6D4jjcQwjgQIjwTWCQyZilw9AZ9EGyesIvQtfb2duFKAH5DfWRT5mJTNOg9IiDPbLWhRheCj_MLT784XA_wweLiWQbqtJ9jEwLiHu5bmcxOxdsFomeESecPVojG1si6tKj5OvtemkKuzlRETP0QrNY1nUNaw6bxkmDqGjOlbLu49-GWmMEIOgTvqLwXLJsKWTXzC4luAM6IYMF6i7jhcxtK_o1R3Ty6uN3kqr02AYQIBLycXKYI0k9D5Yj6gG7k14pynusuHv4U81H-P6S8YHHPKW748c2F8rwSgkk8FElyQyZoctrvM3TP3sslfjKw7iT7ihc5gFbJmj1DFBtglkwPw5JB-XKDR_xrIejHINQVSFejtJjsNAhh539iDOTk-M-baAwC5aTjVaA2zMEpYkUxUGaIMNfgLlqDinOwz--QZRRHfXFddtj48tWjbUJ21SQfetmIQBl4yujCAh3Xz3J3I1GpD6d62uzU2NsUsNepVyBXF3-wme5QtCwoohy2PpoWHoFkA0T-d_0G00)
+![Pipeline stages](https://www.plantuml.com/plantuml/svg/dLRRRkCs47tNLmpYbyI5rdQInebh2AkDussAPXF4GVgGwe6IQ8KmHQeKrOstAD2Fw1VsIpgaR5cn8iTO2910QiuvGt8k_9XhedIHSaSppIdyALb4NQs8o2F5GghWlt_-XOnbb3D10QqJcZlvWecCA9929DDC2YhqJ2yHhcYaYKWuhPduIicl3yyiMWYQvt3iE4_ZqCE_XGPIn4oEUw4N0CdXsivr_0lpMAkr8vd-aCQLtMsXwuPEvGGS8EPf49Iy9LZ6r01_5-FvFCreuXqOYj_yH-XCftv_w6_3ZrVmb6fI8JCbGrf2fzCsv4a0CIEAVLihPaiYXDJKjOGUv1ab2whSqefe9eLxyc5WQISu1vtpuUNLj45y6e2GAYLyGvtBGiHpnga7Fy1O56csBDtxWeRGkJetppRFZsRxr8eXvIzhlnxnf1_joVkpUyk2N-XSzA-kBlhR96S1f5GbrX5hUsD6RPB3073lv5nH4jU4UUf1GjEKk2Vku3YqF7SonqETJFp-PB9DSnu0Yt74vijtMAwDMHlDHO0Xh8f85ug-mpEpTcr4Wtu0ciVg7PA7NoVthHGOfugAcAfg9-_jiDfAfqm8zwcZQ1ou7ePUOme3sN5CD6-cR2IDO1n9BjMeSzetZpSuWyNFto2LGXhGk6T_UrjO6prxOwqIWaDUq7QqiNeeb7WAra3SiTScXmbX0fA2gDXLXF7ygDAmd1i7JM3kwrzJ9iFamxCNu7--t4WuXhIsZ3AW6of-hcOqIV40Twr4qnUDAMaeL-aEpqpeezPDQr7RPzVMzGKqIss1hgsffAtfsFHgoEo_eagCav3oZPBbhUcK2VWzGf4Ksc1jmN1DnTYebAmrcLL-jkkWotzPLqSWI4h_hgXMo1gNJTCcqxfIn7WMN2RjZkVOzh2MvoYPb_Ar07QmOTIqLZdUZ2vJYczipra1hLU875vUJeQNkx0tH2rY-LNWGdv239Ou9YftdHNg5LFPGXs7qmJ_WfOPA9OyQmUskRlTJ_85iDFmRXSExGK08g9f8jNoQ5I982uaqMAqQeqUu4JFp7ZRX7aHuW57vYvmY955bI0SGYO8yZNfoeQuWyw_nhoFARSNbODraFRQMcrJeUnoUokOKe-LF2q4qylUgyxfdeLClw5Grl_lLAYr59Tfzm-YtTEtPSgkiKCcmrXsxvRwMGhemMHsr-GehrGxEAvxjv2H9PUcdM_Gsp5ZBttvgDjj6c4-UVUqGZU2sTv985ngcZV19ekyJ_XgXLVzFOQOQ0A7vXrnWk7MWrzcjr-Etl2xJ0pliw9Kj3Aliwp2cymf4yZvY2-yHVyF)
 
 ## Module layout
 
