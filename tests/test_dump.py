@@ -85,3 +85,25 @@ def test_dump_empty_string_still_writes(tmp_path: Path, text: str):
     d = StageDumper(target=tmp_path)
     d.write("09-tldr.txt", text)
     assert (tmp_path / "09-tldr.txt").exists()
+
+
+def test_dump_binary_copies_file(tmp_path: Path):
+    target = tmp_path / "out"
+    d = StageDumper(target=target)
+    src = tmp_path / "in.wav"
+    src.write_bytes(b"RIFF\x00\x01\x02fake-wav-bytes")
+    d.write_binary("02b-normalized.wav", src)
+    assert (target / "02b-normalized.wav").read_bytes() == src.read_bytes()
+
+
+def test_dump_binary_writes_raw_bytes(tmp_path: Path):
+    d = StageDumper(target=tmp_path)
+    d.write_binary("02b-normalized.wav", b"\x00\x01\x02")
+    assert (tmp_path / "02b-normalized.wav").read_bytes() == b"\x00\x01\x02"
+
+
+def test_dump_binary_disabled_is_noop(tmp_path: Path):
+    d = StageDumper(target=None)
+    src = tmp_path / "x.wav"
+    src.write_bytes(b"abc")
+    d.write_binary("02b-normalized.wav", src)  # must not raise

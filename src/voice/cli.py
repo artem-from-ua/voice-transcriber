@@ -78,13 +78,29 @@ def _build_parser() -> argparse.ArgumentParser:
     t.add_argument("--no-postprocess", action="store_true", help="Skip per-segment ASR proof-reading.")
     t.add_argument("--no-tldr", action="store_true", help="Skip TL;DR generation.")
     t.add_argument("--no-structure", action="store_true", help="Skip section structuring.")
+
+    loud = t.add_argument_group("loudness normalization")
+    loud.add_argument(
+        "--no-loudness-normalize", action="store_true",
+        help="Skip per-segment AGC; ASR runs on the raw WAV (pre-0.12 behaviour).",
+    )
+    loud.add_argument(
+        "--loudness-target-dbfs", type=float, default=-20.0, metavar="DBFS",
+        help="Target RMS for per-turn AGC (default: -20.0).",
+    )
+    loud.add_argument(
+        "--loudness-max-gain-db", type=float, default=16.0, metavar="DB",
+        help="Max boost per turn; quieter turns clipped at this gain (default: 16.0).",
+    )
+
     t.add_argument(
         "--dump-stages", dest="dump_stages_dir", default=None, metavar="DIR",
         help=(
-            "Write each stage's output to DIR as JSON for troubleshooting "
-            "(01-meta.json, 02-asr.json, 03-diarize.json, 04-merge.json, "
-            "05-postprocess.json, 06-identify.json, 07-segments-named.json, "
-            "08-structure.json, 09-tldr.txt). Disabled when omitted."
+            "Write each stage's output to DIR for troubleshooting "
+            "(01-meta.json, 02-diarize.json, 02b-normalized.wav, 03-asr.json, "
+            "04-merge.json, 05-postprocess.json, 06-identify.json, "
+            "07-segments-named.json, 08-structure.json, 09-tldr.txt). "
+            "Disabled when omitted."
         ),
     )
     t.add_argument("-v", "--verbose", action="store_true", help="Verbose progress logs to stderr.")
@@ -106,6 +122,9 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         run_postprocess=not args.no_postprocess,
         run_tldr=not args.no_tldr,
         run_structure=not args.no_structure,
+        run_loudness_normalize=not args.no_loudness_normalize,
+        loudness_target_dbfs=args.loudness_target_dbfs,
+        loudness_max_gain_db=args.loudness_max_gain_db,
         dump_stages_dir=args.dump_stages_dir,
         verbose=args.verbose,
     )

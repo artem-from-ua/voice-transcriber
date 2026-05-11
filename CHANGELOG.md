@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] — 2026-05-11
+
+### Added
+- New pipeline stage **loudness normalization** between WAV conversion and ASR (issue #47). The pipeline now runs **diarize before ASR**: pyannote turns serve as per-segment guard-rails for RMS-based AGC, applied with 100 ms linear crossfades on segment boundaries (silent gaps left at unity gain). New module `voice.audio_preprocess.loudness_normalize(wav, turns, target_dbfs, max_gain_db, crossfade_ms)` returns a sibling `<stem>.normalized.wav` consumed by ASR. The motivating bug: VibeVoice-ASR drifts to Russian on quiet turns; equalising per-speaker levels measurably reduces the drift on the test recording.
+- CLI flags: `--no-loudness-normalize` (stage is default-on), `--loudness-target-dbfs FLOAT` (default `-20.0`), `--loudness-max-gain-db FLOAT` (default `16.0` — tuned by listening test, see [`docs/adr/0006-loudness-normalize-defaults.md`](docs/adr/0006-loudness-normalize-defaults.md)), grouped under "loudness normalization" in `--help`.
+- New runtime dependency: `soundfile>=0.12` for libsndfile-backed WAV I/O.
+- `voice._dump.StageDumper.write_binary(name, src)` copies a binary artefact (file path or raw bytes) into the dump dir; used to dump `02b-normalized.wav`.
+
+### Changed
+- **Pipeline order: diarize now runs before ASR** (was: ASR → diarize). The order swap is required so the normalizer has its per-turn guard-rails before ASR sees the audio. With `--no-loudness-normalize` the pipeline produces an output equivalent to 0.11.0 on the same audio — ASR is deterministic and `merge()` is order-independent.
+- `--dump-stages DIR` file layout renumbered to reflect the new order:
+  - `02-diarize.json` (was `03-diarize.json`)
+  - `02b-normalized.wav` (new, binary; only present when normalization stage runs)
+  - `03-asr.json` (was `02-asr.json`)
+  - `04-merge.json` … `09-tldr.txt` unchanged.
+- Pipeline progress headers go from `[N/9]` to `[N/10]`.
+
 ## [0.11.0] — 2026-05-11
 
 ### Added

@@ -126,7 +126,7 @@ def structure_dialog(
 
     reporter = progress if progress is not None else NullProgress()
     try:
-        with reporter.token_counter("[8/9] Структурування на секції") as advance:
+        with reporter.token_counter("[9/10] Структурування на секції") as advance:
             payload = llm.chat_json(
                 messages,
                 on_token=advance,

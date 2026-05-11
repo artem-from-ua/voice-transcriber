@@ -29,6 +29,9 @@ def test_minimal_invocation_defaults():
     assert opts.run_postprocess is True
     assert opts.run_tldr is True
     assert opts.run_structure is True
+    assert opts.run_loudness_normalize is True
+    assert opts.loudness_target_dbfs == -20.0
+    assert opts.loudness_max_gain_db == 16.0
     assert opts.verbose is False
 
 
@@ -84,3 +87,19 @@ def test_unknown_speaker_choices():
     assert _opts_from_args(ns).unknown_speaker == "keep"
     with pytest.raises(SystemExit):
         _parse(["transcribe", "/tmp/a.m4a", "--unknown-speaker", "wat"])
+
+
+def test_no_loudness_normalize_flag():
+    ns = _parse(["transcribe", "/tmp/a.m4a", "--no-loudness-normalize"])
+    assert _opts_from_args(ns).run_loudness_normalize is False
+
+
+def test_loudness_tuning_flags():
+    ns = _parse([
+        "transcribe", "/tmp/a.m4a",
+        "--loudness-target-dbfs", "-18",
+        "--loudness-max-gain-db", "15",
+    ])
+    opts = _opts_from_args(ns)
+    assert opts.loudness_target_dbfs == -18.0
+    assert opts.loudness_max_gain_db == 15.0

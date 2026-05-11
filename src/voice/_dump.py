@@ -1,13 +1,14 @@
 """Optional stage-artefact dumping for troubleshooting.
 
-When `--dump-stages DIR` is passed to the CLI, the pipeline writes a JSON
-file per stage so the user can diff what each step produced. The dump is
-purely diagnostic — disabling it changes nothing in the rendered output.
+When `--dump-stages DIR` is passed to the CLI, the pipeline writes one
+artefact per stage so the user can diff what each step produced. The dump
+is purely diagnostic — disabling it changes nothing in the rendered output.
 
 File layout:
     01-meta.json            AudioMeta from ffprobe
-    02-asr.json             list[AsrSegment] (raw VibeVoice output)
-    03-diarize.json         list[DiarTurn]
+    02-diarize.json         list[DiarTurn] (pyannote, run on the raw WAV)
+    02b-normalized.wav      WAV after per-segment AGC (loudness normalize)
+    03-asr.json             list[AsrSegment] (raw VibeVoice on normalised WAV)
     04-merge.json           list[Segment] after merge (no LLM touches yet)
     05-postprocess.json     list[Segment] after the LLM proof-reader
     06-identify.json        {pyannote label → human name}
@@ -20,15 +21,17 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
 
 class StageDumper:
-    """Write one file per stage into a target directory.
+    """Write one artefact per stage into a target directory.
 
-    If `target` is None the dumper is a no-op — call sites can use a single
-    `dumper.write(name, obj)` line without branching.
+    If `target` is None the dumper is a no-op — call sites use a single
+    `dumper.write(name, obj)` or `dumper.write_binary(name, src)` line
+    without branching on `enabled()`.
     """
 
     def __init__(self, target: Path | None) -> None:
@@ -50,6 +53,16 @@ class StageDumper:
             )
         else:
             path.write_text(str(obj), encoding="utf-8")
+
+    def write_binary(self, name: str, src: str | Path | bytes) -> None:
+        """Copy a binary artefact (file path or raw bytes) into the dump dir."""
+        if self.target is None:
+            return
+        path = self.target / name
+        if isinstance(src, (bytes, bytearray)):
+            path.write_bytes(bytes(src))
+        else:
+            shutil.copyfile(src, path)
 
 
 def _to_json_safe(obj: Any) -> Any:
