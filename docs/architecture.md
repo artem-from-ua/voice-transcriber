@@ -18,16 +18,17 @@ package "voice CLI" {
   component "pipeline" as Pipeline
 }
 
-package "Stages" {
-  component "ffprobe" as FF
-  component "asr" as ASR
-  component "diarize" as Diar
-  component "merge" as Merge
-  component "postprocess" as Post
-  component "identify" as Ident
-  component "structure" as Struct
-  component "tldr" as TLDR
-  component "render" as Render
+package "Pipeline stages" {
+  component "[1] ffprobe" as FF
+  component "[2] (ffmpeg via subprocess)" as WAV
+  component "[3] asr" as ASR
+  component "[4] diarize" as Diar
+  component "[5] merge" as Merge
+  component "[6] postprocess" as Post
+  component "[7] identify" as Ident
+  component "[8] structure" as Struct
+  component "[9] tldr" as TLDR
+  component "[10] render" as Render
   component "llm (mlx-lm wrapper)" as LLM
 }
 
@@ -43,34 +44,45 @@ database "Local" {
   file "~/.cache/huggingface/token" as HFToken
 }
 
-User --> CLI
-CLI --> Pipeline
-Pipeline --> FF
-Pipeline --> ASR
-Pipeline --> Diar
-Pipeline --> Merge
-Pipeline --> Post
-Pipeline --> Ident
-Pipeline --> Struct
-Pipeline --> TLDR
-Pipeline --> Render
+User --> CLI : audio path + opts
+CLI --> Pipeline : PipelineOptions
 
-FF --> Ffmpeg
-ASR --> MLX
-MLX --> LMSCache
-Diar --> Pyannote
-Diar ..> HFToken
-Post --> LLM
-Ident --> LLM
-Struct --> LLM
-TLDR --> LLM
-LLM --> MlxLm
-MlxLm --> LMSCache
+Pipeline --> WAV : input audio
+WAV --> ASR : 16 kHz mono WAV
+Pipeline --> FF : input audio
+FF --> Render : AudioMeta
+
+ASR --> Merge : AsrSegment[]\n(text + ASR speaker hint)
+Pipeline --> Diar : WAV
+Diar --> Merge : DiarTurn[]\n(pyannote timeline)
+Merge --> Post : Segment[]\n(text + pyannote label)
+Post --> Ident : Segment[]\n(content proof-read)
+Ident --> Struct : Segment[] + {label: name}
+Struct --> TLDR : StructuredDialog\n(sections + segments)
+TLDR --> Render : Markdown TL;DR string
 Render --> User : transcript.md
+
+WAV ..> Ffmpeg
+FF ..> Ffmpeg
+ASR ..> MLX
+MLX ..> LMSCache
+Diar ..> Pyannote
+Diar ..> HFToken
+Post ..> LLM
+Ident ..> LLM
+Struct ..> LLM
+TLDR ..> LLM
+LLM ..> MlxLm
+MlxLm ..> LMSCache
+
+legend right
+  Solid arrows: data flow between stages
+  Dotted arrows: library / file dependencies
+end legend
 @enduml
 ```
 
-![Architecture overview](https://www.plantuml.com/plantuml/svg/PLJBRjim4BphAmYTaeDi5Btr4AH8OZI030Hn6XGeUbXJAuKmNo0fnsxHeX_HB-oNb5pAIfWUPEtEBBdZtO4kVG0NHYMh8894jZU2OnCSQC-TsA9ZVt__OTmeQpJgmCmUtLxWS-LtGbjme5x8JJZ66npo07gGM5N0Wt7iiqTNLHRu3WPaDNLWL-rjpNvKxDNLDPUYPk0JLn9MM9H28x5tKrBzV7Nf9iIN_-_6lhVERFEvrQham3l2FsxkIw8JuCJtVEWwnYMhq0sPMwVeZL3ZG-p8qVkiDUPbXUZYI_H7eczJKl8-k967qUKM6yhAYY2xBFoXlNwZtA7kC9Ft59Qqb8gTANbeullPWRNepgcuRTTfcboQiMFrpI6Wqo3pDB_slR8ui2MRXlcDXabWeX-ZIHx9D76GR2-0fGumTi9GvRhzaihi4RGs0TdxnJl2xoOWaPEcCw6RQNhd-Qmyj2efwo305dnST6luILblPFoBhFwrN73WJxYKgl4XDLugqw7CAsZNcwl4fWCYslEb_6aS1g677ZWkWzcXflfFguSKfwx9kAnfBiYGyQ5ujjyf83IQgyYJgGg0Z5GWsJu5H7OfaEoG0feyKM1aXGAPzb-jLbbVtbTQ4VMEIuaFnVE0aiGiuxGQGXQBYtaeIM0-51r3skOiovhJf6XEufFRqZxfjsoTrH96G__0JbyW6nQggouZ7xzH_m00)
+![Architecture overview](https://www.plantuml.com/plantuml/svg/RLNRZXCv47ttLvJoD15AihFiSibAY153158Y41a6fDb-SBghErRSTijsJsP083w2B-HBgBAxCqdlFYHnrJbLvRevBtsGBhIr5a45ZN1hLOwJuAJnkLCRTF3hnq_8RTrOWoQ0lKLtgt0l_4wPHZfPFu3hS4yU7EP1cagZ438Fri57Zqw8HkOxMI6COWHujNmxWgy2ZboFSgr683rZfq2Z6jJAO4JVTuBuTkIqLmAbKw7_Z-kRympAid5savmi5WFypmpEoh9ki89R9S6t6oBdwFquyZzTN0yC7cUaTn6yM7yOW7zbK2Zfr9SKxPBE0yRV6TJegeIl-3GWFCcWiJvqjqYPapnWFSr05NHKvNsal6LXm7cMKLLScuVMfN3hA0rOppC8kaW9NIqlXncT_v5HPqs1YV4X7ayvMjTmLkkx2VtkdMmQTAbuo-MAcvLhsnOmUdqNq1cfKuzkkgBF-lPaiJrHoV0rpU1rd4cgScmDHv1jeMnahfQVcTRSIsDiG7WyFO_wzvs2mUvEPyfC-gOcMtsthFbcXGno8ptDqTBc_SrAgob567sVJNEPRt6cwuaF77XMsm9rwibojNx5A1ieclu7-hQjAcMgKkOu2tQ79lBVBAxup55vBs0oUS7p3dE8EK4ZmnOUWMs25wnd_33SyyFnNHEKDLw80yP4cbBYq5ws8RaJh664YpU7yoUmU_C5QcjidEWJuyLYO4iArgTM4tR1sXK6AGIxOomEBaFUhR6gQGnkid_DMS2xG4amopSeTsI-LIQCJmFoLf0jNoGUZnsougfr9hexD3UeEfgFHUB5uj1IaC7_X3-OQRb1JS6PoIPnIGOskJM1jJGWjfmubCLO91vRf8qvDY7_NwFVEHXPupVHKPZDwyFSVkaAoaRRYg9uUXkvRsJjaoS_5f5-KkcLTBl2xWrv-eSmsbuQ9D71p8oZCuV-cMx2j2v4RFPq-gBV7khVaSJDO94NXZxnV1ZUM7_M7DRceEa7DbOl6j4sfyhqKfTwByPyUe4-AMpSjVXz6bfeh2WnSAhQyfkqjbeL89spUpy7tamejTt31iCUqNGFF14lRGZumDHguwIxvuU4zx30XijbSaLazf_2Y9VqHVzslm40)
 
 ## Module layout
 
@@ -94,15 +106,17 @@ src/voice/
 
 ## Data flow
 
-The pipeline passes increasingly enriched `Segment` lists from stage to stage:
+The pipeline passes increasingly enriched `Segment` lists from stage to stage. Numbers match the labels in the diagram and the log lines.
 
-1. `asr.transcribe()` produces `AsrSegment[]` (text + ASR-side speaker hint)
-2. `diarize.diarize()` produces `DiarTurn[]` (pyannote timeline)
-3. `merge.merge()` joins them into `Segment[]` (text + pyannote speaker label)
-4. `postprocess.fix_asr_errors()` updates `content` per segment
-5. `identify.identify_speakers()` returns a `{label → name}` map; pipeline assigns `.name`
-6. `structure.structure_dialog()` wraps `Segment[]` into `StructuredDialog` with sections
-7. `tldr.generate_tldr()` produces a Markdown string
-8. `render.render_markdown()` combines `AudioMeta` + `StructuredDialog` + `tldr` into one file
+1. **ffprobe** — `extract_metadata(audio)` → `AudioMeta` (start/end/duration). Goes straight to render.
+2. **WAV conversion** — `ffmpeg` subprocess writes a 16 kHz mono WAV to a temp dir.
+3. **ASR** — `asr.transcribe(wav)` → `AsrSegment[]` (text + ASR-side speaker hint).
+4. **Diarize** — `diarize.diarize(wav)` → `DiarTurn[]` (pyannote timeline).
+5. **Merge** — joins (3) and (4) into `Segment[]` (text + pyannote speaker label).
+6. **Postprocess** — LLM proof-reads `content` per segment in-place.
+7. **Identify** — LLM returns `{label → name}`; pipeline assigns `.name` on each segment.
+8. **Structure** — LLM produces `StructuredDialog` (segments + section titles).
+9. **TL;DR** — LLM emits a Markdown summary string.
+10. **Render** — combines `AudioMeta`, `StructuredDialog`, and the TL;DR into the final Markdown file.
 
 See [`pipeline.md`](pipeline.md) for the step-by-step sequence with timing details, and [`adr/`](adr/) for the decisions behind these boundaries.
