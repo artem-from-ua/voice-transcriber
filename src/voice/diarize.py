@@ -13,6 +13,7 @@ from typing import Callable
 import torch
 from pyannote.audio import Pipeline
 
+from ._memory import free_torch_mps
 from .types import DiarTurn
 
 
@@ -58,7 +59,13 @@ def diarize(
     log(f"Diarization done in {time.time() - t1:.1f}s.")
 
     payload = result.serialize()
-    return [
+    turns = [
         DiarTurn(start=t["start"], end=t["end"], speaker=t["speaker"])
         for t in payload["exclusive_diarization"]
     ]
+
+    # Drop pyannote's weights and KV before any LLM stage runs — the
+    # alternative is LM Studio crashing on long prompts on a 16 GB Mac.
+    del pipeline, result, payload
+    free_torch_mps(log)
+    return turns

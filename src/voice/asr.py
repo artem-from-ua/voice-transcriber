@@ -18,6 +18,7 @@ from typing import Callable
 
 from mlx_audio.stt.generate import generate_transcription
 
+from ._memory import free_mlx
 from .types import AsrSegment
 
 
@@ -123,4 +124,9 @@ def transcribe(
             content=content,
             speaker_asr=seg.get("Speaker"),
         ))
+
+    # Drop the VibeVoice weights and KV cache before downstream LLM stages —
+    # on 16 GB Macs they otherwise sit alongside the LLM and crash it.
+    del result, raw_text, raw_segments
+    free_mlx(log)
     return segments
