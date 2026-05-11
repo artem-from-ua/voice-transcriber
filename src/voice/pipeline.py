@@ -51,8 +51,8 @@ class PipelineOptions:
     clearspeech_agc_target_dbfs: float = -20.0
     clearspeech_agc_max_gain_db: float = 16.0
     clearspeech_bandpass: bool = False
-    clearspeech_bandpass_low_hz: float = 80.0
-    clearspeech_bandpass_high_hz: float = 7_900.0
+    clearspeech_bandpass_low_hz: float = 150.0
+    clearspeech_bandpass_high_hz: float = 5_500.0
     dump_stages_dir: str | None = None
     verbose: bool = False
 

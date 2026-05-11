@@ -100,14 +100,17 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     cs.add_argument(
-        "--clearspeech-bandpass-low-hz", type=float, default=80.0, metavar="HZ",
-        help="Bandpass low cutoff in Hz (default: 80).",
+        "--clearspeech-bandpass-low-hz", type=float, default=150.0, metavar="HZ",
+        help=(
+            "Bandpass low cutoff in Hz (default: 150 — tuned by listening "
+            "test, see ADR 0011)."
+        ),
     )
     cs.add_argument(
-        "--clearspeech-bandpass-high-hz", type=float, default=7_900.0, metavar="HZ",
+        "--clearspeech-bandpass-high-hz", type=float, default=5_500.0, metavar="HZ",
         help=(
-            "Bandpass high cutoff in Hz (default: 7900, just below the 16 kHz "
-            "Nyquist of 8000)."
+            "Bandpass high cutoff in Hz (default: 5500 — tuned by listening "
+            "test, see ADR 0011)."
         ),
     )
 

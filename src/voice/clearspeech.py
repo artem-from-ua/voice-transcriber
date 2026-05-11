@@ -14,8 +14,10 @@ along with the presence-boost effect, when reordering becomes meaningful.
 
 Hard input invariant: 16 kHz mono PCM_16 WAV — the format that the upstream
 ffmpeg stage produces. The 16 kHz Nyquist of 8 kHz caps `bandpass_high_hz`
-just below 8000 (default 7900); issue #48's nominal 10 kHz upper bound is
-unreachable at this sample rate and would require resampling first.
+strictly below 8000; the default 5500 (well under that cap) was picked by a
+listening test on the project's reference recording — see ADR 0011 for the
+empirical reasoning. Issue #48's nominal 10 kHz upper bound is unreachable
+at this sample rate.
 """
 
 from __future__ import annotations
@@ -64,8 +66,8 @@ def clearspeech(
     agc_target_dbfs: float = -20.0,
     agc_max_gain_db: float = 16.0,
     agc_crossfade_ms: float = 100.0,
-    bandpass_low_hz: float = 80.0,
-    bandpass_high_hz: float = 7_900.0,
+    bandpass_low_hz: float = 150.0,
+    bandpass_high_hz: float = 5_500.0,
     log: Callable[[str], None] = _noop_log,
     dump: ClearspeechDumpHook | None = None,
 ) -> tuple[Path, dict]:

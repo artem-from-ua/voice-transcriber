@@ -225,8 +225,8 @@ def test_bandpass_extends_chain(patched_pipeline, tmp_path):
 
     cs = rec.payload("clearspeech")
     assert cs["chain"] == ["agc", "bandpass"]
-    assert cs["bandpass_low_hz"] == 80.0
-    assert cs["bandpass_high_hz"] == 7_900.0
+    assert cs["bandpass_low_hz"] == 150.0
+    assert cs["bandpass_high_hz"] == 5_500.0
 
     # ASR sees the final sibling with both suffixes.
     assert rec.payload("asr").endswith(".agc.bandpass.wav")

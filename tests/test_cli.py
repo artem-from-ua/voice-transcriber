@@ -33,8 +33,8 @@ def test_minimal_invocation_defaults():
     assert opts.clearspeech_agc_target_dbfs == -20.0
     assert opts.clearspeech_agc_max_gain_db == 16.0
     assert opts.clearspeech_bandpass is False
-    assert opts.clearspeech_bandpass_low_hz == 80.0
-    assert opts.clearspeech_bandpass_high_hz == 7_900.0
+    assert opts.clearspeech_bandpass_low_hz == 150.0
+    assert opts.clearspeech_bandpass_high_hz == 5_500.0
     assert opts.verbose is False
 
 
