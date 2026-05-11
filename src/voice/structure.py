@@ -13,7 +13,7 @@ import sys
 from typing import Callable, Iterable
 
 from ._prompts import render as render_prompt
-from .llm import LLMClient, LLMError
+from .llm import LLMError, MlxLLM
 from .types import Section, Segment, StructuredDialog
 
 
@@ -88,7 +88,7 @@ def _validate(
 def structure_dialog(
     segments: Iterable[Segment],
     *,
-    llm: LLMClient | None = None,
+    llm: MlxLLM | None = None,
     language: str = "uk",
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
 ) -> StructuredDialog:

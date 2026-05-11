@@ -1,12 +1,11 @@
 # Troubleshooting
 
-## "LM Studio server is not reachable at http://localhost:1234/v1"
+## "LLM model not found at …"
 
-The HTTP client got a connection error before any prompts went out.
+The pipeline expected an MLX checkpoint directory and found nothing (or no `config.json` inside).
 
-- Open LM Studio → **Develop** tab → **Start Server** (default port `1234`).
-- Confirm the URL with `curl -s http://localhost:1234/v1/models` — you should see JSON with the model list.
-- If the server is running on another port or another machine, pass `--llm-base-url http://host:port/v1`.
+- Open LM Studio → **Models** → search for the default model (`mlx-community/gemma-3-12b-it-qat-4bit`) and download it. The pipeline reads the same cache LM Studio uses; the LM Studio server itself does not need to be running.
+- To point at a different local model directory, pass `--llm-model /path/to/mlx/checkpoint`.
 
 ## "VibeVoice-ASR-Nbit not found at …"
 
@@ -59,13 +58,13 @@ Self-introduction wasn't detected in the first ~60 s of that cluster's speech.
 - Or rerun with `--unknown-speaker ask` (default) and type the name when prompted.
 - Otherwise rerecord with a clear "Привіт, я X" at the start.
 
-## "Out of memory" while running two models concurrently
+## "Out of memory" / Metal allocator errors
 
-LM Studio usually unloads one model when another is requested, but if you forced both to stay loaded simultaneously, a 12B LLM plus an 8-bit VibeVoice will exceed a 24 GB unified memory budget.
+The pipeline serialises three model loads (VibeVoice → pyannote → LLM) so they are never co-resident, but a single model still has to fit. A 12B LLM 4-bit is ~8 GB; combined with an 8-bit ASR (~9 GB) loaded simultaneously by mistake, you would exceed a 16 GB Mac.
 
-- Use the default 6-bit ASR.
-- Set the LLM to "unload on idle" in LM Studio's Develop tab.
-- Or downgrade to `mlx-community/gemma-2-9b-it-4bit` for the LLM.
+- Stick to the default 6-bit ASR.
+- If LM Studio is still running with its own model loaded in the background, quit it — its server is no longer needed at runtime (only the model cache is).
+- Downgrade to `mlx-community/gemma-2-9b-it-4bit` for the LLM (`--llm-model …`).
 
 ## ffmpeg / ffprobe not found
 

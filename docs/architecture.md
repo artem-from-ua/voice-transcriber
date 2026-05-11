@@ -2,7 +2,7 @@
 
 voice-transcriber is a thin CLI on top of a linear in-process pipeline. The CLI parses arguments, builds a `PipelineOptions`, and hands it to `pipeline.run()`. Each stage is a small module with a single public function; intermediate results live in memory, and the only on-disk artefact (besides the input audio) is the final Markdown file.
 
-External work — ASR inference, diarization, LLM prompting — is delegated to local tools so the pipeline contains no model code itself: mlx-audio drives the VibeVoice model directly, pyannote.audio runs the diarization graph on the local GPU/CPU, and `llm.py` is a `httpx` client against LM Studio's OpenAI-compatible API.
+External work — ASR inference, diarization, LLM prompting — is delegated to local libraries so the pipeline contains no model code itself: mlx-audio drives the VibeVoice model directly, pyannote.audio runs the diarization graph on the local GPU/CPU, and `llm.py` loads the LLM in-process via `mlx-lm` (no HTTP).
 
 ## Component diagram
 
@@ -28,14 +28,14 @@ package "Stages" {
   component "structure" as Struct
   component "tldr" as TLDR
   component "render" as Render
-  component "llm (LM Studio client)" as LLM
+  component "llm (mlx-lm wrapper)" as LLM
 }
 
 cloud "External" {
   [ffmpeg / ffprobe] as Ffmpeg
   [VibeVoice-ASR via mlx-audio] as MLX
   [pyannote 3.1] as Pyannote
-  [LM Studio :1234] as LMS
+  [mlx-lm (in-process)] as MlxLm
 }
 
 database "Local" {
@@ -64,12 +64,13 @@ Post --> LLM
 Ident --> LLM
 Struct --> LLM
 TLDR --> LLM
-LLM --> LMS
+LLM --> MlxLm
+MlxLm --> LMSCache
 Render --> User : transcript.md
 @enduml
 ```
 
-![Architecture overview](https://www.plantuml.com/plantuml/svg/PLJ1Rjim3BthAmYVjaCITDsfXw93ks057A1ekcB0i8CYqwuGMJ8aEMitRDX7x0lt9QMenAcwWs7oFOfyfXvy4QBqSUoDY3eQX9tJ2cVHInkKrnlqyE_FNr2k7vn56y7jqEyqVXTXg-qWlUoFv3e-KGUFAahR6HH2gkWyV0xeXHYasieEeU89S5bVL_1Jm8lMbJAw0XaILnA37j1eYypUx1FnwqNJTQHN-AzZsmxURVAvvRBaPF2CVrZVbaIZfTS_yg4hYaksHzzbRfMYLq9TY3HHOGXPA-LbXMxefTidfgzJKl8X-b75qUSHQyxAYcYQBFokldgbtADjC9Et79QqCJsygLVKTMoq0retmM-vlAvNQP_AkB61wkDZH6-boVlyshRzW1qiOB_ERxnE1XDzJpQvPzlGAc6d9VJcSIRJ3AvSrLzIsV0ahNKHuNH-mlZD7aZaKTNPoRlJzypNgtNIrCWeDpBG9TTE7JIrpj3dGVLxCLTIFU32zBF03HQzQz3azLE7oyIc0vgiUIn_6BjEswwL2XVHRT5o_QVbNOhJr6HQcCtEsOpqS3nPxn0mIiOgycIe0c0J5KYsJW6nLGeakwE0zdueCBP1WUplNYoNML--gNGvF9kkWnwEfmKbYLd6uL8OcS_FfwKaWVaGUOMrJLcMDQL9qPJGSnWbiZ1EURzdSFZH377UD-A2UFeLFGC0)
+![Architecture overview](https://www.plantuml.com/plantuml/svg/PLJBRjim4BphAmYTaeDi5Btr4AH8OZI030Hn6XGeUbXJAuKmNo0fnsxHeX_HB-oNb5pAIfWUPEtEBBdZtO4kVG0NHYMh8894jZU2OnCSQC-TsA9ZVt__OTmeQpJgmCmUtLxWS-LtGbjme5x8JJZ66npo07gGM5N0Wt7iiqTNLHRu3WPaDNLWL-rjpNvKxDNLDPUYPk0JLn9MM9H28x5tKrBzV7Nf9iIN_-_6lhVERFEvrQham3l2FsxkIw8JuCJtVEWwnYMhq0sPMwVeZL3ZG-p8qVkiDUPbXUZYI_H7eczJKl8-k967qUKM6yhAYY2xBFoXlNwZtA7kC9Ft59Qqb8gTANbeullPWRNepgcuRTTfcboQiMFrpI6Wqo3pDB_slR8ui2MRXlcDXabWeX-ZIHx9D76GR2-0fGumTi9GvRhzaihi4RGs0TdxnJl2xoOWaPEcCw6RQNhd-Qmyj2efwo305dnST6luILblPFoBhFwrN73WJxYKgl4XDLugqw7CAsZNcwl4fWCYslEb_6aS1g677ZWkWzcXflfFguSKfwx9kAnfBiYGyQ5ujjyf83IQgyYJgGg0Z5GWsJu5H7OfaEoG0feyKM1aXGAPzb-jLbbVtbTQ4VMEIuaFnVE0aiGiuxGQGXQBYtaeIM0-51r3skOiovhJf6XEufFRqZxfjsoTrH96G__0JbyW6nQggouZ7xzH_m00)
 
 ## Module layout
 
@@ -88,7 +89,7 @@ src/voice/
 ├── tldr.py          # generate_tldr(): LLM markdown summary
 ├── render.py        # render_markdown(): final output
 ├── speaker_emojis.py # fixed palette assignment
-└── llm.py           # LM Studio client (httpx, chat, chat_json with retry)
+└── llm.py           # MlxLLM: in-process mlx-lm wrapper with chat / chat_json (lm-format-enforcer)
 ```
 
 ## Data flow

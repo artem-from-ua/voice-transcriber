@@ -15,7 +15,7 @@ from collections import defaultdict
 from typing import Callable, Iterable, Literal
 
 from ._prompts import render as render_prompt
-from .llm import LLMClient, LLMError
+from .llm import LLMError, MlxLLM
 from .types import Segment
 
 
@@ -57,7 +57,7 @@ def _validate_name(name: str | None) -> str | None:
 
 
 def _ask_llm_for_name(
-    llm: LLMClient,
+    llm: MlxLLM,
     snippet: str,
     language: str,
 ) -> tuple[str | None, str]:
@@ -125,7 +125,7 @@ def identify_speakers(
     segments: Iterable[Segment],
     *,
     language: str = "uk",
-    llm: LLMClient | None = None,
+    llm: MlxLLM | None = None,
     unknown_policy: Policy = "ask",
     names_override: list[str] | None = None,
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),

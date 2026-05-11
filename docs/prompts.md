@@ -29,12 +29,12 @@ The wire-level contract (temperature, max_tokens, response_format) stays in the 
 
 | Stage | Function | Temperature | max_tokens | response_format | Retries |
 |-------|----------|-------------|------------|-----------------|---------|
-| identify | `LLMClient.chat_json` | 0.1 | 64 | json_schema (object) | 1 |
-| postprocess | `LLMClient.chat` | 0.1 | 512 | text (default) | 0 |
-| structure | `LLMClient.chat_json` | 0.2 | 2048 | json_schema (object) | 1 |
-| tldr | `LLMClient.chat` | 0.3 | 1024 | text (default) | 0 |
+| identify | `MlxLLM.chat_json` | 0.1 | 64 | schema-constrained | — |
+| postprocess | `MlxLLM.chat` | 0.1 | 512 | free text | — |
+| structure | `MlxLLM.chat_json` | 0.2 | 2048 | schema-constrained | — |
+| tldr | `MlxLLM.chat` | 0.3 | 1024 | free text | — |
 
-For LM Studio's MLX runtime the response format value is sent as `{"type": "json_schema", "json_schema": {"name": "response", "strict": false, "schema": {"type": "object"}}}` — the OpenAI-classic `{"type": "json_object"}` is rejected with HTTP 400. See [ADR 0001](adr/0001-local-llm-via-lm-studio.md) for the LM Studio choice and `CHANGELOG.md` 0.6.1 for the fix.
+`chat_json()` installs `lm-format-enforcer` as a logits processor against the supplied JSON schema (default `{"type": "object"}`), so the output is guaranteed valid on the first call. No retry loop. See [ADR 0006](adr/0006-mlx-lm-over-lm-studio.md) for the migration from LM Studio.
 
 ## Safety nets
 

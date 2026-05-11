@@ -1,6 +1,6 @@
 # voice-transcriber
 
-End-to-end local pipeline that turns an audio recording into a diarized Markdown transcript with a TL;DR — no cloud calls, no Anthropic API, no OpenAI. Speech recognition runs on VibeVoice-ASR (MLX), speaker diarization on pyannote 3.1, and all language tasks (speaker identification, ASR proof-reading, section structuring, TL;DR) go to a local LLM served by LM Studio.
+End-to-end local pipeline that turns an audio recording into a diarized Markdown transcript with a TL;DR — no cloud calls, no Anthropic API, no OpenAI. Speech recognition runs on VibeVoice-ASR (MLX), speaker diarization on pyannote 3.1, and all language tasks (speaker identification, ASR proof-reading, section structuring, TL;DR) run in-process via `mlx-lm` against a local MLX-quantised model.
 
 ```bash
 uv run voice transcribe ~/recordings/meeting.m4a
@@ -13,7 +13,7 @@ The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR
 - macOS on Apple Silicon
 - [`ffmpeg`](https://ffmpeg.org/) in `PATH`
 - [`uv`](https://github.com/astral-sh/uv) for dependency management
-- [LM Studio](https://lmstudio.ai/) installed and running
+- [LM Studio](https://lmstudio.ai/) installed (used only to download models into its cache; no server needed at runtime)
 - A Hugging Face account with **accepted licenses** for:
   - [`pyannote/speaker-diarization-3.1`](https://huggingface.co/pyannote/speaker-diarization-3.1)
   - [`pyannote/segmentation-3.0`](https://huggingface.co/pyannote/segmentation-3.0)
@@ -41,10 +41,6 @@ The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR
    echo 'hf_xxx' > ~/.cache/huggingface/token
    chmod 600 ~/.cache/huggingface/token
    ```
-
-4. **Start the LM Studio server**
-
-   Open the **Develop** tab in LM Studio → Start Server (default `http://localhost:1234`).
 
 ## Run
 

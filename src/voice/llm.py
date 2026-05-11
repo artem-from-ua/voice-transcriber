@@ -1,175 +1,230 @@
-"""Thin client for an OpenAI-compatible local LLM server (LM Studio).
+"""In-process LLM runtime backed by mlx-lm.
 
-The pipeline is synchronous end-to-end (ASR and pyannote are sync), so this
-wrapper uses httpx's blocking client. One retry on transport errors; callers
-that need stricter validation (e.g. JSON parsing) handle retries themselves.
+The pipeline used to talk to LM Studio over HTTP, which crashed on long
+prompts after dozens of short ones (Metal allocator fragmentation). This
+module loads the same MLX-quantised model file in-process, gives us full
+control over the KV cache, and uses lm-format-enforcer as a logits
+processor to guarantee valid JSON output for the structure / identify
+stages.
+
+Public surface mirrors the old LM Studio client:
+
+    with MlxLLM() as llm:
+        llm.load()
+        text = llm.chat(messages, temperature=0.2, max_tokens=512)
+        payload = llm.chat_json(messages, temperature=0.1, max_tokens=64)
 """
 
 from __future__ import annotations
 
+import functools
 import json
-from dataclasses import dataclass
-from typing import Any
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable, Sequence
 
-import httpx
+import mlx.core as mx
+import mlx_lm
+from lmformatenforcer import JsonSchemaParser, TokenEnforcer
+from lmformatenforcer.tokenenforcer import TokenEnforcerTokenizerData
+
+from ._memory import free_mlx
 
 
-DEFAULT_BASE_URL = "http://localhost:1234/v1"
-DEFAULT_MODEL = "mlx-community/gemma-3-12b-it-qat-4bit"
-DEFAULT_TIMEOUT_S = 300.0
+DEFAULT_MODEL = os.path.expanduser(
+    "~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit"
+)
 
 
 class LLMError(RuntimeError):
-    """Raised when the LLM server is unreachable or returns malformed data."""
+    """Raised when the model directory is missing or output is unusable."""
+
+
+def _build_tokenizer_data(tokenizer) -> TokenEnforcerTokenizerData:
+    """Mirror of lmformatenforcer.integrations.transformers.build_token_enforcer_tokenizer_data,
+    written here so we don't have to import the transformers extra."""
+    underlying = getattr(tokenizer, "_tokenizer", tokenizer)
+    vocab_size = len(underlying)
+    token_0 = underlying.encode("0")[-1]
+    regular: list[tuple[int, str, bool]] = []
+    for idx in range(vocab_size):
+        if idx in underlying.all_special_ids:
+            continue
+        decoded_after_0 = underlying.decode([token_0, idx])[1:]
+        decoded_regular = underlying.decode([idx])
+        is_word_start = len(decoded_after_0) > len(decoded_regular)
+        regular.append((idx, decoded_after_0, is_word_start))
+
+    def _decode(tokens: list[int]) -> str:
+        return underlying.decode(tokens).rstrip("�")
+
+    return TokenEnforcerTokenizerData(
+        regular, _decode, underlying.eos_token_id, False, vocab_size
+    )
+
+
+def _make_json_logits_processor(
+    tokenizer_data: TokenEnforcerTokenizerData,
+    schema: dict[str, Any],
+) -> Callable[[mx.array, mx.array], mx.array]:
+    """Build a logits_processor that masks tokens disallowed by the schema."""
+    parser = JsonSchemaParser(schema)
+    enforcer = TokenEnforcer(tokenizer_data, parser)
+
+    def processor(input_tokens: mx.array, logits: mx.array) -> mx.array:
+        # mlx-lm passes the full prompt + generated tokens; the enforcer
+        # tracks its own state via repeated calls with growing prefixes.
+        seq = input_tokens.tolist()
+        token_list = enforcer.get_allowed_tokens(seq)
+        # Built with use_bitmask=False, so .allowed_tokens is a plain list[int].
+        allowed = token_list.allowed_tokens
+        if not allowed:
+            return logits
+        mask = mx.full(logits.shape, -mx.inf, dtype=logits.dtype)
+        idx = mx.array(allowed)
+        mask[..., idx] = 0
+        return logits + mask
+
+    return processor
 
 
 @dataclass
-class LLMClient:
-    base_url: str = DEFAULT_BASE_URL
-    model: str = DEFAULT_MODEL
-    timeout: float = DEFAULT_TIMEOUT_S
-    _client: httpx.Client | None = None
+class MlxLLM:
+    """In-process Gemma (or any MLX-supported instruct model)."""
 
-    def __post_init__(self) -> None:
-        self._client = httpx.Client(base_url=self.base_url, timeout=self.timeout)
+    model_path: str = DEFAULT_MODEL
+    log: Callable[[str], None] = field(default=lambda _s: None)
+    _model: Any = None
+    _tokenizer: Any = None
+    _tokenizer_data: TokenEnforcerTokenizerData | None = None
+
+    # ------------------------------------------------------------------ lifecycle
+
+    def health_check(self) -> str:
+        """Verify the model directory looks like an MLX checkpoint.
+
+        Returns the resolved path on success. Raises `LLMError` otherwise.
+        """
+        path = Path(os.path.expanduser(self.model_path))
+        if not path.is_dir():
+            raise LLMError(
+                f"LLM model not found at {path}. "
+                "Download it in LM Studio (Models → Search → mlx-community/...)."
+            )
+        if not (path / "config.json").is_file():
+            raise LLMError(f"Missing config.json in {path}; is this an MLX model?")
+        return str(path)
+
+    def load(self) -> None:
+        """Load weights + tokenizer. Idempotent."""
+        if self._model is not None:
+            return
+        path = self.health_check()
+        self.log(f"Loading LLM: {path}")
+        self._model, self._tokenizer = mlx_lm.load(path)
+        self._tokenizer_data = _build_tokenizer_data(self._tokenizer)
 
     def close(self) -> None:
-        if self._client is not None:
-            self._client.close()
-            self._client = None
+        """Drop the model and clear MLX cache. Idempotent."""
+        if self._model is None and self._tokenizer is None:
+            return
+        self._model = None
+        self._tokenizer = None
+        self._tokenizer_data = None
+        free_mlx(self.log)
 
-    def __enter__(self) -> LLMClient:
+    def __enter__(self) -> "MlxLLM":
         return self
 
     def __exit__(self, *_: object) -> None:
         self.close()
 
-    def health_check(self) -> list[str]:
-        """Return available model IDs. Raises LLMError if the server is down."""
-        assert self._client is not None
-        try:
-            resp = self._client.get("/models")
-            resp.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise LLMError(
-                f"LM Studio server is not reachable at {self.base_url}. "
-                "Open LM Studio → Develop → Start Server, then retry."
-            ) from exc
-        data = resp.json()
-        return [m["id"] for m in data.get("data", [])]
+    # ------------------------------------------------------------------ helpers
 
-    def unload_model(self, instance_id: str | None = None) -> bool:
-        """Best-effort unload of the LLM in LM Studio.
+    def _ensure_loaded(self) -> None:
+        if self._model is None:
+            self.load()
 
-        Uses LM Studio's native `/api/v1/models/unload` endpoint, which sits
-        next to the OpenAI-compatible `/v1/` (one path up). Returns True if
-        the server acknowledged, False on any failure — this is purely a
-        memory-pressure hint, never a hard precondition.
+    def _build_prompt(self, messages: Sequence[dict[str, str]]) -> str:
+        assert self._tokenizer is not None
+        return self._tokenizer.apply_chat_template(
+            list(messages), add_generation_prompt=True, tokenize=False
+        )
 
-        A reload happens automatically on the next chat request.
-        """
-        assert self._client is not None
-        target = instance_id or self.model
-        native_root = self.base_url.rsplit("/v1", 1)[0]
-        url = f"{native_root}/api/v1/models/unload"
-        try:
-            resp = httpx.post(
-                url,
-                json={"instance_id": target},
-                timeout=self.timeout,
-            )
-            return resp.status_code < 400
-        except httpx.HTTPError:
-            return False
+    # ------------------------------------------------------------------ chat
 
     def chat(
         self,
-        messages: list[dict[str, str]],
+        messages: Sequence[dict[str, str]],
         *,
         temperature: float = 0.2,
-        max_tokens: int | None = None,
-        response_format: dict[str, Any] | None = None,
-        model: str | None = None,
+        max_tokens: int = 512,
+        top_p: float = 1.0,
+        repetition_penalty: float | None = None,
     ) -> str:
-        """Send a chat-completions request and return the assistant text.
-
-        `response_format={"type": "json_object"}` asks the server for strict
-        JSON output (LM Studio supports this OpenAI-compatible field).
-        """
-        assert self._client is not None
-        payload: dict[str, Any] = {
-            "model": model or self.model,
-            "messages": messages,
-            "temperature": temperature,
-            "stream": False,
-        }
-        if max_tokens is not None:
-            payload["max_tokens"] = max_tokens
-        if response_format is not None:
-            payload["response_format"] = response_format
-
-        try:
-            resp = self._client.post("/chat/completions", json=payload)
-            resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            detail = ""
-            try:
-                detail = f" — {exc.response.text[:500]}"
-            except Exception:  # noqa: BLE001
-                pass
-            raise LLMError(f"chat/completions {exc.response.status_code}{detail}") from exc
-        except httpx.HTTPError as exc:
-            raise LLMError(f"chat/completions failed: {exc}") from exc
-
-        body = resp.json()
-        try:
-            return body["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as exc:
-            raise LLMError(f"Unexpected chat response shape: {body!r}") from exc
+        """Plain-text generation."""
+        self._ensure_loaded()
+        prompt = self._build_prompt(messages)
+        sampler = mlx_lm.sample_utils.make_sampler(
+            temp=temperature, top_p=top_p,
+        )
+        logits_processors = mlx_lm.sample_utils.make_logits_processors(
+            repetition_penalty=repetition_penalty,
+        )
+        text = mlx_lm.generate(
+            self._model,
+            self._tokenizer,
+            prompt=prompt,
+            max_tokens=max_tokens,
+            sampler=sampler,
+            logits_processors=logits_processors,
+            verbose=False,
+        )
+        # Free KV cache between calls so postprocess's 60+ short prompts
+        # don't poison the long structure prompt that follows.
+        mx.clear_cache()
+        return text
 
     def chat_json(
         self,
-        messages: list[dict[str, str]],
+        messages: Sequence[dict[str, str]],
         *,
+        schema: dict[str, Any] | None = None,
         temperature: float = 0.2,
-        max_tokens: int | None = None,
-        retries: int = 1,
+        max_tokens: int = 1024,
+        top_p: float = 1.0,
     ) -> Any:
-        """Convenience: request JSON-mode output and parse the result.
+        """Schema-constrained generation. Returns parsed JSON.
 
-        Retries once on `JSONDecodeError`, asking the model to fix its reply.
+        With `lm-format-enforcer` driving the logits, the output is forced
+        into a valid JSON object — no retry loop necessary. `LLMError` is
+        only raised on a programmatic bug (parser collapse, empty output).
         """
-        last_err: Exception | None = None
-        attempt_msgs = list(messages)
-        for attempt in range(retries + 1):
-            text = self.chat(
-                attempt_msgs,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "response",
-                        "strict": False,
-                        "schema": {"type": "object"},
-                    },
-                },
-            )
-            try:
-                return json.loads(text)
-            except json.JSONDecodeError as exc:
-                last_err = exc
-                if attempt >= retries:
-                    break
-                attempt_msgs = [
-                    *messages,
-                    {"role": "assistant", "content": text},
-                    {
-                        "role": "user",
-                        "content": (
-                            "Your previous reply was not valid JSON. "
-                            "Respond again with valid JSON only, no commentary."
-                        ),
-                    },
-                ]
-        raise LLMError(f"LLM returned invalid JSON after {retries + 1} attempt(s): {last_err}")
+        self._ensure_loaded()
+        assert self._tokenizer_data is not None
+        prompt = self._build_prompt(messages)
+        sampler = mlx_lm.sample_utils.make_sampler(
+            temp=temperature, top_p=top_p,
+        )
+        json_processor = _make_json_logits_processor(
+            self._tokenizer_data,
+            schema or {"type": "object"},
+        )
+        text = mlx_lm.generate(
+            self._model,
+            self._tokenizer,
+            prompt=prompt,
+            max_tokens=max_tokens,
+            sampler=sampler,
+            logits_processors=[json_processor],
+            verbose=False,
+        )
+        mx.clear_cache()
+
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise LLMError(
+                f"Constrained generation produced unparseable JSON: {text!r}"
+            ) from exc

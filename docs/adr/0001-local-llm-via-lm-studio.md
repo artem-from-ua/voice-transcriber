@@ -1,9 +1,13 @@
 ---
-status: accepted
+status: superseded
+superseded_by: 0006-mlx-lm-over-lm-studio.md
 date: 2026-05-11
 ---
 
 # ADR 0001 — Use LM Studio as the local LLM runtime
+
+> Superseded by [ADR 0006](0006-mlx-lm-over-lm-studio.md). LM Studio is no
+> longer in the runtime path; we still use its model cache.
 
 ## Context
 
