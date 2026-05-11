@@ -14,7 +14,7 @@ import sys
 from collections import defaultdict
 from typing import Callable, Iterable, Literal
 
-from ._prompts import render as render_prompt
+from ._prompts import call_kwargs, render as render_prompt
 from .llm import LLMError, MlxLLM
 from .types import Segment
 
@@ -66,7 +66,7 @@ def _ask_llm_for_name(
         {"role": "user", "content": render_prompt("identify_user", snippet=snippet)},
     ]
     try:
-        payload = llm.chat_json(messages, temperature=0.1, max_tokens=64)
+        payload = llm.chat_json(messages, **call_kwargs("identify_system"))
     except LLMError:
         return None, "low"
 

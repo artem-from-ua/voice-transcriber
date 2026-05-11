@@ -4,6 +4,9 @@ used_by: voice.tldr
 role: system
 language: en
 placeholders: []
+temperature: 0.3
+max_tokens: 1024
+response_format: text
 ---
 
 Generate a Markdown TL;DR of the conversation:

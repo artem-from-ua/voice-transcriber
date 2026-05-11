@@ -3,6 +3,9 @@ name: postprocess_system
 used_by: voice.postprocess
 role: system
 placeholders: [language]
+temperature: 0.1
+max_tokens: 512
+response_format: text
 ---
 
 You are a careful ASR transcript proofreader.

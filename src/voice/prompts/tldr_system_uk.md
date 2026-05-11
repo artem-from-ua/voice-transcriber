@@ -4,6 +4,9 @@ used_by: voice.tldr
 role: system
 language: uk
 placeholders: []
+temperature: 0.3
+max_tokens: 1024
+response_format: text
 ---
 
 Згенеруй TL;DR розмови у форматі Markdown:

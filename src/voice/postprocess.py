@@ -18,7 +18,7 @@ from typing import Callable, Iterable
 
 import Levenshtein
 
-from ._prompts import render as render_prompt
+from ._prompts import call_kwargs, render as render_prompt
 from .llm import LLMError, MlxLLM
 from .types import Segment
 
@@ -70,7 +70,7 @@ def fix_segment(
         {"role": "user", "content": render_prompt("postprocess_user", text=text)},
     ]
     try:
-        reply = llm.chat(messages, temperature=0.1, max_tokens=512)
+        reply = llm.chat(messages, **call_kwargs("postprocess_system"))
     except LLMError:
         return text
     candidate = _strip_quotes(reply)
