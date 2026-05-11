@@ -81,8 +81,16 @@ def _build_parser() -> argparse.ArgumentParser:
 
     cs = t.add_argument_group("clearspeech (audio cleanup for ASR)")
     cs.add_argument(
-        "--no-clearspeech-agc", action="store_true",
-        help="Skip per-turn AGC step (pre-0.12 behaviour — ASR sees raw WAV).",
+        "--clearspeech-chain", type=str, default="agc", metavar="EFFECTS",
+        help=(
+            "Comma-separated effect names in execution order. Known effects: "
+            "agc, bandpass, presence. Default: 'agc' (matches v0.14.0 "
+            "behaviour). Use '' to disable preprocessing entirely. "
+            "Recommended full chain: 'agc,bandpass,presence'. "
+            "WARNING: using 'presence' without 'bandpass' first "
+            "catastrophically breaks ASR on Ukrainian content "
+            "(see ADR 0013); enable bandpass whenever you enable presence."
+        ),
     )
     cs.add_argument(
         "--clearspeech-agc-target-dbfs", type=float, default=-20.0, metavar="DBFS",
@@ -91,13 +99,6 @@ def _build_parser() -> argparse.ArgumentParser:
     cs.add_argument(
         "--clearspeech-agc-max-gain-db", type=float, default=16.0, metavar="DB",
         help="Max boost per turn; quieter turns clipped at this gain (default: 16.0).",
-    )
-    cs.add_argument(
-        "--clearspeech-bandpass", action="store_true",
-        help=(
-            "Apply a voice-band Butterworth bandpass after AGC (issue #48 E2a). "
-            "Default off; experimental opt-in."
-        ),
     )
     cs.add_argument(
         "--clearspeech-bandpass-low-hz", type=float, default=150.0, metavar="HZ",
@@ -113,16 +114,34 @@ def _build_parser() -> argparse.ArgumentParser:
             "test, see ADR 0011)."
         ),
     )
+    cs.add_argument(
+        "--clearspeech-presence-center-hz", type=float, default=3_000.0, metavar="HZ",
+        help=(
+            "Presence boost center frequency in Hz (default: 3000, starting "
+            "anchor — see ADR 0013 for listening-loop results)."
+        ),
+    )
+    cs.add_argument(
+        "--clearspeech-presence-boost-db", type=float, default=6.0, metavar="DB",
+        help=(
+            "Presence boost gain in dB (default: +6.0 — tuned by listening "
+            "test, see ADR 0013)."
+        ),
+    )
+    cs.add_argument(
+        "--clearspeech-presence-q", type=float, default=1.0, metavar="Q",
+        help="Presence boost Q / sharpness; higher = narrower peak (default: 1.0).",
+    )
 
     t.add_argument(
         "--dump-stages", dest="dump_stages_dir", default=None, metavar="DIR",
         help=(
             "Write each stage's output to DIR for troubleshooting "
             "(01-meta.json, 02-diarize.json, 02b-clearspeech-config.json, "
-            "02b-clearspeech-N-<effect>.wav per applied effect, 03-asr.json, "
-            "04-merge.json, 05-proofread.json, 06-identify.json, "
-            "07-segments-named.json, 08-structure.json, 09-tldr.txt). "
-            "Disabled when omitted."
+            "02b-clearspeech-N-<effect>.wav per applied effect — agc, "
+            "bandpass, presence — 03-asr.json, 04-merge.json, "
+            "05-proofread.json, 06-identify.json, 07-segments-named.json, "
+            "08-structure.json, 09-tldr.txt). Disabled when omitted."
         ),
     )
     t.add_argument("-v", "--verbose", action="store_true", help="Verbose progress logs to stderr.")
@@ -144,12 +163,14 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         run_proofread=not args.no_proofread,
         run_tldr=not args.no_tldr,
         run_structure=not args.no_structure,
-        clearspeech_agc=not args.no_clearspeech_agc,
+        clearspeech_chain=args.clearspeech_chain,
         clearspeech_agc_target_dbfs=args.clearspeech_agc_target_dbfs,
         clearspeech_agc_max_gain_db=args.clearspeech_agc_max_gain_db,
-        clearspeech_bandpass=args.clearspeech_bandpass,
         clearspeech_bandpass_low_hz=args.clearspeech_bandpass_low_hz,
         clearspeech_bandpass_high_hz=args.clearspeech_bandpass_high_hz,
+        clearspeech_presence_center_hz=args.clearspeech_presence_center_hz,
+        clearspeech_presence_boost_db=args.clearspeech_presence_boost_db,
+        clearspeech_presence_q=args.clearspeech_presence_q,
         dump_stages_dir=args.dump_stages_dir,
         verbose=args.verbose,
     )

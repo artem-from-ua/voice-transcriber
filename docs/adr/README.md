@@ -15,5 +15,7 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | 9   | [Single diarize pass on the raw WAV](0009-single-diarize-pass.md)                      | accepted                     |
 | 10  | [Audio cleanup as a chain-of-effects stage](0010-clearspeech-chain.md)                 | accepted                     |
 | 11  | [Defaults for the clearspeech bandpass effect](0011-clearspeech-bandpass-defaults.md)  | accepted                     |
+| 12  | [Single `--clearspeech-chain` string replaces per-effect toggles](0012-clearspeech-chain-string-cli.md) | accepted     |
+| 13  | [Defaults for the clearspeech presence effect](0013-clearspeech-presence-defaults.md)  | accepted                     |
 
 New decisions land here as `NNNN-kebab-case-title.md` with the same frontmatter (`status`, `date`, optional `supersedes` / `superseded_by`).

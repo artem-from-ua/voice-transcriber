@@ -29,12 +29,14 @@ def test_minimal_invocation_defaults():
     assert opts.run_proofread is True
     assert opts.run_tldr is True
     assert opts.run_structure is True
-    assert opts.clearspeech_agc is True
+    assert opts.clearspeech_chain == "agc"
     assert opts.clearspeech_agc_target_dbfs == -20.0
     assert opts.clearspeech_agc_max_gain_db == 16.0
-    assert opts.clearspeech_bandpass is False
     assert opts.clearspeech_bandpass_low_hz == 150.0
     assert opts.clearspeech_bandpass_high_hz == 5_500.0
+    assert opts.clearspeech_presence_center_hz == 3_000.0
+    assert opts.clearspeech_presence_boost_db == 6.0
+    assert opts.clearspeech_presence_q == 1.0
     assert opts.verbose is False
 
 
@@ -92,9 +94,25 @@ def test_unknown_speaker_choices():
         _parse(["transcribe", "/tmp/a.m4a", "--unknown-speaker", "wat"])
 
 
-def test_no_clearspeech_agc_flag():
-    ns = _parse(["transcribe", "/tmp/a.m4a", "--no-clearspeech-agc"])
-    assert _opts_from_args(ns).clearspeech_agc is False
+def test_clearspeech_chain_parsed():
+    ns = _parse([
+        "transcribe", "/tmp/a.m4a",
+        "--clearspeech-chain", "agc,bandpass,presence",
+    ])
+    assert _opts_from_args(ns).clearspeech_chain == "agc,bandpass,presence"
+
+
+def test_clearspeech_chain_empty_disables_preprocessing():
+    ns = _parse(["transcribe", "/tmp/a.m4a", "--clearspeech-chain", ""])
+    assert _opts_from_args(ns).clearspeech_chain == ""
+
+
+def test_clearspeech_chain_reorder_allowed():
+    ns = _parse([
+        "transcribe", "/tmp/a.m4a",
+        "--clearspeech-chain", "presence,agc,bandpass",
+    ])
+    assert _opts_from_args(ns).clearspeech_chain == "presence,agc,bandpass"
 
 
 def test_clearspeech_agc_tuning_flags():
@@ -108,14 +126,25 @@ def test_clearspeech_agc_tuning_flags():
     assert opts.clearspeech_agc_max_gain_db == 15.0
 
 
-def test_clearspeech_bandpass_flags():
+def test_clearspeech_bandpass_tuning_flags():
     ns = _parse([
         "transcribe", "/tmp/a.m4a",
-        "--clearspeech-bandpass",
         "--clearspeech-bandpass-low-hz", "120",
         "--clearspeech-bandpass-high-hz", "7000",
     ])
     opts = _opts_from_args(ns)
-    assert opts.clearspeech_bandpass is True
     assert opts.clearspeech_bandpass_low_hz == 120.0
     assert opts.clearspeech_bandpass_high_hz == 7_000.0
+
+
+def test_clearspeech_presence_tuning_flags():
+    ns = _parse([
+        "transcribe", "/tmp/a.m4a",
+        "--clearspeech-presence-center-hz", "2500",
+        "--clearspeech-presence-boost-db", "6",
+        "--clearspeech-presence-q", "1.4",
+    ])
+    opts = _opts_from_args(ns)
+    assert opts.clearspeech_presence_center_hz == 2500.0
+    assert opts.clearspeech_presence_boost_db == 6.0
+    assert opts.clearspeech_presence_q == 1.4

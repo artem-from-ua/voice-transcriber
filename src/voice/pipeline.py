@@ -47,12 +47,14 @@ class PipelineOptions:
     run_proofread: bool = True
     run_tldr: bool = True
     run_structure: bool = True
-    clearspeech_agc: bool = True
+    clearspeech_chain: str = "agc"
     clearspeech_agc_target_dbfs: float = -20.0
     clearspeech_agc_max_gain_db: float = 16.0
-    clearspeech_bandpass: bool = False
     clearspeech_bandpass_low_hz: float = 150.0
     clearspeech_bandpass_high_hz: float = 5_500.0
+    clearspeech_presence_center_hz: float = 3_000.0
+    clearspeech_presence_boost_db: float = 6.0
+    clearspeech_presence_q: float = 1.0
     dump_stages_dir: str | None = None
     verbose: bool = False
 
@@ -136,10 +138,8 @@ def run(options: PipelineOptions) -> str:
             dumper.write("02-diarize.json", turns)
 
             chain = tuple(
-                name for name, on in (
-                    ("agc", options.clearspeech_agc),
-                    ("bandpass", options.clearspeech_bandpass),
-                ) if on
+                part.strip() for part in options.clearspeech_chain.split(",")
+                if part.strip()
             )
             chain_label = " → ".join(chain) if chain else "no-op"
 
@@ -155,6 +155,9 @@ def run(options: PipelineOptions) -> str:
                     agc_max_gain_db=options.clearspeech_agc_max_gain_db,
                     bandpass_low_hz=options.clearspeech_bandpass_low_hz,
                     bandpass_high_hz=options.clearspeech_bandpass_high_hz,
+                    presence_center_hz=options.clearspeech_presence_center_hz,
+                    presence_boost_db=options.clearspeech_presence_boost_db,
+                    presence_q=options.clearspeech_presence_q,
                     log=log,
                     dump=_dump_step if dumper.enabled() else None,
                 )

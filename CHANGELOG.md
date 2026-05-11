@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] — 2026-05-11
+
+### Added
+- New clearspeech effect **presence** (issue #48, E2b): peaking EQ via the Robert Bristow-Johnson Audio EQ Cookbook biquad, applied zero-phase with `scipy.signal.filtfilt`. Boosts a configurable band around `center_hz` (default 3000) by `boost_db` (default +6, tuned by listening test) with sharpness controlled by `q` (default 1.0). Restores the 2–5 kHz consonant intelligibility band that distance attenuates for far-mic speakers. **Default off; experimental opt-in.** Metric A on the reference recording showed no language-drift improvement (best chain `agc,bandpass,presence` at 10.3 % vs default `agc` at 5.1 %); using presence **without** bandpass first catastrophically breaks ASR (63 % drift). See [`docs/adr/0013-clearspeech-presence-defaults.md`](docs/adr/0013-clearspeech-presence-defaults.md) for the full empirical table, the four-run Metric A grid, and the physical explanation.
+- Free-order chains: any permutation of known effects (`agc`, `bandpass`, `presence`) is now valid. Duplicates and unknown names raise `ValueError`. See [`docs/adr/0012-clearspeech-chain-string-cli.md`](docs/adr/0012-clearspeech-chain-string-cli.md) for the CLI design.
+
+### Changed (Breaking, pre-1.0)
+- **CLI collapsed to a single chain string.** `--no-clearspeech-agc`, `--clearspeech-bandpass`, and `--no-clearspeech-bandpass` are removed. Their behaviour now lives in `--clearspeech-chain STR`. Migration:
+
+  | v0.14.0 | v0.15.0 |
+  | --- | --- |
+  | (no clearspeech flag) | (no clearspeech flag — same: `agc` chain) |
+  | `--no-clearspeech-agc` | `--clearspeech-chain ""` |
+  | `--clearspeech-bandpass` | `--clearspeech-chain agc,bandpass` |
+  | `--no-clearspeech-agc --clearspeech-bandpass` | `--clearspeech-chain bandpass` |
+  | (not possible) | `--clearspeech-chain agc,bandpass,presence` |
+  | (not possible) | `--clearspeech-chain presence,agc` (any order) |
+
+  The default value of `--clearspeech-chain` is `"agc"` so callers that pass no clearspeech flag get the same behaviour as 0.14.0.
+
+- **Internal chain gate removed.** `_PR1_ALLOWED_CHAINS` is replaced by `_validate_chain()` — chains are validated only for unknown effect names and duplicates; order is the user's call.
+
+### Added (continued)
+- Three new tuning flags for the presence effect: `--clearspeech-presence-center-hz HZ` (default `3000`), `--clearspeech-presence-boost-db DB` (default `3.0`), `--clearspeech-presence-q Q` (default `1.0`). Sane bounds enforced — `-24..24 dB`, `0.1..10 Q`, `0 < center < Nyquist`.
+
 ## [0.14.0] — 2026-05-11
 
 ### Added
