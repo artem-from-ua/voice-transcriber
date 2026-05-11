@@ -16,7 +16,7 @@ ASR text is noisy: dropped punctuation, mid-word boundaries, accidental capitali
 
 ## Decision
 
-Use the LLM. The prompt is in `prompts.md#speaker-identification`. CLI flags still allow regex-free escape hatches: `--names "A,B"` skips the LLM entirely, and `--unknown-speaker {ask,keep}` handles missed detections.
+Use the LLM. The prompt files live under [`src/voice/prompts/identify_*.md`](../../src/voice/prompts/) and their wire-level contract (temperature, max_tokens, response_format) is documented in [`docs/prompts.md`](../prompts.md). CLI flags still allow regex-free escape hatches: `--names "A,B"` skips the LLM entirely, and `--unknown-speaker {ask,keep}` handles missed detections.
 
 ## Consequences
 

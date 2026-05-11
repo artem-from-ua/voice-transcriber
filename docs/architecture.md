@@ -119,7 +119,7 @@ src/voice/
 ├── asr.py           # transcribe(): mlx-audio wrapper, bitness 4/5/6/8, JSON timeline parse
 ├── diarize.py       # diarize(): pyannote 3.1, MPS+CPU fallback, exclusive turns
 ├── merge.py         # merge(): per-segment max-overlap mapping ASR↔pyannote
-├── postprocess.py   # fix_asr_errors(): per-segment LLM proofreader with safety net
+├── postprocess.py   # fix_asr_errors(): per-segment LLM proof-reader with safety net
 ├── identify.py      # identify_speakers(): LLM self-intro detection with override / ask / keep
 ├── structure.py     # structure_dialog(): LLM-driven section layout with validation
 ├── tldr.py          # generate_tldr(): LLM markdown summary

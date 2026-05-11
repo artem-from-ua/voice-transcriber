@@ -11,8 +11,8 @@ VibeVoice mishears some terms in a recurring way ("Hugging Space" → "Hugging F
 
 Two options:
 
-1. **Whole-transcript proofread.** Send the entire dialogue and ask the LLM for a corrected version.
-2. **Per-segment proofread.** Send each `Segment.content` independently with the same strict instruction.
+1. **Whole-transcript proof-read.** Send the entire dialogue and ask the LLM for a corrected version.
+2. **Per-segment proof-read.** Send each `Segment.content` independently with the same strict instruction.
 
 In testing, option (1) drifts: the LLM normalises slang, removes filler words, merges short utterances, or hallucinates context. Even with strict prompts, the temptation to "edit" is high when the model sees the whole text.
 
@@ -34,5 +34,5 @@ Markers like `[Human Sounds]` and segments under 10 characters skip the LLM enti
 
 ## Alternatives considered
 
-- **Whole-transcript proofread**: rejected for the drift reason above.
-- **Skip proofreading altogether**: leaves "Hugging Space" / "CloudCop" in user-facing output, which is exactly the kind of artefact this stage exists to fix. Can still be opted out with `--no-postprocess`.
+- **Whole-transcript proof-read**: rejected for the drift reason above.
+- **Skip proof-reading altogether**: leaves "Hugging Space" / "CloudCop" in user-facing output, which is exactly the kind of artefact this stage exists to fix. Can still be opted out with `--no-postprocess`.

@@ -23,7 +23,7 @@ voice transcribe <audio> [options]
 | `--datetime` | ISO 8601 | – | Override recording start time. Defaults to `ffprobe creation_time`, then `stat birthtime`, then `stat mtime`. |
 | `--llm-model` | path | `~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit` | Filesystem path to an MLX model directory (anything `mlx_lm.load()` accepts). |
 | `--output`, `-o` | path | `<audio>.md` | Output Markdown path. |
-| `--no-postprocess` | flag | off | Skip per-segment ASR proofreading. |
+| `--no-postprocess` | flag | off | Skip per-segment ASR proof-reading. |
 | `--no-tldr` | flag | off | Skip TL;DR generation. |
 | `--no-structure` | flag | off | Skip LLM-driven sectioning; output is one section "Розмова". |
 | `-v`, `--verbose` | flag | off | Stream stage progress to stderr. |

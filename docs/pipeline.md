@@ -1,6 +1,6 @@
 # Pipeline — step by step
 
-`pipeline.run(PipelineOptions)` is the single entry point used by both the CLI and tests. It runs nine sequential stages; each stage gets the previous one's output and adds a layer of information.
+`pipeline.run(PipelineOptions)` is the single entry point used by both the CLI and tests. It runs ten sequential stages; each stage gets the previous one's output and adds a layer of information.
 
 ## Sequence
 
@@ -71,7 +71,7 @@ Approximate wall-clock figures are for a 6-minute Ukrainian conversation on an M
 | 3 | ASR | `mlx-audio` (`mlx_audio.stt.generate_transcription`) | WAV | `AsrSegment[]` | ~2–4 min |
 | 4 | Diarization | `pyannote.audio` 3.1 | WAV | `DiarTurn[]` (exclusive) | ~30 s |
 | 5 | Merge | pure Python | ASR + diar | `Segment[]` | < 1 s |
-| 6 | ASR proofread | LLM via in-process `mlx-lm` | `Segment[]` | `Segment[]` | ~30–60 s |
+| 6 | ASR proof-read | LLM via in-process `mlx-lm` | `Segment[]` | `Segment[]` | ~30–60 s |
 | 7 | Identify | LLM via in-process `mlx-lm` | `Segment[]` | `{label: name}` | ~5–10 s |
 | 8 | Structure | LLM via in-process `mlx-lm` | `Segment[]` | `StructuredDialog` | ~10–20 s |
 | 9 | TL;DR | LLM via in-process `mlx-lm` | `Segment[]` | Markdown string | ~10–20 s |
