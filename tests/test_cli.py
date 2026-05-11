@@ -37,6 +37,8 @@ def test_minimal_invocation_defaults():
     assert opts.clearspeech_presence_center_hz == 3_000.0
     assert opts.clearspeech_presence_boost_db == 6.0
     assert opts.clearspeech_presence_q == 1.0
+    assert opts.clearspeech_denoise_noise_floor_db == -25.0
+    assert opts.clearspeech_denoise_reduction_db == 12.0
     assert opts.verbose is False
 
 
@@ -148,3 +150,14 @@ def test_clearspeech_presence_tuning_flags():
     assert opts.clearspeech_presence_center_hz == 2500.0
     assert opts.clearspeech_presence_boost_db == 6.0
     assert opts.clearspeech_presence_q == 1.4
+
+
+def test_clearspeech_denoise_tuning_flags():
+    ns = _parse([
+        "transcribe", "/tmp/a.m4a",
+        "--clearspeech-denoise-noise-floor-db", "-30",
+        "--clearspeech-denoise-reduction-db", "9",
+    ])
+    opts = _opts_from_args(ns)
+    assert opts.clearspeech_denoise_noise_floor_db == -30.0
+    assert opts.clearspeech_denoise_reduction_db == 9.0

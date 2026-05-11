@@ -8,6 +8,9 @@ Chain effects (issue #48):
   - "agc"      — per-pyannote-turn RMS normalization (was loudness_normalize)
   - "bandpass" — Butterworth IIR bandpass via scipy.signal.sosfiltfilt (E2a)
   - "presence" — RBJ-cookbook peaking EQ via scipy.signal.filtfilt (E2b)
+  - "denoise"  — FFT-domain spectral subtraction via `ffmpeg afftdn` (E2d).
+                 Empirically best **after** AGC, even though physics-of-noise
+                 intuition argues for pre-AGC — see ADR 0014. Default-off.
 
 Effect order is the user's choice — any permutation of known effects is
 allowed; duplicates and unknown names raise `ValueError`. See ADR 0012 for
@@ -23,6 +26,7 @@ project's reference recording — see ADR 0011 (bandpass) and ADR 0013
 from __future__ import annotations
 
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Callable
 
@@ -37,7 +41,7 @@ SR = 16_000
 BANDPASS_ORDER = 4  # Butterworth IIR; 4 ≈ 24 dB/octave, doubled by sosfiltfilt
 SILENT_RMS_THRESHOLD = 1e-6
 
-KNOWN_EFFECTS: frozenset[str] = frozenset({"agc", "bandpass", "presence"})
+KNOWN_EFFECTS: frozenset[str] = frozenset({"agc", "bandpass", "presence", "denoise"})
 
 ClearspeechDumpHook = Callable[[int, str, Path], None]
 
@@ -81,6 +85,8 @@ def clearspeech(
     presence_center_hz: float = 3_000.0,
     presence_boost_db: float = 6.0,
     presence_q: float = 1.0,
+    denoise_noise_floor_db: float = -25.0,
+    denoise_reduction_db: float = 12.0,
     log: Callable[[str], None] = _noop_log,
     dump: ClearspeechDumpHook | None = None,
 ) -> tuple[Path, dict]:
@@ -145,6 +151,13 @@ def clearspeech(
                 center_hz=presence_center_hz,
                 boost_db=presence_boost_db,
                 q=presence_q,
+                log=log,
+            )
+        elif effect == "denoise":
+            current, step_info = _apply_denoise(
+                current,
+                noise_floor_db=denoise_noise_floor_db,
+                reduction_db=denoise_reduction_db,
                 log=log,
             )
         else:
@@ -482,3 +495,78 @@ def _design_peaking_eq(
     b = np.array([b0, b1, b2], dtype=np.float64) / a0
     a = np.array([1.0, a1 / a0, a2 / a0], dtype=np.float64)
     return b, a
+
+
+# ---------------------------------------------------------------------------
+# Effect: denoise (FFT-domain spectral subtraction via ffmpeg's afftdn). The
+# expected place in a chain is **after** AGC, despite the physics intuition
+# that says raw signal is the right input for noise estimation — see ADR 0014
+# Metric A grid: pre-AGC denoise gave 27.5 % RU-glyph drift (5× the default
+# baseline), while post-AGC denoise gave 8.2 %. AGC's per-turn normalisation
+# fixes the SNR before afftdn estimates noise, and the residual subtraction
+# artefacts ride at a constant level instead of being amplified per-turn.
+# ---------------------------------------------------------------------------
+
+
+_DENOISE_NF_BOUNDS_DB = (-80.0, 0.0)
+_DENOISE_NR_BOUNDS_DB = (0.0, 97.0)  # ffmpeg afftdn caps at 97 dB
+
+
+def _apply_denoise(
+    wav_path: Path,
+    *,
+    noise_floor_db: float,
+    reduction_db: float,
+    log: Callable[[str], None],
+) -> tuple[Path, dict]:
+    src = Path(wav_path)
+    dst = src.with_suffix(".denoise.wav")
+
+    _validate_denoise_params(noise_floor_db, reduction_db)
+
+    # We re-decode through ffmpeg so it can compute the FFT-domain subtraction
+    # itself. The 16 kHz mono PCM_16 invariant is enforced on the output side.
+    cmd = [
+        "ffmpeg", "-y", "-v", "error",
+        "-i", str(src),
+        "-af", f"afftdn=nf={noise_floor_db}:nr={reduction_db}",
+        "-ac", "1", "-ar", str(SR),
+        "-c:a", "pcm_s16le",
+        str(dst),
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except FileNotFoundError as exc:
+        raise ClearspeechError("ffmpeg not found in PATH") from exc
+    except subprocess.CalledProcessError as exc:
+        raise ClearspeechError(
+            f"ffmpeg afftdn failed: {exc.stderr.strip()}"
+        ) from exc
+
+    log(
+        f"clearspeech.denoise: "
+        f"nf={noise_floor_db:.1f} dB, nr={reduction_db:.1f} dB → {dst.name}"
+    )
+    params = {
+        "noise_floor_db": float(noise_floor_db),
+        "reduction_db": float(reduction_db),
+    }
+    return dst, {"params": params, "stats": {}}
+
+
+def _validate_denoise_params(
+    noise_floor_db: float,
+    reduction_db: float,
+) -> None:
+    nflo, nfhi = _DENOISE_NF_BOUNDS_DB
+    if not (nflo <= noise_floor_db <= nfhi):
+        raise ClearspeechError(
+            f"invalid denoise noise_floor_db ({noise_floor_db}): "
+            f"must be within [{nflo}, {nfhi}] dB"
+        )
+    nrlo, nrhi = _DENOISE_NR_BOUNDS_DB
+    if not (nrlo <= reduction_db <= nrhi):
+        raise ClearspeechError(
+            f"invalid denoise reduction_db ({reduction_db}): "
+            f"must be within [{nrlo}, {nrhi}] dB"
+        )

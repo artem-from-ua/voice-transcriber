@@ -55,6 +55,8 @@ class PipelineOptions:
     clearspeech_presence_center_hz: float = 3_000.0
     clearspeech_presence_boost_db: float = 6.0
     clearspeech_presence_q: float = 1.0
+    clearspeech_denoise_noise_floor_db: float = -25.0
+    clearspeech_denoise_reduction_db: float = 12.0
     dump_stages_dir: str | None = None
     verbose: bool = False
 
@@ -158,6 +160,8 @@ def run(options: PipelineOptions) -> str:
                     presence_center_hz=options.clearspeech_presence_center_hz,
                     presence_boost_db=options.clearspeech_presence_boost_db,
                     presence_q=options.clearspeech_presence_q,
+                    denoise_noise_floor_db=options.clearspeech_denoise_noise_floor_db,
+                    denoise_reduction_db=options.clearspeech_denoise_reduction_db,
                     log=log,
                     dump=_dump_step if dumper.enabled() else None,
                 )
