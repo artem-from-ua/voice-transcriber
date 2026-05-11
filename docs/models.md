@@ -29,6 +29,8 @@ Three Hugging Face repositories must be accepted with the user's account before 
 - [`pyannote/segmentation-3.0`](https://huggingface.co/pyannote/segmentation-3.0)
 - [`pyannote/speaker-diarization-community-1`](https://huggingface.co/pyannote/speaker-diarization-community-1)
 
+> The canonical copy of this list lives in [`troubleshooting.md`](troubleshooting.md) under *GatedRepoError*. If you change one, change both.
+
 The token sits in `~/.cache/huggingface/token` (mode `600`). The pipeline never reads it from environment variables or settings files — see [ADR 0004](adr/0004-pyannote-for-diarization.md).
 
 Inference runs on `mps` when available and falls back to `cpu` if the move fails. The `diarize` log line tells you which device was used.

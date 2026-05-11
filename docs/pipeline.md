@@ -90,3 +90,8 @@ Approximate wall-clock figures are for a 6-minute Ukrainian conversation on an M
 | LLM error in TL;DR | tldr | empty string returned; render simply omits the `## TL;DR` section |
 
 The pipeline never aborts in the middle: if a non-critical LLM stage fails, that artefact is dropped and the rest still produces output.
+
+## See also
+
+- [`prompts.md`](prompts.md) — the LLM call contracts (temperature, max_tokens, response_format, safety nets) used by stages 6–9.
+- [`adr/README.md`](adr/README.md) — index of the architectural decisions behind the stage layout.
