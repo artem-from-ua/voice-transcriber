@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] — 2026-05-11
+
+### Changed
+- Markdown header: `📅 Початок` now prints as `2026-05-10 15:44 UTC` (normalised to UTC), `🌐 Мова` shows the full Ukrainian name (`Українська`, `Бразильська португальська`) read from `src/voice/data/language_names.json`. Unknown codes pass through verbatim.
+- Removed: `🏁 Кінець` line (redundant with `Початок` + `Тривалість`).
+- Memory line in progress UI: `RAM 9.4 GB (59%) · MLX 8.0 GB`. Dropped `/16.0 GB` total (never changes) and `peak N.N GB` (only ratchets up — duplicates info from the active value).
+
+### Added
+- `src/voice/data/language_names.json` — editable mapping of language codes to Ukrainian names; new languages need only a JSON edit, no Python change.
+
 ## [0.9.0] — 2026-05-11
 
 ### Added

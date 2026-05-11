@@ -17,6 +17,10 @@ speaker are dropped unless they are long enough to warrant an explicit
 
 from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
+from functools import lru_cache
+from importlib.resources import files
 from pathlib import Path
 
 from .speaker_emojis import assign_emojis
@@ -27,6 +31,22 @@ PARAGRAPH_GAP_S = 2.0
 EXPLICIT_PAUSE_S = 3.0
 
 
+@lru_cache(maxsize=1)
+def _language_names() -> dict[str, str]:
+    """Load friendly language names from the packaged JSON file.
+
+    Keys are normalised to lowercase. The `_comment` field is dropped.
+    Adding a new language only takes editing
+    `src/voice/data/language_names.json` — no Python change.
+    """
+    raw = files("voice.data").joinpath("language_names.json").read_text(encoding="utf-8")
+    return {
+        k.lower(): v
+        for k, v in json.loads(raw).items()
+        if not k.startswith("_")
+    }
+
+
 def _format_duration(seconds: float) -> str:
     s = int(round(seconds))
     h, rem = divmod(s, 3600)
@@ -34,6 +54,21 @@ def _format_duration(seconds: float) -> str:
     if h:
         return f"{h}:{m:02d}:{s2:02d}"
     return f"{m}:{s2:02d}"
+
+
+def _format_started_at(iso: str) -> str:
+    """ISO datetime → `YYYY-MM-DD HH:MM UTC` (always normalised to UTC)."""
+    try:
+        dt = datetime.fromisoformat(iso)
+    except ValueError:
+        return iso  # fall back to the raw string; better than crashing
+    dt_utc = dt.astimezone(timezone.utc) if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return dt_utc.strftime("%Y-%m-%d %H:%M UTC")
+
+
+def _language_name(code: str) -> str:
+    """Friendly Ukrainian name for a language code; pass-through if unknown."""
+    return _language_names().get(code.lower(), code)
 
 
 def _speakers_in_order(segments: list[Segment]) -> list[str]:
@@ -114,11 +149,10 @@ def render_markdown(
     lines: list[str] = []
     lines.append(f"# Транскрипт: {basename}")
     lines.append("")
-    lines.append(f"> 📅 **Початок:** {audio_meta.started_at}")
+    lines.append(f"> 📅 **Початок:** {_format_started_at(audio_meta.started_at)}")
     lines.append(f"> ⏱️ **Тривалість:** {_format_duration(audio_meta.duration_s)}")
-    lines.append(f"> 🏁 **Кінець:** {audio_meta.ended_at}")
     lines.append(f"> 🎙️ **Транскрипція:** {asr_label} + pyannote 3.1")
-    lines.append(f"> 🌐 **Мова:** {language}")
+    lines.append(f"> 🌐 **Мова:** {_language_name(language)}")
     lines.append("")
 
     if tldr:

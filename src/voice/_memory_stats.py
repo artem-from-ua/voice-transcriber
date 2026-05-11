@@ -28,17 +28,20 @@ class MemoryStats:
         return int(round(100 * self.ram_used_gb / self.ram_total_gb))
 
     def format(self) -> str:
-        """Compact one-line summary; columns silently omitted if unknown."""
+        """Compact one-line summary; columns silently omitted if unknown.
+
+        Shows only the values that change during a run: RAM used (with the
+        percentage relative to total) and MLX active. RAM total never moves
+        and MLX peak only ratchets up — both add noise without information.
+        """
         parts: list[str] = []
-        if self.ram_used_gb is not None and self.ram_total_gb is not None:
-            parts.append(
-                f"RAM {self.ram_used_gb:.1f}/{self.ram_total_gb:.1f} GB "
-                f"({self.ram_pct}%)"
-            )
+        if self.ram_used_gb is not None:
+            if self.ram_pct is not None:
+                parts.append(f"RAM {self.ram_used_gb:.1f} GB ({self.ram_pct}%)")
+            else:
+                parts.append(f"RAM {self.ram_used_gb:.1f} GB")
         if self.mlx_active_gb is not None:
             parts.append(f"MLX {self.mlx_active_gb:.1f} GB")
-        if self.mlx_peak_gb is not None:
-            parts.append(f"peak {self.mlx_peak_gb:.1f} GB")
         return " · ".join(parts)
 
 
