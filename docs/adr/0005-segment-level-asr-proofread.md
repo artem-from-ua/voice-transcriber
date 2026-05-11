@@ -35,4 +35,4 @@ Markers like `[Human Sounds]` and segments under 10 characters skip the LLM enti
 ## Alternatives considered
 
 - **Whole-transcript proof-read**: rejected for the drift reason above.
-- **Skip proof-reading altogether**: leaves "Hugging Space" / "CloudCop" in user-facing output, which is exactly the kind of artefact this stage exists to fix. Can still be opted out with `--no-postprocess`.
+- **Skip proof-reading altogether**: leaves "Hugging Space" / "CloudCop" in user-facing output, which is exactly the kind of artefact this stage exists to fix. Can still be opted out with `--no-proofread`.

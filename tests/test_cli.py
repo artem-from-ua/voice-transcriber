@@ -26,7 +26,7 @@ def test_minimal_invocation_defaults():
     assert opts.unknown_speaker == "ask"
     assert opts.names_override is None
     assert opts.datetime_override is None
-    assert opts.run_postprocess is True
+    assert opts.run_proofread is True
     assert opts.run_tldr is True
     assert opts.run_structure is True
     assert opts.run_loudness_normalize is True
@@ -69,10 +69,10 @@ def test_datetime_override_parsed():
 def test_no_flags_disable_stages():
     ns = _parse([
         "transcribe", "/tmp/a.m4a",
-        "--no-postprocess", "--no-tldr", "--no-structure",
+        "--no-proofread", "--no-tldr", "--no-structure",
     ])
     opts = _opts_from_args(ns)
-    assert opts.run_postprocess is False
+    assert opts.run_proofread is False
     assert opts.run_tldr is False
     assert opts.run_structure is False
 

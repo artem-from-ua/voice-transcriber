@@ -8,8 +8,8 @@ Prompts are kept as plain Markdown files in `src/voice/prompts/` and loaded by `
 |------|------|---------|--------------|
 | [`identify_system.md`](../src/voice/prompts/identify_system.md) | system | `voice.identify` | `language` |
 | [`identify_user.md`](../src/voice/prompts/identify_user.md) | user | `voice.identify` | `snippet` |
-| [`postprocess_system.md`](../src/voice/prompts/postprocess_system.md) | system | `voice.postprocess` | `language` |
-| [`postprocess_user.md`](../src/voice/prompts/postprocess_user.md) | user | `voice.postprocess` | `text` |
+| [`proofread_system.md`](../src/voice/prompts/proofread_system.md) | system | `voice.proofread` | `language` |
+| [`proofread_user.md`](../src/voice/prompts/proofread_user.md) | user | `voice.proofread` | `text` |
 | [`structure_system.md`](../src/voice/prompts/structure_system.md) | system | `voice.structure` | `language` |
 | [`structure_user.md`](../src/voice/prompts/structure_user.md) | user | `voice.structure` | `total_start_ms`, `total_end_ms`, `script` |
 | [`tldr_system_uk.md`](../src/voice/prompts/tldr_system_uk.md) | system | `voice.tldr` (uk) | — |
@@ -58,7 +58,7 @@ The wire-level contract (temperature, max_tokens, response_format) stays in the 
 | Stage | Function | Temperature | max_tokens | response_format | Retries |
 |-------|----------|-------------|------------|-----------------|---------|
 | identify | `MlxLLM.chat_json` | 0.1 | 64 | schema-constrained | — |
-| postprocess | `MlxLLM.chat` | 0.1 | 512 | free text | — |
+| proofread | `MlxLLM.chat` | 0.1 | 512 | free text | — |
 | structure | `MlxLLM.chat_json` | 0.2 | 2048 | schema-constrained | — |
 | tldr | `MlxLLM.chat` | 0.3 | 1024 | free text | — |
 
@@ -69,7 +69,7 @@ The wire-level contract (temperature, max_tokens, response_format) stays in the 
 | Stage | Validation |
 |-------|------------|
 | identify | name must start with an uppercase letter, ≥ 2 chars, confidence ≠ low; duplicate-name conflicts resolved by confidence then first appearance |
-| postprocess | reply rejected if length ratio > 2× either way or Levenshtein / max length > 0.5; surrounding quotes stripped |
+| proofread | reply rejected if length ratio > 2× either way or Levenshtein / max length > 0.5; surrounding quotes stripped |
 | structure | JSON must be `{"sections":[…]}` with 2–7 entries, contiguous, covering the dialogue exactly; otherwise fallback to single "Розмова" / "Conversation" section |
 | tldr | LLM error → empty string; renderer omits the whole "## TL;DR" block silently |
 

@@ -75,7 +75,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output", "-o", default=None,
         help="Output Markdown path (default: <audio_basename>.md alongside the audio).",
     )
-    t.add_argument("--no-postprocess", action="store_true", help="Skip per-segment ASR proof-reading.")
+    t.add_argument("--no-proofread", action="store_true", help="Skip per-segment ASR proof-reading.")
     t.add_argument("--no-tldr", action="store_true", help="Skip TL;DR generation.")
     t.add_argument("--no-structure", action="store_true", help="Skip section structuring.")
 
@@ -98,7 +98,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Write each stage's output to DIR for troubleshooting "
             "(01-meta.json, 02-diarize.json, 02b-normalized.wav, 03-asr.json, "
-            "04-merge.json, 05-postprocess.json, 06-identify.json, "
+            "04-merge.json, 05-proofread.json, 06-identify.json, "
             "07-segments-named.json, 08-structure.json, 09-tldr.txt). "
             "Disabled when omitted."
         ),
@@ -119,7 +119,7 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         names_override=args.names,
         datetime_override=args.datetime_override,
         llm_model=args.llm_model,
-        run_postprocess=not args.no_postprocess,
+        run_proofread=not args.no_proofread,
         run_tldr=not args.no_tldr,
         run_structure=not args.no_structure,
         run_loudness_normalize=not args.no_loudness_normalize,

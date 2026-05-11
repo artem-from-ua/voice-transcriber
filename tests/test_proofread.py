@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from voice.llm import LLMError
-from voice.postprocess import fix_asr_errors, fix_segment
+from voice.proofread import fix_asr_errors, fix_segment
 from voice.types import Segment
 
 

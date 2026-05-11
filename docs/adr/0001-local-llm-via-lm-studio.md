@@ -11,7 +11,7 @@ date: 2026-05-11
 
 ## Context
 
-The pipeline needs a local LLM for four stages: identify, postprocess, structure, TL;DR. Three reasonable runtimes exist on macOS / Apple Silicon:
+The pipeline needs a local LLM for four stages: identify, proofread, structure, TL;DR. Three reasonable runtimes exist on macOS / Apple Silicon:
 
 1. **LM Studio** — desktop app with a built-in OpenAI-compatible HTTP server on `:1234`. Supports MLX natively, manages model downloads through its UI.
 2. **ollama** — Go daemon, native HTTP server on `:11434`. Supports GGUF (and recently MLX), CLI-driven model management.

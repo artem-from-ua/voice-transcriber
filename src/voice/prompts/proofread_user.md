@@ -1,6 +1,6 @@
 ---
-name: postprocess_user
-used_by: voice.postprocess
+name: proofread_user
+used_by: voice.proofread
 role: user
 placeholders: [text]
 ---

@@ -16,14 +16,14 @@ voice transcribe <audio> [options]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--language` | str | `uk` | Conversation language. Affects identify / postprocess / structure / tldr prompts. |
+| `--language` | str | `uk` | Conversation language. Affects identify / proofread / structure / tldr prompts. |
 | `--asr-bits` | `{4,5,6,8}` | `6` | VibeVoice quantisation; see [`models.md`](models.md). |
 | `--unknown-speaker` | `{ask,keep}` | `ask` | What to do when self-intro is missing. `ask` prompts on stdin; `keep` leaves `SPEAKER_XX`. |
 | `--names` | `"A,B,..."` | – | Override automatic naming. Mapped to clusters in order of first appearance. Skips the LLM identify step. |
 | `--datetime` | ISO 8601 | – | Override recording start time. Defaults to `ffprobe creation_time`, then `stat birthtime`, then `stat mtime`. |
 | `--llm-model` | path | `~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit` | Filesystem path to an MLX model directory (anything `mlx_lm.load()` accepts). |
 | `--output`, `-o` | path | `<audio>.md` | Output Markdown path. |
-| `--no-postprocess` | flag | off | Skip per-segment ASR proof-reading. |
+| `--no-proofread` | flag | off | Skip per-segment ASR proof-reading. |
 | `--no-tldr` | flag | off | Skip TL;DR generation. |
 | `--no-structure` | flag | off | Skip LLM-driven sectioning; output is one section "Розмова". |
 | `-v`, `--verbose` | flag | off | Stream stage progress to stderr. |

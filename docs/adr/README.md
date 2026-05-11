@@ -8,7 +8,7 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | 2   | [Prefer MLX format over GGUF for local models](0002-mlx-format-preference.md)          | accepted                     |
 | 3   | [Detect self-introductions with an LLM, not regexes](0003-self-intro-via-llm-not-regex.md) | accepted                 |
 | 4   | [Use pyannote 3.1 for diarization](0004-pyannote-for-diarization.md)                   | accepted                     |
-| 5   | [Proof-read ASR per segment, not over the whole transcript](0005-segment-level-asr-postprocess.md) | accepted         |
+| 5   | [Proof-read ASR per segment, not over the whole transcript](0005-segment-level-asr-proofread.md) | accepted           |
 | 6   | [Run the LLM in-process via mlx-lm](0006-mlx-lm-over-lm-studio.md)                     | accepted (supersedes 0001)   |
 | 7   | [Defaults for the loudness-normalize stage](0007-loudness-normalize-defaults.md)       | accepted                     |
 
