@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] — 2026-05-11
+
+### Added
+- New chain-of-effects audio-cleanup stage **clearspeech** (issue #48, PR-1). The stage replaces the v0.13.0 `loudness_normalize` stage and runs an ordered chain of DSP effects between diarize and ASR. PR-1 ships two effects with a fixed canonical order `agc → bandpass`; free-order arrives in PR-2 once the presence-boost effect lands and reordering becomes meaningful. Each enabled effect writes a sibling WAV consumed by the next; ASR reads the output of the last applied effect, or the raw WAV when the chain is empty. See [`docs/adr/0010-clearspeech-chain.md`](docs/adr/0010-clearspeech-chain.md) for the design rationale.
+- New effect **bandpass** (issue #48, E2a): Butterworth IIR order-4 via `scipy.signal.sosfiltfilt`, zero-phase. Cuts sub-vocal rumble and super-vocal noise so ASR sees a cleaner spectral envelope. Default off — experimental opt-in.
+- New CLI group `clearspeech (audio cleanup for ASR)`:
+  - `--no-clearspeech-agc` — skip the AGC step (default: AGC on, preserving v0.13.0 behaviour).
+  - `--clearspeech-agc-target-dbfs FLOAT` (default `-20.0`).
+  - `--clearspeech-agc-max-gain-db FLOAT` (default `16.0`).
+  - `--clearspeech-bandpass` — opt into the new effect (default off).
+  - `--clearspeech-bandpass-low-hz HZ` (default `150.0` — tuned by listening test, see [`docs/adr/0011-clearspeech-bandpass-defaults.md`](docs/adr/0011-clearspeech-bandpass-defaults.md)). Note: Metric A (Russian-glyph language drift) was flat in measurement, so bandpass stays opt-in.
+  - `--clearspeech-bandpass-high-hz HZ` (default `5500.0` — tuned by listening test; the 16 kHz Nyquist of 8 kHz is a hard upper bound, issue #48's nominal 10 kHz is unreachable at this SR).
+- New runtime dependency: `scipy>=1.14` for filter design.
+- New dump artefact `02b-clearspeech-config.json` records the active chain, per-effect parameters, and AGC stats (turn count, RMS spread before/after, ceiling hits) for `--dump-stages` reproducibility.
+
+### Changed (Breaking, pre-1.0)
+- **CLI rename:** `--no-loudness-normalize` → `--no-clearspeech-agc`; `--loudness-target-dbfs` → `--clearspeech-agc-target-dbfs`; `--loudness-max-gain-db` → `--clearspeech-agc-max-gain-db`. No aliases; update scripts directly. Defaults are unchanged so existing invocations using only positional arguments behave the same as 0.13.0.
+- **Dump layout:** `02b-normalized.wav` is gone. The new layout uses `02b-clearspeech-config.json` plus one `02b-clearspeech-N-<effect>.wav` per applied effect (e.g. `02b-clearspeech-1-agc.wav`, `02b-clearspeech-2-bandpass.wav`). Indices reflect the position in the *active* chain — disabling AGC moves bandpass to index 1.
+- **Internal:** module `voice.audio_preprocess` removed; `loudness_normalize` is now `voice.clearspeech._apply_agc` (private). Pipeline stage label changed from `[4/10] Loudness-нормалізація` to `[4/10] Clearspeech (<chain>)`.
+- Pipeline progress headers remain `[N/10]`. The chain-of-effects design absorbs new DSP work without growing the stage count, so future E2-experiment PRs will not renumber.
+
 ## [0.13.0] — 2026-05-11
 
 ### Changed

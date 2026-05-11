@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import asr as asr_module
-from . import audio_preprocess as audio_preprocess_module
+from . import clearspeech as clearspeech_module
 from . import diarize as diarize_module
 from . import ffprobe as ffprobe_module
 from . import identify as identify_module
@@ -47,9 +47,12 @@ class PipelineOptions:
     run_proofread: bool = True
     run_tldr: bool = True
     run_structure: bool = True
-    run_loudness_normalize: bool = True
-    loudness_target_dbfs: float = -20.0
-    loudness_max_gain_db: float = 16.0
+    clearspeech_agc: bool = True
+    clearspeech_agc_target_dbfs: float = -20.0
+    clearspeech_agc_max_gain_db: float = 16.0
+    clearspeech_bandpass: bool = False
+    clearspeech_bandpass_low_hz: float = 150.0
+    clearspeech_bandpass_high_hz: float = 5_500.0
     dump_stages_dir: str | None = None
     verbose: bool = False
 
@@ -132,25 +135,36 @@ def run(options: PipelineOptions) -> str:
             log(f"      {len({t.speaker for t in turns})} мовців")
             dumper.write("02-diarize.json", turns)
 
-            if options.run_loudness_normalize:
-                with progress.spinner("[4/10] Loudness-нормалізація"):
-                    normalized_wav_path = audio_preprocess_module.loudness_normalize(
-                        wav_path,
-                        turns,
-                        target_dbfs=options.loudness_target_dbfs,
-                        max_gain_db=options.loudness_max_gain_db,
-                        log=log,
-                    )
-                dumper.write_binary("02b-normalized.wav", normalized_wav_path)
-            else:
-                normalized_wav_path = wav_path
-                log("[4/10] Loudness-нормалізація пропущена")
+            chain = tuple(
+                name for name, on in (
+                    ("agc", options.clearspeech_agc),
+                    ("bandpass", options.clearspeech_bandpass),
+                ) if on
+            )
+            chain_label = " → ".join(chain) if chain else "no-op"
+
+            def _dump_step(idx: int, effect: str, path: Path) -> None:
+                dumper.write_binary(f"02b-clearspeech-{idx}-{effect}.wav", path)
+
+            with progress.spinner(f"[4/10] Clearspeech ({chain_label})"):
+                processed_wav_path, clearspeech_config = clearspeech_module.clearspeech(
+                    wav_path,
+                    chain=chain,
+                    agc_turns=turns,
+                    agc_target_dbfs=options.clearspeech_agc_target_dbfs,
+                    agc_max_gain_db=options.clearspeech_agc_max_gain_db,
+                    bandpass_low_hz=options.clearspeech_bandpass_low_hz,
+                    bandpass_high_hz=options.clearspeech_bandpass_high_hz,
+                    log=log,
+                    dump=_dump_step if dumper.enabled() else None,
+                )
+            dumper.write("02b-clearspeech-config.json", clearspeech_config)
 
             with progress.spinner(
                 f"[5/10] ASR (VibeVoice-{options.asr_bits}bit)"
             ):
                 asr_segments = asr_module.transcribe(
-                    normalized_wav_path,
+                    processed_wav_path,
                     bitness=options.asr_bits,
                     language=options.language,
                     context=f"Розмова мовою {options.language}.",

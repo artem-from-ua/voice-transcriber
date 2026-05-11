@@ -92,3 +92,7 @@ This is a property of the test recording, not the algorithm. Future tuning on a 
 - **LUFS instead of RMS.** Broadcast standard, more accurate perceptually. Adds the `pyloudnorm` dep and ~10× the per-turn compute. RMS proved sufficient on this material; promote if a later recording shows RMS-vs-LUFS divergence.
 - **Auto-tune per recording.** Compute the recording's existing RMS distribution and pick `max_gain` to fit. Tempting, but the failure mode is bad: a recording that happens to be uniform would get an artificially low ceiling, hiding the problem the next time levels drift. Static default is more predictable.
 - **Separate ceiling for boost vs cut.** AGC currently allows unbounded attenuation but clamps boost. We considered also clamping cut, but the asymmetry is correct: a loud turn dropped by 20 dB just sits at -40 dBFS, which is fine; a quiet turn boosted by 20 dB amplifies breath. The clamp belongs only on the boost side.
+
+## Note (v0.14.0)
+
+The standalone `loudness_normalize` stage was absorbed into the new `clearspeech` chain (see [ADR 0010](0010-clearspeech-chain.md)). The numbers in this ADR — `target_dbfs = -20.0`, `max_gain_db = 16.0`, `crossfade_ms = 100.0` — are unchanged; they live on as the `agc` effect's defaults inside that chain (`--clearspeech-agc-target-dbfs`, `--clearspeech-agc-max-gain-db`). The CLI rename is the only behaviour-visible change: `--no-loudness-normalize` → `--no-clearspeech-agc`, `--loudness-*` → `--clearspeech-agc-*`. The empirical reasoning above stays load-bearing for future tuning.

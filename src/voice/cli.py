@@ -79,25 +79,47 @@ def _build_parser() -> argparse.ArgumentParser:
     t.add_argument("--no-tldr", action="store_true", help="Skip TL;DR generation.")
     t.add_argument("--no-structure", action="store_true", help="Skip section structuring.")
 
-    loud = t.add_argument_group("loudness normalization")
-    loud.add_argument(
-        "--no-loudness-normalize", action="store_true",
-        help="Skip per-segment AGC; ASR runs on the raw WAV (pre-0.12 behaviour).",
+    cs = t.add_argument_group("clearspeech (audio cleanup for ASR)")
+    cs.add_argument(
+        "--no-clearspeech-agc", action="store_true",
+        help="Skip per-turn AGC step (pre-0.12 behaviour — ASR sees raw WAV).",
     )
-    loud.add_argument(
-        "--loudness-target-dbfs", type=float, default=-20.0, metavar="DBFS",
+    cs.add_argument(
+        "--clearspeech-agc-target-dbfs", type=float, default=-20.0, metavar="DBFS",
         help="Target RMS for per-turn AGC (default: -20.0).",
     )
-    loud.add_argument(
-        "--loudness-max-gain-db", type=float, default=16.0, metavar="DB",
+    cs.add_argument(
+        "--clearspeech-agc-max-gain-db", type=float, default=16.0, metavar="DB",
         help="Max boost per turn; quieter turns clipped at this gain (default: 16.0).",
+    )
+    cs.add_argument(
+        "--clearspeech-bandpass", action="store_true",
+        help=(
+            "Apply a voice-band Butterworth bandpass after AGC (issue #48 E2a). "
+            "Default off; experimental opt-in."
+        ),
+    )
+    cs.add_argument(
+        "--clearspeech-bandpass-low-hz", type=float, default=150.0, metavar="HZ",
+        help=(
+            "Bandpass low cutoff in Hz (default: 150 — tuned by listening "
+            "test, see ADR 0011)."
+        ),
+    )
+    cs.add_argument(
+        "--clearspeech-bandpass-high-hz", type=float, default=5_500.0, metavar="HZ",
+        help=(
+            "Bandpass high cutoff in Hz (default: 5500 — tuned by listening "
+            "test, see ADR 0011)."
+        ),
     )
 
     t.add_argument(
         "--dump-stages", dest="dump_stages_dir", default=None, metavar="DIR",
         help=(
             "Write each stage's output to DIR for troubleshooting "
-            "(01-meta.json, 02-diarize.json, 02b-normalized.wav, 03-asr.json, "
+            "(01-meta.json, 02-diarize.json, 02b-clearspeech-config.json, "
+            "02b-clearspeech-N-<effect>.wav per applied effect, 03-asr.json, "
             "04-merge.json, 05-proofread.json, 06-identify.json, "
             "07-segments-named.json, 08-structure.json, 09-tldr.txt). "
             "Disabled when omitted."
@@ -122,9 +144,12 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         run_proofread=not args.no_proofread,
         run_tldr=not args.no_tldr,
         run_structure=not args.no_structure,
-        run_loudness_normalize=not args.no_loudness_normalize,
-        loudness_target_dbfs=args.loudness_target_dbfs,
-        loudness_max_gain_db=args.loudness_max_gain_db,
+        clearspeech_agc=not args.no_clearspeech_agc,
+        clearspeech_agc_target_dbfs=args.clearspeech_agc_target_dbfs,
+        clearspeech_agc_max_gain_db=args.clearspeech_agc_max_gain_db,
+        clearspeech_bandpass=args.clearspeech_bandpass,
+        clearspeech_bandpass_low_hz=args.clearspeech_bandpass_low_hz,
+        clearspeech_bandpass_high_hz=args.clearspeech_bandpass_high_hz,
         dump_stages_dir=args.dump_stages_dir,
         verbose=args.verbose,
     )

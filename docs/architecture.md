@@ -58,7 +58,7 @@ end legend
 
 ## Pipeline stages
 
-`pipeline.run()` runs eleven steps in order. audiotranscode (ffmpeg → 16 kHz mono WAV) and audiometa (ffprobe) both start from the user's input file; diarize then reads the temp WAV first to produce per-turn boundaries, the loudness-normalize stage uses those boundaries as guard-rails for per-segment AGC, and ASR finally consumes the normalised WAV. Everything from merge onwards passes structured Python dataclasses around. Only the final two edges (TL;DR string → render → file) are Markdown.
+`pipeline.run()` runs eleven steps in order. audiotranscode (ffmpeg → 16 kHz mono WAV) and audiometa (ffprobe) both start from the user's input file; diarize then reads the temp WAV first to produce per-turn boundaries, the **clearspeech** stage uses those boundaries as guard-rails for a chain of DSP effects (AGC, optional bandpass), and ASR finally consumes the output of the last applied effect. Everything from merge onwards passes structured Python dataclasses around. Only the final two edges (TL;DR string → render → file) are Markdown. The clearspeech chain absorbs new audio-cleanup effects (denoise, presence boost, de-esser planned in PR-2..4) without growing the stage count.
 
 ```plantuml
 @startuml
@@ -74,7 +74,7 @@ skinparam legendBackgroundColor #EEEEEE
 component "<b>[1] audiotranscode</b>\n<i><ffmpeg></i>" as WAV #FFA07A
 component "<b>[2] audiometa</b>\n<i><ffprobe></i>" as FF #FFA07A
 component "<b>[3] diarize</b>\n<i><pyannote-audio> speaker-diarization-3.1</i>" as Diar #87CEFA
-component "<b>[4] normalize</b>\n<i><soundfile> + <numpy></i>" as Norm #E8E8E8
+component "<b>[4] clearspeech</b>\n<i><soundfile> agc</i>\n<i><scipy> bandpass</i>" as CS #E8E8E8
 component "<b>[5] asr</b>\n<i><mlx-audio> VibeVoice-ASR</i>" as ASR #90EE90
 component "<b>[6] merge</b>" as Merge #E8E8E8
 component "<b>[7] proofread</b>\n<i><mlx-lm> gemma-3-12b</i>" as Post #DDA0DD
@@ -87,9 +87,9 @@ Input -[#red]-> FF
 Input -[#red]-> WAV
 
 WAV -[#red]-> Diar : <color:#404040>16 kHz mono WAV</color>
-WAV -[#red]-> Norm : <color:#404040>16 kHz mono WAV</color>
-Diar -[#blue]-> Norm : <color:#404040>speaker turn boundaries</color>
-Norm -[#red]-> ASR : <color:#404040>loudness-normalized audio</color>
+WAV -[#red]-> CS : <color:#404040>16 kHz mono WAV</color>
+Diar -[#blue]-> CS : <color:#404040>speaker turn boundaries</color>
+CS -[#red]-> ASR : <color:#404040>cleaned audio</color>
 
 ASR -[#blue]-> Merge : <color:#404040>recognized text</color>
 Diar -[#blue]-> Merge : <color:#404040>speaker turn boundaries</color>
@@ -109,7 +109,7 @@ legend top right
   <back:#87CEFA>   </back> <color:#404040>AI model — "pyannote/speaker-diarization-3.1"</color>
   <back:#90EE90>   </back> <color:#404040>AI model — "mlx-community/VibeVoice-ASR-6bit"</color>
   <back:#DDA0DD>   </back> <color:#404040>AI model — "mlx-community/gemma-3-12b-it-qat-4bit"</color>
-  <back:#E8E8E8>   </back> <color:#404040>pure-Python / DSP</color>
+  <back:#E8E8E8>   </back> <color:#404040>pure-Python</color>
   <back:#A9A9A9>   </back> <color:#404040>I/O payload</color>
   <color:#404040>**Arrows:**</color>
   <color:red>Red</color>: <color:#404040>audio bytes</color>
@@ -119,18 +119,18 @@ end legend
 @enduml
 ```
 
-![Pipeline stages](https://www.plantuml.com/plantuml/svg/dPRTJkCu5CVlynH7z0OwaxPGbWAgeWcKxhAQ6H0TiHTiBvp41AkEdNMSWSpLFCG-uJx97ZjjcZODMosH8fAU_-ySs-SZdp9DbCuJxcYcEONlaeNKrOg8B5Gie0h--Vatf2obd0aAQ1tJpCaMJAH4aGH2cQHIKA5dka2veg4c8kQqPk8h9L-_lR1m8MYMmKdj9qvZAg8hgIAghYMN2gnd_169JJiIBc8bSn6LjfqR--SuJ-F0GzDS0yaZ9iVzmFjJZ9cNfCEFy4g-VuJabE0jFOLUhpVkCsyE98DRA-du5-QoaDMwKzrB8eEnTdUvhXiwrPhX03LFn_FIRIcM4QtyZv-VavJ6dl5uO4X_-8_GcKxzmSZVffmiAGdLf0v8bGpecZ2TjW66SuWOKUn7pNzQ426afgv5Uv2bb2oeSaj3efaKxh1tND4d-1uwvwFhcsc3Vpe78LL2-8Q7p1p7C-FKWmym5dcI5kjWlw8zdjAvkRPnlvYjLMjGmjzMKJvYtZtQFFHd3nKC_uVEnU3cvcAmpJgRGq9LRCEojb_CKvldqHnmK-MpeYJQzCyJ3sAQ9CGTkiSdGUNwNcPu_9E9FvXCjcddSs0HFh7dOZ_OhR5kertCiSHK7kfSqVrmCslUnZiUp47pIEt7-lPvyj1AmZJ7giH2hNRvmJvMs-oKzUG-THIDvgw7kTfuXGNWEAOArgzipbt2E3GrVTav7PZBEpw3nMy_89526j6uRt_sjhGsmVRMMaye3dXEszNB6W4y0W61IM-i5PfL5AjQXs3Iii7WCezCitEhYebMhMb9SOok5akPiGqGzbCP2wlNz4stBgL5_bzhSKfT3MHJlS4nlk6LwPTL1m5E0ihN82khOSeaRt1itRccy3QNKvhNzCkitXt8XoeAGPBQQfQY6iOcz6v8bdAcWGaj8SEXXPsmjYtOPMkKPPxlF1mLCH53H3J5iA9SsPvQWQn_98skhoUZw_TOMOxbg8fAkRJRq9Ppo77AQGXQfg1O_A8TsAPrkrVo3R0jysuN3ktGXX1ZZAKgZYuh9wWBSAPUBYUA1_YYRzvupV02FBlGpEz3t3sg1E4GC84X7pLnvG1v1-VVOdL6bDkFYuFLbEgtZAU3feTo3kpjmJGzx6T9BfWk-XlpnJqBcDxXeUo2_zD3hRcwJBj_4UsUxdPJzivttAGu2TpxGhz80NsOpEwRZFAxv1t6RVyEKb9mQGRUMhsTC_P3BRliTfj6sEoy1rgf6-bhcni4XQwLOoKsTUHTuQrLNisyo9GIWKDp3pd1TEl3xxExhqSxuXxw5vEXx_sgA1Mjv2z4BIBvkYv9Kpbb0JcVy8PVlly2)
+![Pipeline stages](https://www.plantuml.com/plantuml/svg/dLR1Sk964BthAxhCnIOhm8OOGr6gnM0IRsNZBRFb71mTHj8Wff1cbD5eRUrfFo9Vc2z9pmY4Z9131LMfqAZVUwrHlsvzJ1MHAeiZIp4LKVWcc4zj9GbFVSayAk6V7tz3mX8QCKu1eqEQMkc6yOH84eCluaHmojLIvGYNr5U4Xn6jX4ob52zVrypVS9gcS5Mv5T6Gyk1Mo83AcOY41AECDv6n7aVyJIX5neCYjdLdVfRrFF4S3CqKa2nWOjBrd3_vX3bnqly0B-JR1uW714_903gTpgJB71T82lS6qfgEz658Ti-Tg4uSQ1eJzv2fQg1LFZES8URvqYra2x08QAa_MQtYX8QELZpJJ7zCdw2rM4nxm-aXozMM9QQAL0aIAJowPrWicWZwBWICIFQzef_aX7EXg6se7KWJIZPKsaKWKKnmkz-vBDddk0wjc-7iRb7Z7xZWHvH8vA3-Ug-HwXUoOX5rW8I-fjgk-op97V083nAIfgN6R8alxaOVXme_wzsMU-OuUjqb_eIb-6HASxfyBAdmFxH6lRkxKU-Gwzg5cChGx8M9_QolcfI7Bk0-YvMa97Yh7yKEX3IEYTstBw-yKlgBIB4YvlDfRpu_PBjnWGLunLRvQMJtEhg9RUIYwsJcgqpIq-YM9ho9xxBdWee2UHhNrz_cZurCMFbeLFHkkSkFvhBSPgkmcFtSaZHmRGVBjxQ4dh0iROpzaYd3CKnyRVDnQz3JXtDv3PjVlqCikD2WITVSTWwmM5ud8uqEGhqeeqtOhMK0jv-3fsiThKFJaWCnUt5Ta3K6xHfEWrrlsk8i7LlHBkgp1iQ6AaAEfWv0qLVLc7e3_B-ojmfSXSWKTer7QyCBK-jT2u68U3JQ4nbOXQOewHgFSPcjRVRsSOhm2dvRmySJ-QdCWfEuyZHRK8N6bEznaZI9c0B6bO0KfnQsmigsO9kji6oh-kZBaG7Z8GH4KKmhoAHfgYMHqKUcuMms7yxUuqepD9_CI-GsxWss64IMLOn3K281oSArik2GhTs-5Q-0NJbgj-7SJ6tmCSTGoFnYN8eWpiEXEjwE50TmeQjNd7fw7huxNm_mSzmzAZc9m6CSKxweqnKJv1swwJswCQ2H-ReususfRiDyEgih55t_P0NTuh1xnHbdAk--cIRsjSVK4OMYv_rFXKehjPco_oBA7XoNAJhbEp89zdtxIwxMbR8gqSKdoJle--u392IFX1viU_HXjPXlj7JSRjU3iBKvZxH4rmhNj3NmSbKnOWdM3d9kyTG8BsTRe4r4u5oV_GY_6A0BdvOFlrySoRi_7StxK-SNIIblPFvCv2OGB_jTqvufh6Dzn1D-zFuB)
 
 ## Module layout
 
 ```
 src/voice/
 ├── cli.py           # argparse, --help, dispatch to pipeline.run()
-├── pipeline.py      # PipelineOptions + run(): audiotranscode → audiometa → diarize → normalize → ASR → merge → proofread → identify → structure → tldr → render
+├── pipeline.py      # PipelineOptions + run(): audiotranscode → audiometa → diarize → clearspeech → ASR → merge → proofread → identify → structure → tldr → render
 ├── types.py         # shared dataclasses (AsrSegment, DiarTurn, Segment, Section, StructuredDialog, AudioMeta)
 ├── ffprobe.py       # extract_metadata(): start/end/duration from ffprobe → birthtime → mtime
 ├── diarize.py       # diarize(): pyannote 3.1, MPS+CPU fallback, exclusive turns
-├── audio_preprocess.py # loudness_normalize(): per-pyannote-turn RMS AGC with linear crossfades
+├── clearspeech.py   # clearspeech(): chain-of-DSP-effects (AGC + bandpass in PR-1; presence / de-ess / denoise planned)
 ├── asr.py           # transcribe(): mlx-audio wrapper, bitness 4/5/6/8, JSON timeline parse
 ├── merge.py         # merge(): per-segment max-overlap mapping ASR↔pyannote
 ├── proofread.py     # fix_asr_errors(): per-segment LLM proof-reader with safety net
@@ -149,8 +149,8 @@ The pipeline passes increasingly enriched `Segment` lists from stage to stage. N
 1. **audiotranscode** — `ffmpeg` subprocess writes a 16 kHz mono PCM WAV to a temp dir.
 2. **audiometa** — `ffprobe.extract_metadata(audio)` → `AudioMeta` (start/end/duration). Goes straight to render.
 3. **Diarize** — `diarize.diarize(wav)` → `DiarTurn[]` (pyannote timeline). Runs on the raw WAV so its boundaries are not influenced by AGC.
-4. **Normalize** — `audio_preprocess.loudness_normalize(wav, turns)` → sibling `<stem>.normalized.wav` with per-turn AGC (RMS → target dBFS, clamped by max gain, 100 ms linear crossfades on boundaries). Skipped when `--no-loudness-normalize` is passed; ASR then receives the raw WAV instead.
-5. **ASR** — `asr.transcribe(normalized_wav)` → `AsrSegment[]` (text + ASR-side speaker hint).
+4. **Clearspeech** — `clearspeech.clearspeech(wav, chain, agc_turns=turns, ...)` runs an ordered chain of DSP effects. PR-1 chain: `agc → bandpass`. Each enabled effect writes a sibling WAV (`<stem>.agc.wav`, `<stem>.agc.bandpass.wav`, …) and the next effect reads it; ASR consumes the last applied effect's output. With `--no-clearspeech-agc` and bandpass off, the chain is empty and ASR receives the raw WAV. See [ADR 0010](adr/0010-clearspeech-chain.md) for the chain-of-effects design rationale.
+5. **ASR** — `asr.transcribe(cleaned_wav)` → `AsrSegment[]` (text + ASR-side speaker hint).
 6. **Merge** — joins (3) and (5) into `Segment[]` (text + pyannote speaker label).
 7. **Postprocess** — LLM proof-reads `content` per segment in-place.
 8. **Identify** — LLM returns `{label → name}`; pipeline assigns `.name` on each segment.

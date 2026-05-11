@@ -29,9 +29,12 @@ def test_minimal_invocation_defaults():
     assert opts.run_proofread is True
     assert opts.run_tldr is True
     assert opts.run_structure is True
-    assert opts.run_loudness_normalize is True
-    assert opts.loudness_target_dbfs == -20.0
-    assert opts.loudness_max_gain_db == 16.0
+    assert opts.clearspeech_agc is True
+    assert opts.clearspeech_agc_target_dbfs == -20.0
+    assert opts.clearspeech_agc_max_gain_db == 16.0
+    assert opts.clearspeech_bandpass is False
+    assert opts.clearspeech_bandpass_low_hz == 150.0
+    assert opts.clearspeech_bandpass_high_hz == 5_500.0
     assert opts.verbose is False
 
 
@@ -89,17 +92,30 @@ def test_unknown_speaker_choices():
         _parse(["transcribe", "/tmp/a.m4a", "--unknown-speaker", "wat"])
 
 
-def test_no_loudness_normalize_flag():
-    ns = _parse(["transcribe", "/tmp/a.m4a", "--no-loudness-normalize"])
-    assert _opts_from_args(ns).run_loudness_normalize is False
+def test_no_clearspeech_agc_flag():
+    ns = _parse(["transcribe", "/tmp/a.m4a", "--no-clearspeech-agc"])
+    assert _opts_from_args(ns).clearspeech_agc is False
 
 
-def test_loudness_tuning_flags():
+def test_clearspeech_agc_tuning_flags():
     ns = _parse([
         "transcribe", "/tmp/a.m4a",
-        "--loudness-target-dbfs", "-18",
-        "--loudness-max-gain-db", "15",
+        "--clearspeech-agc-target-dbfs", "-18",
+        "--clearspeech-agc-max-gain-db", "15",
     ])
     opts = _opts_from_args(ns)
-    assert opts.loudness_target_dbfs == -18.0
-    assert opts.loudness_max_gain_db == 15.0
+    assert opts.clearspeech_agc_target_dbfs == -18.0
+    assert opts.clearspeech_agc_max_gain_db == 15.0
+
+
+def test_clearspeech_bandpass_flags():
+    ns = _parse([
+        "transcribe", "/tmp/a.m4a",
+        "--clearspeech-bandpass",
+        "--clearspeech-bandpass-low-hz", "120",
+        "--clearspeech-bandpass-high-hz", "7000",
+    ])
+    opts = _opts_from_args(ns)
+    assert opts.clearspeech_bandpass is True
+    assert opts.clearspeech_bandpass_low_hz == 120.0
+    assert opts.clearspeech_bandpass_high_hz == 7_000.0
