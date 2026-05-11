@@ -135,6 +135,11 @@ def render_markdown(
     lines.append(f"> 📅 **Початок:** {_format_started_at(audio_meta.started_at)}")
     lines.append(f"> ⏱️ **Тривалість:** {_format_duration(audio_meta.duration_s)}")
     lines.append(f"> 🌐 **Мова:** {language}")
+    if speakers:
+        speaker_chips = ", ".join(
+            f"{emoji_for.get(s, '')} {s}".strip() for s in speakers
+        )
+        lines.append(f"> 👥 **Учасники:** {speaker_chips}")
     lines.append("")
 
     if tldr:

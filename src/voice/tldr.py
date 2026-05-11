@@ -8,6 +8,7 @@ section gracefully.
 
 from __future__ import annotations
 
+import re
 import sys
 from typing import Callable, Iterable
 
@@ -19,6 +20,20 @@ from .types import Segment
 
 def _pick_prompt_name(language: str) -> str:
     return "tldr_system_en" if language.lower().startswith("en") else "tldr_system_uk"
+
+
+# The prompt asks the LLM not to emit a "TL;DR" heading because the renderer
+# adds its own. The model regularly ignores that and starts the reply with
+# "## TL;DR" / "# TL;DR" / "**TL;DR**". Strip it so we don't end up with two
+# headings stacked in the output.
+_LEADING_TLDR_RE = re.compile(
+    r"\A\s*(?:#{1,6}\s*TL;?DR\s*\n+|\*\*TL;?DR:?\*\*\s*\n+)",
+    flags=re.IGNORECASE,
+)
+
+
+def _strip_leading_tldr_heading(text: str) -> str:
+    return _LEADING_TLDR_RE.sub("", text, count=1).lstrip("\n")
 
 
 def _format_dialogue(segments: list[Segment]) -> str:
@@ -61,4 +76,4 @@ def generate_tldr(
     except LLMError as exc:
         log(f"tldr: LLM error — {exc}; skipping")
         return ""
-    return text.strip()
+    return _strip_leading_tldr_heading(text.strip())

@@ -47,9 +47,32 @@ def test_render_minimal_dialogue():
     # Language is rendered as the raw ISO code; no friendly translation.
     assert "🌐 **Мова:** uk" in out
     assert "🏁" not in out, "no 'Кінець' line expected"
+    # Participants header with colour chips in first-appearance order.
+    assert "👥 **Учасники:** 🔵 Артем, 🟢 Остап" in out
     assert "## Привітання" in out
     assert "🔵 **Артем:** Привіт!" in out
     assert "🟢 **Остап:** Привіт-привіт." in out
+
+
+def test_render_participants_header_skipped_when_no_speakers():
+    """Speakerless transcripts get no Учасники line."""
+    segs = [Segment(start=0, end=2, content="[Human Sounds]", speaker=None)]
+    sections = [Section(title="Test", start_ms=0, end_ms=2000)]
+    dialog = StructuredDialog(sections=sections, segments=segs)
+    out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
+    assert "👥" not in out
+
+
+def test_render_participants_uses_pyannote_label_when_unnamed():
+    """If --names wasn't passed and ask was declined, SPEAKER_XX shows up."""
+    segs = [
+        Segment(start=0, end=1, content="x", speaker="SPEAKER_00"),
+        Segment(start=1, end=2, content="y", speaker="SPEAKER_01"),
+    ]
+    sections = [Section(title="Test", start_ms=0, end_ms=2000)]
+    dialog = StructuredDialog(sections=sections, segments=segs)
+    out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
+    assert "👥 **Учасники:** 🔵 SPEAKER_00, 🟢 SPEAKER_01" in out
 
 
 def test_render_normalises_started_at_with_offset():

@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] — 2026-05-11
+
+### Added
+- Header now lists the participants with their colour chips: `👥 **Учасники:** 🔵 Артем, 🟢 Остап`. Order matches first appearance; falls back to pyannote labels (`SPEAKER_00` etc.) when names weren't supplied. Skipped entirely when the recording has no detected speakers.
+
+### Fixed
+- `tldr.generate_tldr()` strips a leading `## TL;DR` (or `# TL;DR`, `**TL;DR**`, `**TL;DR:**`, lowercased / no-semicolon variants) from the LLM's reply. The renderer was already adding its own heading, so the model's extra one produced two `## TL;DR` stacked on top of each other.
+
 ## [0.9.1] — 2026-05-11
 
 ### Changed
