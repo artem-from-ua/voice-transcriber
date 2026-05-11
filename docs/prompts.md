@@ -17,11 +17,39 @@ Prompts are kept as plain Markdown files in `src/voice/prompts/` and loaded by `
 
 ## Template syntax
 
-Each file starts with a YAML frontmatter (`name`, `used_by`, `role`, `placeholders`, sometimes `response_format` or `language`). The loader strips the frontmatter; only the body reaches the model.
+Each file starts with a YAML frontmatter (`name`, `used_by`, `role`, `placeholders`, and the LLM call parameters: `temperature`, `max_tokens`, `top_p`, `repetition_penalty`, `response_format`). The loader strips the frontmatter; only the body reaches the model.
 
 Placeholder substitution uses `<<key>>` delimiters — not `{}` or `${}` — to keep JSON examples in the prompt body intact. `render("identify_system", language="uk")` returns the prompt with `<<language>>` replaced; a missing argument raises `KeyError`.
 
 `list_placeholders(name)` returns the order-preserving, de-duplicated set of placeholders a file uses. The `test_all_pipeline_prompts_load` test exercises every shipped file with empty values to guarantee everything resolves at startup.
+
+`load_prompt(name)` returns a `PromptFile(name, body, placeholders, params)`. `call_kwargs(name)` is a convenience wrapper that returns the subset of `params` that maps directly to `MlxLLM.chat()` / `.chat_json()` kwargs (`temperature`, `max_tokens`, `top_p`, `repetition_penalty`). `response_format` lives in frontmatter as a contract hint but is not part of `call_kwargs` — JSON mode is chosen at the call site by picking `chat_json()` over `chat()`.
+
+Example frontmatter (`identify_system.md`):
+
+```yaml
+---
+name: identify_system
+used_by: voice.identify
+role: system
+placeholders: [language]
+temperature: 0.1
+max_tokens: 64
+response_format: json_object
+---
+```
+
+Each stage module therefore looks like:
+
+```python
+messages = [
+    {"role": "system", "content": render_prompt("identify_system", language=language)},
+    {"role": "user", "content": render_prompt("identify_user", snippet=snippet)},
+]
+payload = llm.chat_json(messages, **call_kwargs("identify_system"))
+```
+
+No `temperature`/`max_tokens` constants live in Python any more; tuning is done by editing the `.md` files.
 
 ## LLM call contracts
 

@@ -11,14 +11,13 @@ from __future__ import annotations
 import sys
 from typing import Callable, Iterable
 
-from ._prompts import render as render_prompt
+from ._prompts import call_kwargs, render as render_prompt
 from .llm import LLMError, MlxLLM
 from .types import Segment
 
 
-def _pick_prompt(language: str) -> str:
-    name = "tldr_system_en" if language.lower().startswith("en") else "tldr_system_uk"
-    return render_prompt(name)
+def _pick_prompt_name(language: str) -> str:
+    return "tldr_system_en" if language.lower().startswith("en") else "tldr_system_uk"
 
 
 def _format_dialogue(segments: list[Segment]) -> str:
@@ -46,12 +45,13 @@ def generate_tldr(
     if not transcript:
         return ""
 
+    prompt_name = _pick_prompt_name(language)
     messages = [
-        {"role": "system", "content": _pick_prompt(language)},
+        {"role": "system", "content": render_prompt(prompt_name)},
         {"role": "user", "content": transcript},
     ]
     try:
-        text = llm.chat(messages, temperature=0.3, max_tokens=1024)
+        text = llm.chat(messages, **call_kwargs(prompt_name))
     except LLMError as exc:
         log(f"tldr: LLM error — {exc}; skipping")
         return ""

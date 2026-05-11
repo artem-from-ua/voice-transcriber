@@ -3,7 +3,9 @@ name: structure_system
 used_by: voice.structure
 role: system
 placeholders: [language]
-response_format: json_schema
+temperature: 0.2
+max_tokens: 2048
+response_format: json_object
 ---
 
 You split a dialogue into thematic sections.

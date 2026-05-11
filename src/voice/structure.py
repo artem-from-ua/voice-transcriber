@@ -12,7 +12,7 @@ from __future__ import annotations
 import sys
 from typing import Callable, Iterable
 
-from ._prompts import render as render_prompt
+from ._prompts import call_kwargs, render as render_prompt
 from .llm import LLMError, MlxLLM
 from .types import Section, Segment, StructuredDialog
 
@@ -123,7 +123,7 @@ def structure_dialog(
     ]
 
     try:
-        payload = llm.chat_json(messages, temperature=0.2, max_tokens=2048)
+        payload = llm.chat_json(messages, **call_kwargs("structure_system"))
     except LLMError as exc:
         log(f"structure: LLM error — {exc}; falling back to single section")
         return StructuredDialog(sections=_fallback_section(segs, language), segments=segs)

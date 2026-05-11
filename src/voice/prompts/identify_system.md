@@ -3,7 +3,9 @@ name: identify_system
 used_by: voice.identify
 role: system
 placeholders: [language]
-response_format: json_schema
+temperature: 0.1
+max_tokens: 64
+response_format: json_object
 ---
 
 You identify whether a speaker introduces themselves in a short transcript snippet.
