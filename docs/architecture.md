@@ -69,16 +69,16 @@ skinparam ArrowThickness 2
 [<b>input audio</b>] as Input #A9A9A9
 [<b>transcript.md</b>] as Output #A9A9A9
 
-component "<b>[1] audiotranscode</b>\nffmpeg" as WAV #FFA07A
-component "<b>[2] audiometa</b>\nffprobe" as FF #FFA07A
-component "<b>[3] diarize</b>\npyannote-audio\npyannote / speaker-diarization-3.1" as Diar #87CEFA
-component "<b>[4] normalize</b>\nsoundfile + numpy" as Norm #E8E8E8
-component "<b>[5] asr</b>\nmlx-audio\nmlx-community / VibeVoice-ASR-6bit" as ASR #90EE90
+component "<b>[1] audiotranscode</b>\n<ffmpeg>" as WAV #FFA07A
+component "<b>[2] audiometa</b>\n<ffprobe>" as FF #FFA07A
+component "<b>[3] diarize</b>\n<pyannote-audio>\nspeaker-diarization-3.1" as Diar #87CEFA
+component "<b>[4] normalize</b>\n<soundfile> + <numpy>" as Norm #E8E8E8
+component "<b>[5] asr</b>\n<mlx-audio>\nVibeVoice-ASR" as ASR #90EE90
 component "<b>[6] merge</b>" as Merge #E8E8E8
-component "<b>[7] proofread</b>\nmlx-lm\nmlx-community / gemma-3-12b-it-qat-4bit" as Post #DDA0DD
-component "<b>[8] identify</b>\nmlx-lm\nmlx-community / gemma-3-12b-it-qat-4bit" as Ident #DDA0DD
-component "<b>[9] structure</b>\nmlx-lm\nmlx-community / gemma-3-12b-it-qat-4bit" as Struct #DDA0DD
-component "<b>[10] tldr</b>\nmlx-lm\nmlx-community / gemma-3-12b-it-qat-4bit" as TLDR #DDA0DD
+component "<b>[7] proofread</b>\n<mlx-lm>\ngemma-3-12b" as Post #DDA0DD
+component "<b>[8] identify</b>\n<mlx-lm>\ngemma-3-12b" as Ident #DDA0DD
+component "<b>[9] structure</b>\n<mlx-lm>\ngemma-3-12b" as Struct #DDA0DD
+component "<b>[10] tldr</b>\n<mlx-lm>\ngemma-3-12b" as TLDR #DDA0DD
 component "<b>[11] render</b>" as Render #E8E8E8
 
 Input -[#red]-> FF
@@ -104,9 +104,9 @@ Render -[#7CCD7C]-> Output
 legend top right
   <color:#404040>**Box fill** (stage category):</color>
   <back:#FFA07A>   </back> <color:#404040>subprocess (external binary)</color>
-  <back:#87CEFA>   </back> <color:#404040>AI model — diarization</color>
-  <back:#90EE90>   </back> <color:#404040>AI model — ASR</color>
-  <back:#DDA0DD>   </back> <color:#404040>AI model — LLM</color>
+  <back:#87CEFA>   </back> <color:#404040>AI model — "pyannote/speaker-diarization-3.1"</color>
+  <back:#90EE90>   </back> <color:#404040>AI model — "mlx-community/VibeVoice-ASR-6bit"</color>
+  <back:#DDA0DD>   </back> <color:#404040>AI model — "mlx-community/gemma-3-12b-it-qat-4bit"</color>
   <back:#E8E8E8>   </back> <color:#404040>pure-Python / DSP</color>
   <back:#A9A9A9>   </back> <color:#404040>I/O payload</color>
   <color:#404040>**Arrows:**</color>
@@ -117,7 +117,7 @@ end legend
 @enduml
 ```
 
-![Pipeline stages](https://www.plantuml.com/plantuml/svg/dLRTRjis5BxNKnpKDuaBrNQIneaN25Njk4kHD44SP1UfBYY9LWXJf4PHRTnXm1vYJxWdsI5bowfL6KOWG12fyttV8Nb--27NHEaYvOvccbFu9bb4NQs8o2F5GghWlt_-XOnbb3D10QqJcZlvWecCA9929DDC2YhqJ2yHhcYaYKWuhPduIidl3yyiMWYQvt3aE4yNeOT_2msaY9cyw8LU02I7AplNyS_DOwtMZcJwNHfNThU5hXiwbHFm1Z5FWw3aBS4ofWRuLSpdQKQJDuRW3_yHEjEftn_ws-2Z5JYbcgnncP8XjS3fj0rt743CY68_LchPaWWXDNKjssOCFSWpIXPKkQKzqKmAz_ZTm0fCS0uwPyFnvRGXSHA0a2ebl1B9PI7YESEDVmkYIBEbvVY2Hj2vF3FFDiTxiu6gHAVyPUsT-KJBj11CBz75HppwHniA_kpUFGsPjimuWCvv__BolBzDV1f0IbLY7REsDsRKviOm0DnKELUKn1jdUDhq9A5fIjnZTt0KkaoxVnBjdgpTkPCvHi5aulSdass5im1OZ2CsNxvUuCemj2cS1vWEgeXqeUZh9MQMearZq0z0yrYzdl_XUdBVoewPegY8gQfExTuEgsDpofHqdpgAne7hOG8qfZ2P7CTar6RAHl48BYB9fHfrJlhcyGQdiFZz1wHII0EwwDdVtXRMHk_UMAk4u90Nj1rjh1uA9Pw2DV2hs38vI0WJa1H4nQuYZEU7bORbt3Xeac1V_veo6IO-Hem0_zDu8-4OqjeookHfgFYvcj4anGFSjH9DNpGM14EvAZNmp8G-RDsq5hLzTgqgQvgbjaNKrbJIrdHilZPazbzH9SP9IFb6oVBMTCgqVOrG98KsM5kSN5ETDYebQqrcbRhjEkZoNzRL4GYIqhyhgXMoncNJjCcqhYyndWMNIRlZEJPUx2CvIkQbV2s07MnRDQrLZZUZo_I26zltLa3h5IA7u_5aEDw5lI5g4Sll0XVo6sAmC39HkUkiK3ynbKtSSJXDy2zecO5YoRDsO9kxs_qeNm3R7EzsuS1UGI0YcYPIBGz7bGZYGX8jHgi6xG5EzCoCjqsO5o4US6Hk8mSOMLG9mY5aWY1VawvinZle_2lC-vXoUrMgDVKcLTawzwN216vIb9LyNuhhwvicHLdRTr1a677ktL8_Iu7TPJAxQtAKLwyT75UzMyZ8aalJu3VexPErbyDyrEqsZJ3glNjQeHiXPwyk42urpPjW4-lUHtormglU7KDCD843yuuumQ3emUVPxPV3N_XTXg_tIL4gMfdNkL3XJNoNOUvym1VUjly7)
+![Pipeline stages](https://www.plantuml.com/plantuml/svg/dLRRRkCs47tNLmpYbyI5rdQInebh2AkDussAPXF4GVgGwe6IQ8KmHQeKrOstAD2Fw1VsIpgaR5cn8iTO2A0jQiuvGt8k_9XhedIHSaSppIdyALb4NQs8o2F5GghWlt_-XOnbb3D10QqJcZlvWecCA9929DDC2YhqJ2yHhcYaYKWuhPduIicl3yyiMWYQvt3iE4_ZqCElXGPIn4oEUw4N0CdXsivr_0lpMAkr8vd-aCQLtMsXwuPEvGGS8EPf49Iy9LZ6r01_5-FvFCreuXqOYj_yH-XCftv_w6_3ZrVmb6fI8JCbGrf2fzCsv4a0CIEAVLihPaiYXDJKjOGuasUKBAXoIpEYcHJkoOU1vPtW77JEXvTNqmRpQG12gfJm3NSk2n7F6QSU_01ZKQJPilJl2nf2v-hSFDiyFvhzKok6bBzKZZtYMJ_Qi_TdzvO6Vw5pqR-wkkXlivm5a5ALM4-ixOrvQzCS1e2x9-UAahYcp5Fybz0q9Uw9EpWEBT6TpF5S9nE_Fvbiyvm7m69yO_FbUpJNngwDvoB0C5P5f0j5toEQMSCsfa4_0CrZzHxBmw-J-rOEZ5P5HKnLjPltzhNQJgTC2_UfesWSk1u6O6CAmzbnJ4nlfcmuZM0SIIxLg7FQDuytE8F5pzyWbK8QqBXdFtjRM1j2UsEj4e93Nj1sjB5wA9Hu2jP0tBBN9eS9OGAIWgZOLOJn_AZIi9mR1qrmxkjVKoR33CJJ5-1_ljn8E8Qqjemog1igVgvcD4dn07UjHDCNZNbfA5Sv3yzCwAFMJMjHssVNrbK6D4jjcQwjgQIjwTWCQyZilw9AZ9EGyesIvQtfb2duFKAH5DfWRT5mJTNOg9IiDPbLWhRheCj_MLT784XA_wweLiWQbqtJ9jEwLiHu5bmcxOxdsFomeESecPVojG1si6tKj5OvtemkKuzlRETP0QrNY1nUNaw6bxkmDqGjOlbLu49-GWmMEIOgTvqLwXLJsKWTXzC4luAM6IYMF6i7jhcxtK_o1R3Ty6uN3kqr02AYQIBLycXKYI0k9D5Yj6gG7k14pynusuHv4U81H-P6S8YHHPKW748c2F8rwSgkk8FElyQyZoctrvM3TP3sslfjKw7iT7ihc5gFbJmj1DFBtglkwPw5JB-XKDR_xrIejHINQVSFejtJjsNAhh539iDOTk-M-baAwC5aTjVaA2zMEpYkUxUGaIMNfgLlqDinOwz--QZRRHfXFddtj48tWjbUJ21SQfetmIQBl4yujCAh3Xz3J3I1GpD6d62uzU2NsUsNepVyBXF3-wme5QtCwoohy2PpoWHoFkA0T-d_0G00)
 
 ## Module layout
 
