@@ -26,5 +26,7 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | 20  | [Default LLM is now `Qwen2.5-7B-Instruct-4bit` with model-recommended sampling](0020-default-llm-qwen25-7b.md) | accepted (supersedes 0001) |
 | 21  | [Remove the VibeVoice ASR backend](0021-remove-vibevoice-backend.md)                  | accepted                     |
 | 22  | [`--language` defaults to detection on the longest pyannote turn](0022-asr-language-autodetect.md) | accepted                     |
+| 23  | [`safe_speech` stage for sensitive-content redaction](0023-safe-speech-stage.md)       | accepted                     |
+| 24  | [Defaults for the `safe_speech` stage](0024-safe-speech-defaults.md)                   | accepted                     |
 
 New decisions land here as `NNNN-kebab-case-title.md` with the same frontmatter (`status`, `date`, optional `supersedes` / `superseded_by`).

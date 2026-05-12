@@ -14,6 +14,9 @@ Prompts are kept as plain Markdown files in `src/voice/prompts/` and loaded by `
 | [`structure_user.md`](../src/voice/prompts/structure_user.md) | user | `voice.structure` | `total_start_ms`, `total_end_ms`, `script` |
 | [`tldr_system_uk.md`](../src/voice/prompts/tldr_system_uk.md) | system | `voice.tldr` (uk) | — |
 | [`tldr_system_en.md`](../src/voice/prompts/tldr_system_en.md) | system | `voice.tldr` (en) | — |
+| [`safe_speech_system.md`](../src/voice/prompts/safe_speech_system.md) | system | `voice.safe_speech` (uk) | `topics` |
+| [`safe_speech_system_en.md`](../src/voice/prompts/safe_speech_system_en.md) | system | `voice.safe_speech` (en) | `topics` |
+| [`safe_speech_user.md`](../src/voice/prompts/safe_speech_user.md) | user | `voice.safe_speech` | `section_title`, `segments` |
 
 ## Template syntax
 
@@ -61,6 +64,7 @@ The wire-level contract (temperature, max_tokens, response_format) stays in the 
 | proofread | `MlxLLM.chat` | 0.1 | 512 | free text | — |
 | speech_structure | `MlxLLM.chat_json` | 0.2 | 2048 | schema-constrained | — |
 | speech_summary | `MlxLLM.chat` | 0.3 | 1024 | free text | — |
+| safe_speech | `MlxLLM.chat_json` | 0.1 | 1500 | schema-constrained | — |
 
 `chat_json()` installs `lm-format-enforcer` as a logits processor against the supplied JSON schema (default `{"type": "object"}`), so the output is guaranteed valid on the first call. No retry loop. See [ADR 0006](adr/0006-mlx-lm-over-lm-studio.md) for the migration from LM Studio.
 
@@ -72,6 +76,7 @@ The wire-level contract (temperature, max_tokens, response_format) stays in the 
 | proofread | reply rejected if length ratio > 2× either way or Levenshtein / max length > 0.5; surrounding quotes stripped |
 | speech_structure | JSON must be `{"sections":[…]}` with 2–7 entries, contiguous, covering the dialogue exactly; otherwise fallback to single "Розмова" / "Conversation" section |
 | speech_summary | LLM error → empty string; renderer omits the whole "## TL;DR" block silently |
+| safe_speech | LLM error on a section → section left unredacted, warning logged, processing continues |
 
 See each module under `src/voice/` for the implementation of these checks.
 

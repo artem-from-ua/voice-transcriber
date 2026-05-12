@@ -1,6 +1,6 @@
 # Pipeline — step by step
 
-`pipeline.run(PipelineOptions)` is the single entry point used by both the CLI and tests. It runs ten sequential stages; each stage gets the previous one's output and adds a layer of information.
+`pipeline.run(PipelineOptions)` is the single entry point used by both the CLI and tests. It runs eleven sequential stages; each stage gets the previous one's output and adds a layer of information.
 
 ## Sequence
 
@@ -23,6 +23,7 @@ participant llm as "mlx-lm\n(in-process)"
 participant identify_speakers
 participant proofread
 participant speech_structure
+participant safe_speech
 participant speech_summary
 participant render
 
@@ -45,6 +46,8 @@ pipeline -> identify_speakers : identify_speakers(segments)
 identify_speakers --> pipeline : {label: name}
 pipeline -> speech_structure : structure_dialog(segments)
 speech_structure --> pipeline : StructuredDialog
+pipeline -> safe_speech : redact_dialog(dialog)
+safe_speech --> pipeline : StructuredDialog (redacted)
 pipeline -> speech_summary : generate_tldr(segments)
 speech_summary --> pipeline : markdown
 pipeline -> render : render_markdown(...)
@@ -58,7 +61,7 @@ end legend
 @enduml
 ```
 
-![Pipeline sequence](https://www.plantuml.com/plantuml/svg/XLNDRjD04BxlKupA0LiqAPM0Gm-eeJqWaKX853W0ihRs95vblMjcrqtQ2eaJ3u1umZu9iuwJUfqW5CdnplVjDxFpipvtNf9lAYsyyXhXlQfHAuFmyFCFp1kjWHe3Sx8LoAPG5ho5cQHbOLT6bAf0c5lhh-rQkAKojIHPWSFl3PeS9qHsTLMgV6dGEJWTl-oHfcgEKtRqnbA1T66r9NXoyJpyX92vv-L7XoIOxLMkQcayv5f5wxeBDZ9waiRbjeYjRV1PXLv6vbMfN8sKIHTxAfGaTOSPWtA9v2AmGbh4wbfpUXmSLNezqjLNaoWpgidcVEpqA69onenNyzl3ohp7pWbb4LcPYdcPEKzDxXl2Ws1JLP9k8uZGS6g527c4qUkGFZY36wjoxB94whejuBXw8KM0cRLDAbEvz8cjlRB6fM9dPyuknqpgjiF3hzzm-WgMR--WiiR2vycdQCzZ1NWJhbaYz-soa5ucdKegUhHH7Cqa8BEsWZtPNWMPytYiP2LlZa5BisZa0bFHvms57Nt0HSM5-V8jqXvs0NCxKr1FnHu-4Bva_AeXCv1j-uVXzZ_XW8w1onfol446AeTZ2ort1ZEzdavdOsrbaQJm34gKsfTPNcA-J58HI0CrkunaTXqNAgdM8JqPyjoIIzp6RoZzZlIlq21fEQD0Ybjbh-5vsvwjvskVF_1vh-KrwZCmii8VaQlXd31vzvvnhRHTz1pjiOTdsmB5PRlreAlDr35xWGP9UioyBkY0buuuy55jRzA-zcPim_YrBzcMb8p7urHqwF-5TWDVIr-UU7lIZbYn6NC6srkX6zz228ryX098BKel02ONxzY_gtdqqO4hMRlz9A3CIyugZzHJ1xRnTSEN9QaR9laImV1WGowr7ekWjX4Lv_pWJynV)
+![Pipeline sequence](https://www.plantuml.com/plantuml/svg/XLNDRjD04BxlKupA0LiqAPM0Gm-eeJqWaKX853W0ihRUYRtAUjVihfkq28aJ3u1umZu9ixQJUfsWAb9iptpppUpyxRdptFgcKinBhn3UongLr0Ztl_x2ib4ARADXQKq5l17IW3Umu7Obp5gpKWg4fJ7-scoOMqbTSyihSFYzGPtZp5gplYfbljBe79nENmv0Sxd4EJbwOwn0Us6KiV3audduCSPpJvyV7Lf6Q2zpMNFj8LSo-gxxO2EXjroxt8XOsWQVLUXv95wNqjLeC-vYJq9oA-ym8oLVeNMHia9RnEnAKNeS75LgCr7LLvr8FQcjoUdOwL64f8nfBvUtXvd9nYmjSX592OfvcJblczmtDdRj-B8Dan07ZPggulOsKbdKb7B6GdvXyZga5SxWniWS--nPUTqMTbgzu2oe2RLDDa6f9H9JUscqIzbEJfXTxWdKcyFzxpzm-WfMR--WCjh0vzcdoEQXCcI46wB8VVifkET9pvAo0MmIHpCBcaLRsG7jeBA4UJXMikOtnw2uBXfUOCg6k36nin-mgAXWNxv5tEFk86ml2kmfszEFY2z9VzLOFQ9j-uhKxJEXW8w1oXrot6b6B8TZ2wru1WkrcSyNKsMuI59u1YLovSiiBp5V9IaBe16RMKKqkquCbPIRa9uCQPwjIrpdDvH-1_fVQ92qc4a0nQsoDmXajYSR-Dh7Ztp-KFmQrHbeNk7FoDLuVWYyUy-eLieK0qTxwF7PjWfnsPh6hXwcCSm9Yj3ClOlkGGu6c4Uu8UaeS9IyUBZ9i42DbdlCl1Bsm65wuCXTjLtaG-vkExJHXvTi2qgcqsdAUktZHBkzKdDVddXpqawowBO9ATlbqsy9mPX2Ee80AulICu3PnJloxshQCEZ0bSJTtaZ8AMbqPHNur85fVDtGhhRoXa2-HD2qFo3dIarPOEj8sJdzqGtt3m00)
 
 ## Stages
 
@@ -76,7 +79,8 @@ Approximate wall-clock figures are for a 6-minute Ukrainian conversation on an M
 | 8 | ASR proof-read | LLM via in-process `mlx-lm` | `Segment[]` | `Segment[]` | ~30–60 s |
 | 9 | identify_speakers | LLM via in-process `mlx-lm` | `Segment[]` | `{label: name}` | ~5–10 s |
 | 10 | speech_structure | LLM via in-process `mlx-lm` | `Segment[]` | `StructuredDialog` | ~10–20 s |
-| 11 | speech_summary | LLM via in-process `mlx-lm` | `Segment[]` | Markdown string | ~10–20 s |
+| 11 | safe_speech | LLM via in-process `mlx-lm` | `StructuredDialog` | `StructuredDialog` (redacted) | ~5–15 s; skipped when `--no-safe-speech` or `--safe-speech-topics ""`. See [ADR 0023](adr/0023-safe-speech-stage.md). |
+| 12 | speech_summary | LLM via in-process `mlx-lm` | `Segment[]` (redacted) | Markdown string | ~10–20 s |
 
 ## Errors and recovery
 
@@ -89,10 +93,11 @@ Approximate wall-clock figures are for a 6-minute Ukrainian conversation on an M
 | LLM returns non-JSON for identify_speakers/speech_structure | identify_speakers / speech_structure | `lm-format-enforcer` guarantees valid JSON on the first try; if generation itself fails (e.g. model crash) → cluster stays unidentified / fallback to a single "Розмова" section |
 | LLM rewrites text too aggressively | proofread | Levenshtein + length ratio check rejects the reply; original kept |
 | LLM error in speech_summary | speech_summary | empty string returned; render simply omits the `## TL;DR` section |
+| LLM error in safe_speech (one section) | safe_speech | that section is left unredacted; a warning is logged; other sections are processed normally |
 
 The pipeline never aborts in the middle: if a non-critical LLM stage fails, that artefact is dropped and the rest still produces output.
 
 ## See also
 
-- [`prompts.md`](prompts.md) — the LLM call contracts (temperature, max_tokens, response_format, safety nets) used by stages 6–9.
+- [`prompts.md`](prompts.md) — the LLM call contracts (temperature, max_tokens, response_format, safety nets) used by stages 8–12.
 - [`adr/README.md`](adr/README.md) — index of the architectural decisions behind the stage layout.

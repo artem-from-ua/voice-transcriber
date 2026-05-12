@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.0] — 2026-05-12
+
+### Added
+
+- **`safe_speech` stage — automatic sensitive-content redaction** ([#92](https://github.com/artem-from-ua/voice-transcriber/issues/92), [ADR 0023](docs/adr/0023-safe-speech-stage.md), [ADR 0024](docs/adr/0024-safe-speech-defaults.md)).
+
+  A new LLM stage `[11] safe_speech` runs between `speech_structure` and `speech_summary`. It scans each section of the structured dialog for sensitive utterances and replaces them with `[muted, X.Xs]` placeholders (default) or drops them silently.
+
+  - **Default topics**: `health`, `drugs`, `alcohol` — covers the most common personal-disclosure categories without over-triggering on professional recordings.
+  - **Default policy**: `placeholder` — preserves the gap so readers know something was said.
+  - The TL;DR is generated from the already-redacted dialog, so it is automatically clean with no additional redaction pass.
+  - Per-section LLM calls keep the working set bounded by the largest section regardless of total recording length.
+  - Graceful degradation: an LLM error on one section leaves it unredacted and logs a warning; other sections are still processed.
+  - Dump artefact: `09-safe_speech-decisions.json` (written when `--dump-stages` is active).
+
+- New CLI flags: `--safe-speech-topics CSV`, `--safe-speech-policy {placeholder,drop}`, `--no-safe-speech`, `--llm-safe-speech-model`.
+
 ## [0.26.0] — 2026-05-12
 
 ### Changed

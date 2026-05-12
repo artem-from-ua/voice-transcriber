@@ -216,6 +216,11 @@ def patched_pipeline(monkeypatch, tmp_path):
         lambda *a, **k: "",
     )
     monkeypatch.setattr(
+        pipeline_module.safe_speech_module,
+        "redact_dialog",
+        lambda dialog, **k: (dialog, []),
+    )
+    monkeypatch.setattr(
         pipeline_module,
         "render_markdown",
         lambda **k: "# fake\n",
@@ -236,6 +241,7 @@ def test_default_chain_runs_autogain_only(patched_pipeline, tmp_path):
             run_proofread=False,
             run_tldr=False,
             run_structure=False,
+            run_safe_speech=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
         )
@@ -273,6 +279,7 @@ def test_bandpass_extends_chain(patched_pipeline, tmp_path):
             run_proofread=False,
             run_tldr=False,
             run_structure=False,
+            run_safe_speech=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
             clearspeech_chain="autogain,bandpass",
@@ -300,6 +307,7 @@ def test_empty_chain_passes_raw_wav_to_asr(patched_pipeline, tmp_path):
             run_proofread=False,
             run_tldr=False,
             run_structure=False,
+            run_safe_speech=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
             clearspeech_chain="",
@@ -329,6 +337,7 @@ def test_full_chain_autogain_bandpass_presence(patched_pipeline, tmp_path):
             run_proofread=False,
             run_tldr=False,
             run_structure=False,
+            run_safe_speech=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
             clearspeech_chain="autogain,bandpass,presence",
@@ -355,6 +364,7 @@ def test_reordered_chain_runs_in_given_order(patched_pipeline, tmp_path):
             run_proofread=False,
             run_tldr=False,
             run_structure=False,
+            run_safe_speech=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
             clearspeech_chain="presence,autogain",
@@ -382,6 +392,7 @@ def test_lang_detect_runs_after_diarize_when_language_is_none(patched_pipeline, 
             run_proofread=False,
             run_tldr=False,
             run_structure=False,
+            run_safe_speech=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
         )
@@ -413,6 +424,7 @@ def test_lang_detect_skipped_when_language_set(patched_pipeline, tmp_path):
             run_proofread=False,
             run_tldr=False,
             run_structure=False,
+            run_safe_speech=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
         )
@@ -517,6 +529,7 @@ def test_single_llm_model_reused_across_all_stages(patched_pipeline, tmp_path):
             run_proofread=True,
             run_tldr=True,
             run_structure=True,
+            run_safe_speech=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
         )
@@ -544,6 +557,7 @@ def test_per_stage_models_swap_when_different(patched_pipeline, tmp_path):
             run_proofread=True,
             run_tldr=True,
             run_structure=True,
+            run_safe_speech=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
         )
@@ -574,6 +588,7 @@ def test_same_path_across_stages_reuses_one_instance(patched_pipeline, tmp_path)
             run_proofread=True,
             run_tldr=True,
             run_structure=True,
+            run_safe_speech=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
         )
@@ -604,6 +619,7 @@ def test_per_stage_override_does_not_leak_to_unspecified_stages(
             run_proofread=True,
             run_tldr=True,
             run_structure=True,
+            run_safe_speech=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
         )
@@ -631,6 +647,7 @@ def test_no_llm_required_when_no_stages_and_names_override(patched_pipeline, tmp
             run_proofread=False,
             run_tldr=False,
             run_structure=False,
+            run_safe_speech=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
         )
