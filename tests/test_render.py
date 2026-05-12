@@ -42,13 +42,14 @@ def test_render_minimal_dialogue():
 
     out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
     assert "# Транскрипт: foo.m4a" in out
-    assert "📅 Початок: 2026-05-10 15:44 UTC" in out
-    assert "Тривалість: 6:14" in out
-    assert "🌐 Мова: uk (user-specified)" in out
+    assert "📅 **Початок (тривалість):**" in out
+    assert "2026-05-10 15:44 UTC" in out
+    assert "6m14s" in out
+    assert "🌐 **Мова:** | uk (user-specified)" in out
     assert "🏁" not in out, "no 'Кінець' line expected"
-    assert "👥 Учасники:" in out
-    assert "• 🔵 **Артем**" in out
-    assert "• 🟢 **Остап**" in out
+    assert "👥 **Співрозмовники:**" in out
+    assert "🔵 **Артем**" in out
+    assert "🟢 **Остап**" in out
     assert "## Привітання" in out
     assert "🔵 **Артем:** Привіт!" in out
     assert "🟢 **Остап:** Привіт-привіт." in out
@@ -72,7 +73,7 @@ def test_render_participants_uses_pyannote_label_when_unnamed():
     sections = [Section(title="Test", start_ms=0, end_ms=2000)]
     dialog = StructuredDialog(sections=sections, segments=segs)
     out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
-    assert "👥 Учасники:" in out
+    assert "👥 **Співрозмовники:**" in out
     assert "🔵 **SPEAKER_00**" in out
     assert "🟢 **SPEAKER_01**" in out
 
@@ -91,7 +92,7 @@ def test_render_normalises_started_at_with_offset():
         segments=[Segment(start=0, end=1, content="hi", speaker="A", name="Sam")],
     )
     out = render_markdown(audio_meta=meta, dialog=dialog, tldr="", language="uk")
-    assert "📅 Початок: 2026-05-10 15:44 UTC" in out
+    assert "📅 **Початок (тривалість):** | 2026-05-10 15:44 UTC" in out
 
 
 def test_render_includes_tldr_section_when_provided():
@@ -161,7 +162,7 @@ def test_render_lang_user_specified():
         sections=[Section(title="T", start_ms=0, end_ms=1000)], segments=segs
     )
     out = render_markdown(audio_meta=_meta(), dialog=dialog, language="uk")
-    assert "🌐 Мова: uk (user-specified)" in out
+    assert "🌐 **Мова:** | uk (user-specified)" in out
 
 
 def test_render_lang_auto_detected_with_runner_up():
@@ -174,7 +175,7 @@ def test_render_lang_auto_detected_with_runner_up():
         audio_meta=_meta(), dialog=dialog, language="uk",
         lang_detect_info={"top": ("uk", 0.74), "second": ("ru", 0.24)},
     )
-    assert "🌐 Мова: uk (auto-detected=0.74, ru=0.24)" in out
+    assert "🌐 **Мова:** | uk (auto-detected=0.74, ru=0.24)" in out
 
 
 def test_render_lang_auto_detected_no_runner_up():
@@ -206,8 +207,8 @@ def test_render_participants_with_source_tags():
             "SPEAKER_01": "user-specified",
         },
     )
-    assert "• 🔵 **Остап** (self-introduced)" in out
-    assert "• 🟢 **Артем** (user-specified)" in out
+    assert "| 🔵 **Остап** | *self-introduced*" in out
+    assert "| 🟢 **Артем** | *user-specified*" in out
 
 
 def test_render_ai_models_table_grouping_single_llm():
@@ -286,4 +287,4 @@ def test_render_processing_percent_of_duration():
         stage_models={},
         model_load_elapsed={},
     )
-    assert "⏲️ Обробка: 5m0s (50% of duration)" in out
+    assert "⚡ **Час обробки:** 5m0s (50% of duration)" in out
