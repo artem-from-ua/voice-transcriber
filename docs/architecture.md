@@ -34,6 +34,8 @@ skinparam legendBackgroundColor #EEEEEE
   }
   actor {
     LineThickness 4
+    Margin 5
+    Padding 5
   }
 </style>
 
@@ -81,14 +83,14 @@ legend top center
   <back:#87CEFA>   </back> <i><color:#404040>AI model: diarization</color></i>
   <back:#90EE90>   </back> <i><color:#404040>AI model: speech2text</color></i>
   <back:#FFCC66>   </back> <i><color:#404040>AI model: LLM</color></i>
-  <color:#FF6B35>━━►</color> <i><color:#404040>audio bytes</color></i>
+  <color:#FF6B35>━━►</color> <i><color:#404040>audio</color></i>
   <color:#3B82F6>━━►</color> <i><color:#404040>metadata</color></i>
   <color:#6E9E1F>━━►</color> <i><color:#404040>transcript text</color></i>
 end legend
 @enduml
 ```
 
-![Pipeline stages](https://www.plantuml.com/plantuml/svg/jPVlRjis4C2_woaEpPSDYvp4Jfm_48GwYOqLI80jwTOFdJ7GqjaX8f42IITrXm7REnHxc3rEdsH7qfOiH_AyeeiJ8pBlVdUyEzxHhxLXoippB33SP0XFaYSO6iM4JXIVe8BFVto2WXUOSO50qZFKWNxaec2AvP38l902XRat2r9Nc1WcPXckYGoKaizl7tZoA51hwAujPJX3aLvAbQAwafbKu2pJ8X5Voh7aSQRaNAHUTc_eVe8WqjPu702aCfddf0k_qGF0BLCpBg1xGa-_qnzB3EdvjHlQJ-NLiPE83fQam4k-eXVJy9D65GJbLk5LD8dV7usziubCCJgOnB-8YCVHT9eNE8kZ0nuxrNU3dydFC_lQ17J7mEOfbpaQjWueb9nWHHYDsW2zCQISAVvnpNwnO498Ww53nw0BP8-eGY_839SYx7MEIlerVGvxPwTNmz5WatyyXeoI-MkAXj9QsSYp3-7p0oUqYk6T_oVCADGOFlLAyWsfNgE1lVF3uV3yS1D-CeOaGwP86PE72gvjVgUSaa3HCNB6kB38vMB2YqKCaOudJAG5qveo5ZUj5merYWJhwyliM84KXUGQs_If8F49rMIrxhPqTT-MYluO_4Qw1Z_yvr0Dxk_QmdGwXXn9t2ATxArzQdFZR0nKFNAgaALr9x8yXX-VKNGx9-7fPMdv1wafGwFHrLM_lmax7mEdA1a-NUp4UcE5ss17XnGXe-Q9cIlS2NVlf5jvzlXbgTe9zVRc-guLHCUGkWtbkmpndNiiOnpOum_XUmBqBtidup2sP_82eiHseOkzuqFxYi6VPh2r6nsuDUlPfj0tp-nf7_9ZHcz53pgTphShwGP3jdtydvPwbsVTKNy_PVe1KsjmTMeRZFe2TorXpcPRBSl2DXgMWQGpfAYATh3iowVPhcrX85YEUXUhbR70ngyMKDVl6emSzU7n-uzRwBaKqgQZPBz0RmdTLw1Jx_agO1U0Clx_dd8R-YrymtEq4r1lCT3i-fUmLwxMyBPxDl3zrC9qYu7DKWx8qrhGMz1sS8cjP7T0gpAq70BtX-V3ev45-oxUWAOBb9m96kdRw7x6jCQx5Vub8GyyhUQzcneDVEiNF7FpK9xPZ4qmgs1EiOPgFVLkZeLsaDMtwnLgZEMaQ7Fek-OE4YpLQYWtAHeZbt43amKOMV04D5KMjPgrAD54gELWEKDQCgnIBcQGCeFxMvAHpfMxi9LMd7SrVzlDqAxdUSxKejHUojRqNJTk2jpo2q1XEdbQxTBVmsqG8A4qqAqO89hGjVnYUOKaLQ0vIf_GBOg6SfqxU4FzACNi0jQkeokwdTOLpj-6TiNLxbvDE3_xTyNTtDnkOfQYlZN4dp_zQN__-dibre3pCtgoC5N9RS1yjUm4izyHg5nO2yadT2TIbLbu4IwRMv_Yu3MzqRV2Vm00)
+![Pipeline stages](https://www.plantuml.com/plantuml/svg/jPVlRjis4C2_woaEpPSDYvp4Jfm_48GcgOqMI80kwTOFdJ7GuiKX8f42IITrXm7REnHxc3rEdsH7qfOjH_AyeeiI8pJlVdUy8--ebyOoRQT57bbXSuH79JAChMRIP5gCKSENFpv3AKhCXKGWwGcQo3m8MJBD2iXKKIg9qjxQ6Qbhp2oJannNHCwrLa_lxaNs8D4OwAvCvJX1oI-KvgWlLQuqUCiqISJdSYnxc6WrbJp8xWpyJnGbnXbF8m2kicb1kl0R3G2kcPu82TqZ6lrEVoopf1VchcWzIwyEL-MF_E0jurp82GJbP6zk90gG5_Gm0pyPr55KHG5U9EFqmy4eh2DJ79EzSVgBJ4IQtDqL9KxIP4-aNlNz-S-qX1Fth0Ew8s1JBbI1bgq2Igt6k2GCXss0tWYuO5fyMh5VpfYKocBiqIcO4ja3wZW8CYkKZ7kTWuh-Yhw7dPFZoy7mV9r_E8ASylmhHqiPNzeeye_nqxqWj4xXVVWdpYcg63_sAl8LgRv22pkd-uF1wVuw_6W4MOvCap9czqkuSQc_4vG4YevL4oQaGyudCr7EKaXCEcQIbymOobZQD5zgD2WphC_Fi-C4E4eb3BRfqrx5HzJZnRnVqkLjMohw8mWBwLhy-9z3TNvxqnQcun4KIE8EwMMltQZDZPCHqEvHTnePhpkH5ody-8IospcAZoygos-LeGmDXvUN_Vuwx7G4Wg9anTriAzOR9zm6EzYd25azpUnKurQuMo_TodF7B-TwAzIxgrSthI0wXbI8ADzLY6_yi8fnv8u_n1y8qB_e7OtYr9t9CqWoLw3ETWxttPD2ECtWzcwov-USP-j2tpsnnrqe3Xbzb3teT3hVBwGR3BdoyNzQwbsST8VzNSxCFN9dS75g6uo63UvBmfHDDbfMfIiqB0T5PqZJBjh2SjW-pNPT2GF92ZJRM5qQYrpyQW7rzQx1o44V7bv_sa0lb5Gk7HNx6Nf3wBu1dMhFDm7x05Jn__UKkz1lu5jHeEk0PeE1PjU_XhrmjOPtrRE17xeMyWq6rhToH9xMWjw2TerBRYJx0xhSXev3uFxWT70mTE1GnHlGTBTI4qajVHCzz9ZMUBV2loRaKQ3LlFTTeu7l_88dOU-hCvkpCUPBc5UieLfFlUzZiMjazUK6XHfZtYdQ7FgXkO94SxKQodUAniZbmi9u1bQL8WD3EujApKgKg2FKSZ3l8IqPrlxEoPd5tGt9u5FjBsoL5UzTpTzsCxJgQL4mFQkqvx8rVL-Dcm8tVpSeRQVWorM6AxeB0cIK1heL0oHZkh6VpQ-Gf0hKH-aRkaLHKwvppzzGFUAOdy7ATNH1TzrwYGkteMrnjRjN4oxq_crnLrVNwvYvQ2WDwPVFVxhVl_vUY3NWQYLW3HFsoLOOztP06uMra48gjo8jSmhF0kMo6f8RlQGFUbNy1m00)
 
 ## Module layout
 
