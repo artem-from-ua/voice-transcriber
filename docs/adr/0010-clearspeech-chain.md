@@ -63,3 +63,7 @@ PR-2 (`feature/clearspeech-presence`) added the `presence` effect and lifted the
 ## Note (v0.16.0)
 
 PR-3 (`feature/clearspeech-denoise`) added the `denoise` effect (FFT-domain spectral subtraction via `ffmpeg afftdn`). Default chain stays `"agc"` — no Metric A win at any tested position. The interesting finding for the chain abstraction is that physics intuition about effect ordering (denoise must run on raw signal, i.e. pre-AGC) lost to empirical measurement — pre-AGC denoise is catastrophic on this material (27.5 % RU drift), post-AGC denoise is "merely worse than nothing" (8.2 % vs 5.1 % baseline). See [ADR 0014](0014-clearspeech-denoise.md) for the five-run grid and the chain-position reasoning.
+
+## Note (v0.17.0)
+
+PR-4 (`feature/clearspeech-dereverb`) added the `dereverb` effect (per-pyannote-turn Lebart-Polack spectral subtraction; the first effect that genuinely needs diarisation turns to run). Default chain stays `"agc"`. The headline result is methodological: the isolated-dereverb Metric A run dropped to 0 % RU-glyph rate, which *looks* like a runaway win — but the side-by-side transcript audit shows it dropped ~9 % of Ukrainian content into non-speech markers. The 0 % is rate-not-volume — Simpson's paradox on the metric. The chain-of-effects architecture stays intact across five effects; what loosened is the trust in any one metric to validate an effect on its own. See [ADR 0015](0015-clearspeech-dereverb.md) for the full audit and the follow-up issue for cross-engine validation.

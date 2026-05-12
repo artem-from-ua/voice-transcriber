@@ -18,5 +18,6 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | 12  | [Single `--clearspeech-chain` string replaces per-effect toggles](0012-clearspeech-chain-string-cli.md) | accepted     |
 | 13  | [Defaults for the clearspeech presence effect](0013-clearspeech-presence-defaults.md)  | accepted                     |
 | 14  | [Defaults for the clearspeech denoise effect](0014-clearspeech-denoise.md)             | accepted                     |
+| 15  | [Defaults for the clearspeech dereverb effect](0015-clearspeech-dereverb.md)           | accepted                     |
 
 New decisions land here as `NNNN-kebab-case-title.md` with the same frontmatter (`status`, `date`, optional `supersedes` / `superseded_by`).

@@ -4,13 +4,17 @@ The chain-of-effects design lets future PRs add new DSP effects as ordered
 links without growing the pipeline-stage count ([N/10] stays constant) or
 rewriting dump layout per release.
 
-Chain effects (issue #48):
+Chain effects (issue #48 + dereverb follow-up):
   - "agc"      — per-pyannote-turn RMS normalization (was loudness_normalize)
   - "bandpass" — Butterworth IIR bandpass via scipy.signal.sosfiltfilt (E2a)
   - "presence" — RBJ-cookbook peaking EQ via scipy.signal.filtfilt (E2b)
   - "denoise"  — FFT-domain spectral subtraction via `ffmpeg afftdn` (E2d).
                  Empirically best **after** AGC, even though physics-of-noise
                  intuition argues for pre-AGC — see ADR 0014. Default-off.
+  - "dereverb" — per-pyannote-turn Lebart-Polack spectral subtraction (E2e).
+                 Per-segment RT60 estimated via Schroeder backward integration,
+                 then late reverberation power subtracted from the STFT. See
+                 ADR 0015. Default-off.
 
 Effect order is the user's choice — any permutation of known effects is
 allowed; duplicates and unknown names raise `ValueError`. See ADR 0012 for
@@ -32,7 +36,7 @@ from typing import Callable
 
 import numpy as np
 import soundfile as sf
-from scipy.signal import butter, filtfilt, sosfiltfilt
+from scipy.signal import butter, filtfilt, hilbert, istft, sosfilt, sosfiltfilt, stft
 
 from .types import DiarTurn
 
@@ -41,7 +45,9 @@ SR = 16_000
 BANDPASS_ORDER = 4  # Butterworth IIR; 4 ≈ 24 dB/octave, doubled by sosfiltfilt
 SILENT_RMS_THRESHOLD = 1e-6
 
-KNOWN_EFFECTS: frozenset[str] = frozenset({"agc", "bandpass", "presence", "denoise"})
+KNOWN_EFFECTS: frozenset[str] = frozenset({
+    "agc", "bandpass", "presence", "denoise", "dereverb",
+})
 
 ClearspeechDumpHook = Callable[[int, str, Path], None]
 
@@ -87,6 +93,10 @@ def clearspeech(
     presence_q: float = 1.0,
     denoise_noise_floor_db: float = -25.0,
     denoise_reduction_db: float = 12.0,
+    dereverb_turns: list[DiarTurn] | None = None,
+    dereverb_rt60_floor_ms: float = 300.0,
+    dereverb_subtract_factor: float = 1.0,
+    dereverb_crossfade_ms: float = 50.0,
     log: Callable[[str], None] = _noop_log,
     dump: ClearspeechDumpHook | None = None,
 ) -> tuple[Path, dict]:
@@ -158,6 +168,27 @@ def clearspeech(
                 current,
                 noise_floor_db=denoise_noise_floor_db,
                 reduction_db=denoise_reduction_db,
+                log=log,
+            )
+        elif effect == "dereverb":
+            # `dereverb` shares pyannote turns with `agc` — same physical
+            # boundary information. We fall back to `agc_turns` if the caller
+            # didn't pass an explicit `dereverb_turns`.
+            turns_for_dereverb = (
+                dereverb_turns if dereverb_turns is not None else agc_turns
+            )
+            if turns_for_dereverb is None:
+                raise ClearspeechError(
+                    "chain contains 'dereverb' but no turns provided — "
+                    "pass `dereverb_turns` (or reuse `agc_turns`) so each "
+                    "speaker turn gets its own RT60 estimate"
+                )
+            current, step_info = _apply_dereverb(
+                current,
+                turns=turns_for_dereverb,
+                rt60_floor_ms=dereverb_rt60_floor_ms,
+                subtract_factor=dereverb_subtract_factor,
+                crossfade_ms=dereverb_crossfade_ms,
                 log=log,
             )
         else:
@@ -569,4 +600,224 @@ def _validate_denoise_params(
         raise ClearspeechError(
             f"invalid denoise reduction_db ({reduction_db}): "
             f"must be within [{nrlo}, {nrhi}] dB"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Effect: dereverb (per-pyannote-turn Lebart-Polack spectral subtraction).
+# Estimates RT60 from each turn's energy decay (Schroeder backward
+# integration), then subtracts the predicted late-reverberation power from
+# the STFT magnitude before iSTFT-ing back to time domain.
+#
+# Reference: K. Lebart, J.M. Boucher, P.N. Denbigh, "A new method based on
+# spectral subtraction for speech dereverberation," Acta Acustica, 2001.
+# ---------------------------------------------------------------------------
+
+
+_DEREVERB_RT60_FLOOR_MS_BOUNDS = (50.0, 2000.0)
+_DEREVERB_SUBTRACT_BOUNDS = (0.0, 1.0)
+_DEREVERB_CROSSFADE_MS_BOUNDS = (0.0, 500.0)
+_DEREVERB_MIN_TURN_S = 0.2  # turns shorter than 200 ms are left untouched
+_DEREVERB_FALLBACK_RT60_S = 0.4  # used when the estimator can't fit a slope
+_DEREVERB_STFT_NPERSEG = 512
+_DEREVERB_STFT_NOVERLAP = 256
+_DEREVERB_POWER_FLOOR = 0.1  # keep at least 10% of the original spectrum power
+
+
+def _apply_dereverb(
+    wav_path: Path,
+    *,
+    turns: list[DiarTurn],
+    rt60_floor_ms: float,
+    subtract_factor: float,
+    crossfade_ms: float,
+    log: Callable[[str], None],
+) -> tuple[Path, dict]:
+    src = Path(wav_path)
+    dst = src.with_suffix(".dereverb.wav")
+    params = {
+        "rt60_floor_ms": float(rt60_floor_ms),
+        "subtract_factor": float(subtract_factor),
+        "crossfade_ms": float(crossfade_ms),
+    }
+
+    _validate_dereverb_params(rt60_floor_ms, subtract_factor, crossfade_ms)
+
+    if not turns:
+        shutil.copyfile(src, dst)
+        return dst, {"params": params, "stats": {"turn_count": 0}}
+
+    samples, sr = sf.read(src, dtype="float32", always_2d=False)
+    if sr != SR:
+        raise ClearspeechError(
+            f"expected {SR} Hz sample rate, got {sr} Hz: {src}"
+        )
+    if samples.ndim != 1:
+        raise ClearspeechError(
+            f"expected mono input, got {samples.ndim}-D array: {src}"
+        )
+
+    n = int(samples.shape[0])
+    out = samples.copy()
+    rt60_estimates_s: list[float] = []
+    fade_samples = max(1, int(round(SR * crossfade_ms / 1000)))
+    min_seg_samples = int(_DEREVERB_MIN_TURN_S * SR)
+    rt60_floor_s = rt60_floor_ms / 1000.0
+
+    for turn in sorted(turns, key=lambda t: t.start):
+        s = max(0, int(round(turn.start * SR)))
+        e = min(n, int(round(turn.end * SR)))
+        if e - s < min_seg_samples:
+            continue
+
+        seg = samples[s:e]
+        estimated = _estimate_rt60(seg)
+        rt60_s = max(estimated if estimated is not None else _DEREVERB_FALLBACK_RT60_S,
+                      rt60_floor_s)
+        rt60_estimates_s.append(rt60_s)
+
+        processed = _lebart_polack_subtract(seg, rt60_s, subtract_factor)
+        _blend_into(out, s, e, processed, fade_samples)
+
+    np.clip(out, -1.0, 1.0 - 1e-7, out=out)
+    sf.write(dst, out, SR, subtype="PCM_16")
+
+    rt60_avg = float(np.mean(rt60_estimates_s)) if rt60_estimates_s else 0.0
+    log(
+        f"clearspeech.dereverb: {len(rt60_estimates_s)} turn(s) | "
+        f"avg RT60 {rt60_avg*1000:.0f} ms | "
+        f"floor {rt60_floor_ms:.0f} ms, subtract={subtract_factor:.2f} → {dst.name}"
+    )
+    stats = {
+        "turn_count": len(rt60_estimates_s),
+        "rt60_avg_ms": round(rt60_avg * 1000, 1),
+        "rt60_estimates_ms": [round(x * 1000, 1) for x in rt60_estimates_s],
+    }
+    return dst, {"params": params, "stats": stats}
+
+
+def _estimate_rt60(seg: np.ndarray) -> float | None:
+    """Schroeder backward-integration RT60 estimator on a single segment.
+
+    Returns None if the segment is too short, the decay slope is unreliable,
+    or the resulting RT60 falls outside a physically plausible range.
+    """
+    if seg.size < int(_DEREVERB_MIN_TURN_S * SR):
+        return None
+
+    # Bandpass 500-2000 Hz — the voice-band range standard for room-decay
+    # measurements (lower frequencies are dominated by speech fundamental,
+    # higher by fricative noise, neither tracks the room reverb cleanly).
+    nyquist = SR / 2
+    sos = butter(4, [500.0 / nyquist, 2000.0 / nyquist], btype="band", output="sos")
+    band = sosfilt(sos, seg)
+    env = np.abs(hilbert(band))
+
+    # Schroeder backward integration → energy decay curve in dB, normalised to 0.
+    edc = np.cumsum(env[::-1] ** 2)[::-1]
+    if edc[0] <= 0:
+        return None
+    edc_db = 10.0 * np.log10(edc / edc[0] + 1e-12)
+
+    # Fit a line on the -5..-25 dB region — the canonical RT60 working range.
+    mask = (edc_db < -5.0) & (edc_db > -25.0)
+    if mask.sum() < 100:
+        return None
+    t = np.arange(edc_db.size, dtype=np.float64) / SR
+    slope, _ = np.polyfit(t[mask], edc_db[mask], 1)
+    if slope >= 0.0:
+        return None  # decay went the wrong way — segment is noise-dominated
+
+    rt60_s = -60.0 / slope
+    if not (0.05 <= rt60_s <= 2.0):
+        return None  # outside plausible bounds for a phone-recorded room
+    return float(rt60_s)
+
+
+def _lebart_polack_subtract(
+    seg: np.ndarray, rt60_s: float, subtract_factor: float
+) -> np.ndarray:
+    """Subtract predicted late-reverberation power from the STFT magnitude.
+
+    `reverb_power[t, f] = decay * (reverb_power[t-1, f] + |X[t-1, f]|^2)`
+    is the per-bin IIR running estimate of late reverberation energy at
+    frame `t`; `decay` corresponds to the per-frame fraction of the RT60
+    energy that survives into the next frame.
+    """
+    nperseg = _DEREVERB_STFT_NPERSEG
+    noverlap = _DEREVERB_STFT_NOVERLAP
+    hop = nperseg - noverlap
+    frame_period_s = hop / SR
+    # 60 dB drop over rt60_s → per-frame power factor.
+    decay = 10.0 ** (-60.0 * frame_period_s / (rt60_s * 10.0))
+
+    _, _, spec = stft(seg, fs=SR, nperseg=nperseg, noverlap=noverlap, window="hann")
+    power = np.abs(spec) ** 2
+    reverb = np.zeros_like(power)
+    for k in range(1, power.shape[1]):
+        reverb[:, k] = decay * (reverb[:, k - 1] + power[:, k - 1])
+
+    clean_power = np.maximum(
+        power - subtract_factor * reverb,
+        _DEREVERB_POWER_FLOOR * power,
+    )
+    clean_mag = np.sqrt(clean_power)
+    spec_clean = clean_mag * np.exp(1j * np.angle(spec))
+    _, out = istft(spec_clean, fs=SR, nperseg=nperseg, noverlap=noverlap, window="hann")
+    out = np.asarray(out, dtype=np.float32)
+    # iSTFT may yield slightly longer output than the input — trim to match.
+    if out.size > seg.size:
+        out = out[: seg.size]
+    elif out.size < seg.size:
+        out = np.concatenate([out, np.zeros(seg.size - out.size, dtype=np.float32)])
+    return out
+
+
+def _blend_into(
+    out: np.ndarray, s: int, e: int, processed: np.ndarray, fade_samples: int
+) -> None:
+    """Write `processed` into `out[s:e]` with linear crossfades on both edges.
+
+    The crossfade is clamped per-edge so it never spills past the midpoint
+    of the surrounding region; ensures adjacent turns can meet but never
+    overlap their fades.
+    """
+    seg_len = e - s
+    if seg_len <= 0 or processed.size == 0:
+        return
+    half_fade = min(fade_samples // 2, seg_len // 2)
+    if half_fade < 1:
+        out[s:e] = processed[:seg_len]
+        return
+    fade_in = np.linspace(0.0, 1.0, half_fade, dtype=np.float32)
+    fade_out = np.linspace(1.0, 0.0, half_fade, dtype=np.float32)
+    out[s:s + half_fade] = (
+        out[s:s + half_fade] * fade_out + processed[:half_fade] * fade_in
+    )
+    out[s + half_fade:e - half_fade] = processed[half_fade:seg_len - half_fade]
+    out[e - half_fade:e] = (
+        out[e - half_fade:e] * fade_in + processed[seg_len - half_fade:seg_len] * fade_out
+    )
+
+
+def _validate_dereverb_params(
+    rt60_floor_ms: float, subtract_factor: float, crossfade_ms: float
+) -> None:
+    flo, fhi = _DEREVERB_RT60_FLOOR_MS_BOUNDS
+    if not (flo <= rt60_floor_ms <= fhi):
+        raise ClearspeechError(
+            f"invalid dereverb rt60_floor_ms ({rt60_floor_ms}): "
+            f"must be within [{flo}, {fhi}] ms"
+        )
+    slo, shi = _DEREVERB_SUBTRACT_BOUNDS
+    if not (slo <= subtract_factor <= shi):
+        raise ClearspeechError(
+            f"invalid dereverb subtract_factor ({subtract_factor}): "
+            f"must be within [{slo}, {shi}]"
+        )
+    clo, chi = _DEREVERB_CROSSFADE_MS_BOUNDS
+    if not (clo <= crossfade_ms <= chi):
+        raise ClearspeechError(
+            f"invalid dereverb crossfade_ms ({crossfade_ms}): "
+            f"must be within [{clo}, {chi}] ms"
         )

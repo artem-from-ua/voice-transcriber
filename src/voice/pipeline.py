@@ -57,6 +57,9 @@ class PipelineOptions:
     clearspeech_presence_q: float = 1.0
     clearspeech_denoise_noise_floor_db: float = -25.0
     clearspeech_denoise_reduction_db: float = 12.0
+    clearspeech_dereverb_rt60_floor_ms: float = 300.0
+    clearspeech_dereverb_subtract_factor: float = 1.0
+    clearspeech_dereverb_crossfade_ms: float = 50.0
     dump_stages_dir: str | None = None
     verbose: bool = False
 
@@ -162,6 +165,10 @@ def run(options: PipelineOptions) -> str:
                     presence_q=options.clearspeech_presence_q,
                     denoise_noise_floor_db=options.clearspeech_denoise_noise_floor_db,
                     denoise_reduction_db=options.clearspeech_denoise_reduction_db,
+                    dereverb_turns=turns,
+                    dereverb_rt60_floor_ms=options.clearspeech_dereverb_rt60_floor_ms,
+                    dereverb_subtract_factor=options.clearspeech_dereverb_subtract_factor,
+                    dereverb_crossfade_ms=options.clearspeech_dereverb_crossfade_ms,
                     log=log,
                     dump=_dump_step if dumper.enabled() else None,
                 )
