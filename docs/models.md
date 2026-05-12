@@ -1,6 +1,8 @@
 # Models
 
-Two models drive the pipeline: a speech model (VibeVoice-ASR) and a general-purpose language model (Gemma 3 12B QAT 4-bit by default). The diarization model is a sub-pipeline of pyannote that we don't pick or tune.
+Three model families drive the pipeline: speaker diarization (pyannote), speech-to-text (Whisper by default, VibeVoice as a legacy backend), and a general-purpose LLM (`Qwen2.5-7B-Instruct-4bit` by default since v0.22.0; see [ADR 0020](adr/0020-default-llm-qwen25-7b.md)) covering identify / proofread / structure / TL;DR.
+
+Every transcript's Markdown header lists the exact models that produced it (`Діаризація`, `ASR`, `LLM` lines) plus wall-clock timings (`Обробка: 5m43s`, `AI-стадії: diarize=… · asr=… · proofread=… · …`) — saved transcripts double as benchmark records.
 
 ## ASR — `mlx-community/VibeVoice-ASR-Nbit`
 
@@ -35,19 +37,32 @@ The token sits in `~/.cache/huggingface/token` (mode `600`). The pipeline never 
 
 Inference runs on `mps` when available and falls back to `cpu` if the move fails. The `diarize` log line tells you which device was used.
 
-## LLM — `mlx-community/gemma-3-12b-it-qat-4bit`
+## LLM — `mlx-community/Qwen2.5-7B-Instruct-4bit`
 
-Default for every language task: identify, proofread, structure, TL;DR. The model is loaded in-process via `mlx-lm` against an MLX-quantised checkpoint on disk; LM Studio is only the convenient way to populate that checkpoint into `~/.cache/lm-studio/models/`, it does not need to be running. Any model file `mlx_lm.load()` accepts will work, but the prompts are tuned for one that:
+Default for every language task: identify, proofread, structure, TL;DR. The model is loaded in-process via `mlx-lm` against an MLX-quantised checkpoint in the HuggingFace cache.
 
-- Handles Ukrainian fluently (Gemma 3 12B does; smaller multilingual models often regress to Russian).
-- Behaves well under JSON-schema-constrained generation (`lm-format-enforcer` as a logits processor in `MlxLLM.chat_json()`).
-- Is willing to follow strict "output JSON only, no commentary" instructions.
+**Resolution.** `MlxLLM.model_path` accepts either:
 
-Verified alternatives that fit within ~8.5 GB on disk and worked in tests:
+- A HuggingFace `org/repo` id (the default — `mlx-community/Qwen2.5-7B-Instruct-4bit`). Resolved via `huggingface_hub.try_to_load_from_cache`; the snapshot directory under `~/.cache/huggingface/hub/models--<org>--<repo>/snapshots/<sha>/` becomes the path passed to `mlx_lm.load`.
+- A filesystem path (e.g. `~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit`). Returned as-is.
 
-- `mlx-community/gemma-3-12b-it-4bit` — same model, no QAT
-- `mlx-community/gemma-2-9b-it-4bit` — older, smaller; faster but lower quality on Ukrainian
+If a repo id is not in the cache, the pipeline fails fast with the exact `huggingface-cli download <repo>` command to run — there are no implicit multi-GB fetches. Same policy as Whisper (see [ADR 0017](adr/0017-whisper-asr-backend.md)).
 
-Override via `--llm-model /absolute/path/to/mlx-checkpoint`.
+**Default sampling.** Qwen2.5-Instruct's official `generation_config.json` is the source: `temperature=0.7`, `top_p=0.8`, `top_k=20`, `repetition_penalty=1.05`. These are `PipelineOptions` defaults that the pipeline forwards into `MlxLLM.sampling_overrides`, taking precedence over the per-prompt frontmatter values in `src/voice/prompts/*.md` (which still drive `max_tokens`). Override per-run with `--llm-temperature`, `--llm-top-p`, `--llm-top-k`, `--llm-repetition-penalty`.
 
-[ADR 0006](adr/0006-mlx-lm-over-lm-studio.md) covers why the pipeline runs `mlx-lm` in-process rather than against LM Studio's HTTP API; [ADR 0001](adr/0001-local-llm-via-lm-studio.md) records the earlier LM Studio decision and is now superseded. [ADR 0002](adr/0002-mlx-format-preference.md) covers MLX vs GGUF on Apple Silicon.
+**Prompts** are tuned for a model that handles Ukrainian fluently, behaves well under JSON-schema-constrained generation (`lm-format-enforcer` as a logits processor in `MlxLLM.chat_json()`), and follows strict "output JSON only, no commentary" instructions.
+
+**Switching models.** Pass `--llm-model <repo-id-or-path>` (or any of `--llm-{proofread,identify,structure,tldr}-model` for per-stage overrides — see [ADR 0019](adr/0019-per-stage-llm-models.md)). If you switch to a different model family, **also pass its recommended sampling parameters**: the v0.22.0 defaults are Qwen2.5-specific and produce subtly worse results on other models. Recommended values for the five we've benched:
+
+| Model | temp | top_p | top_k | rep_penalty | Source |
+|---|---:|---:|---:|---:|---|
+| `mlx-community/Qwen2.5-7B-Instruct-4bit` | 0.7 | 0.8 | 20 | 1.05 | HF `generation_config.json` (default) |
+| `mlx-community/Qwen3-4B-Instruct-2507-4bit` | 0.7 | 0.8 | 20 | — | local `generation_config.json` |
+| `mlx-community/gemma-3-12b-it-qat-4bit` | 1.0 | 0.95 | 64 | — | Google recommendation |
+| `mlx-community/gemma-3-4b-it-qat-4bit` | 1.0 | 0.95 | 64 | — | Google recommendation |
+| `mlx-community/gemma-3-1b-it-qat-4bit` | 1.0 | 0.95 | 64 | — | Google recommendation |
+| `mlx-community/Llama-3.2-3B-Instruct-4bit` | 0.6 | 0.9 | — | — | Meta `generation.py` defaults |
+
+**Memory caveat.** `gemma-3-12b` (~8 GB resident) does not finish `structure_dialog` on a 16 GB Mac even with v0.21's chunking — third chunk OOMs on Metal. Use it only on 24 GB+ Macs; on 16 GB stay with `Qwen2.5-7B` (~4 GB) or smaller. See [ADR 0020](adr/0020-default-llm-qwen25-7b.md) for the comparison.
+
+[ADR 0006](adr/0006-mlx-lm-over-lm-studio.md) covers why the pipeline runs `mlx-lm` in-process rather than against LM Studio's HTTP API; [ADR 0001](adr/0001-local-llm-via-lm-studio.md) records the earlier LM Studio decision and is now superseded by 0006 and 0020. [ADR 0002](adr/0002-mlx-format-preference.md) covers MLX vs GGUF on Apple Silicon.

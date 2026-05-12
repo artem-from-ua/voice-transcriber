@@ -144,18 +144,31 @@ def patched_pipeline(monkeypatch, tmp_path):
     # override path still pull in identify+structure, so monkey-patch those
     # too as light stubs.
     class _StubLLM:
-        model_path = "/tmp/fake-model"
+        instances: list["_StubLLM"] = []
 
         def __init__(self, *a, **k):
-            pass
+            self.model_path = k.get("model_path", "/tmp/fake-model-default")
+            self.log_memory = k.get("log_memory", False)
+            self.sampling_overrides = k.get("sampling_overrides", {})
+            # Mirrors the real `MlxLLM._resolved_path` populated by `.load()`.
+            # The pipeline compares it against the desired spec to decide
+            # whether to swap models, so stubs must expose the attribute.
+            self._resolved_path: str | None = None
+            self.closed = False
+            _StubLLM.instances.append(self)
 
         def load(self):
-            pass
+            self._resolved_path = self.model_path
 
         def close(self):
-            pass
+            self.closed = True
+            self._resolved_path = None
 
+    # Reset per-test so `instances` reflects only this run.
+    _StubLLM.instances = []
     monkeypatch.setattr(pipeline_module, "MlxLLM", _StubLLM)
+    # Expose the class so a test can inspect created instances.
+    rec.stub_llm = _StubLLM
 
     monkeypatch.setattr(
         pipeline_module.identify_module,
@@ -382,3 +395,146 @@ def test_asr_engine_vibevoice_does_not_invoke_whisper(patched_pipeline, tmp_path
     names = rec.names()
     assert "asr" in names
     assert "whisper_asr" not in names
+
+
+# ---------------------------------------------------------------- per-stage LLM
+
+
+def test_single_llm_model_reused_across_all_stages(patched_pipeline, tmp_path):
+    """One --llm-model → exactly one MlxLLM instance for the whole pipeline."""
+    rec, fake_audio = patched_pipeline
+    out = tmp_path / "out.md"
+
+    run(
+        PipelineOptions(
+            audio_path=str(fake_audio),
+            output_path=str(out),
+            asr_engine="vibevoice",
+            llm_model="/tmp/single-model",
+            run_proofread=True,
+            run_tldr=True,
+            run_structure=True,
+            names_override=["A", "B"],
+            unknown_speaker="keep",
+        )
+    )
+
+    instances = rec.stub_llm.instances
+    assert len(instances) == 1, [i.model_path for i in instances]
+    assert instances[0].model_path == "/tmp/single-model"
+    assert instances[0].closed is True
+
+
+def test_per_stage_models_swap_when_different(patched_pipeline, tmp_path):
+    """Different paths per stage → cold-reload between stages."""
+    rec, fake_audio = patched_pipeline
+    out = tmp_path / "out.md"
+
+    run(
+        PipelineOptions(
+            audio_path=str(fake_audio),
+            output_path=str(out),
+            asr_engine="vibevoice",
+            llm_model="/tmp/big",
+            llm_proofread_model="/tmp/small",
+            llm_structure_model="/tmp/big",
+            llm_tldr_model="/tmp/medium",
+            run_proofread=True,
+            run_tldr=True,
+            run_structure=True,
+            names_override=["A", "B"],
+            unknown_speaker="keep",
+        )
+    )
+
+    paths = [i.model_path for i in rec.stub_llm.instances]
+    # proofread → /tmp/small, structure → /tmp/big, tldr → /tmp/medium
+    assert paths == ["/tmp/small", "/tmp/big", "/tmp/medium"], paths
+    # Each non-final instance must have been closed when the next swap occurred.
+    for inst in rec.stub_llm.instances[:-1]:
+        assert inst.closed is True
+    # Last instance is closed by the final `finally` block.
+    assert rec.stub_llm.instances[-1].closed is True
+
+
+def test_same_path_across_stages_reuses_one_instance(patched_pipeline, tmp_path):
+    """Per-stage flags all pointing at the same path → one instance, no swap."""
+    rec, fake_audio = patched_pipeline
+    out = tmp_path / "out.md"
+
+    run(
+        PipelineOptions(
+            audio_path=str(fake_audio),
+            output_path=str(out),
+            asr_engine="vibevoice",
+            llm_proofread_model="/tmp/same",
+            llm_structure_model="/tmp/same",
+            llm_tldr_model="/tmp/same",
+            run_proofread=True,
+            run_tldr=True,
+            run_structure=True,
+            names_override=["A", "B"],
+            unknown_speaker="keep",
+        )
+    )
+
+    instances = rec.stub_llm.instances
+    assert len(instances) == 1, [i.model_path for i in instances]
+    assert instances[0].model_path == "/tmp/same"
+
+
+def test_per_stage_override_does_not_leak_to_unspecified_stages(
+    patched_pipeline, tmp_path
+):
+    """When only proofread is overridden, structure/tldr must NOT reuse it.
+
+    Regression for the bug where `_resolve_stage_model` returned None for
+    unspecified stages and `_ensure_llm` then treated None as "keep the
+    current model loaded" — silently inheriting the proofread override.
+    """
+    rec, fake_audio = patched_pipeline
+    out = tmp_path / "out.md"
+
+    run(
+        PipelineOptions(
+            audio_path=str(fake_audio),
+            output_path=str(out),
+            asr_engine="vibevoice",
+            llm_proofread_model="/tmp/small",  # only proofread overridden
+            run_proofread=True,
+            run_tldr=True,
+            run_structure=True,
+            names_override=["A", "B"],
+            unknown_speaker="keep",
+        )
+    )
+
+    paths = [i.model_path for i in rec.stub_llm.instances]
+    # First instance must be the override; the second (structure/tldr) must
+    # be the built-in default path, not "/tmp/small".
+    from voice.llm import DEFAULT_MODEL as default
+    assert paths[0] == "/tmp/small", paths
+    assert paths[1] == default, paths
+    # Structure and TLDR share the default — they should reuse one instance.
+    assert len(paths) == 2, paths
+
+
+def test_no_llm_required_when_no_stages_and_names_override(patched_pipeline, tmp_path):
+    """Disabled stages + names override + keep policy → no LLM ever loaded."""
+    rec, fake_audio = patched_pipeline
+    out = tmp_path / "out.md"
+
+    run(
+        PipelineOptions(
+            audio_path=str(fake_audio),
+            output_path=str(out),
+            asr_engine="vibevoice",
+            run_proofread=False,
+            run_tldr=False,
+            run_structure=False,
+            names_override=["A", "B"],
+            unknown_speaker="keep",
+        )
+    )
+
+    assert rec.stub_llm.instances == []

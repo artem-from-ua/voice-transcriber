@@ -75,8 +75,55 @@ def _build_parser() -> argparse.ArgumentParser:
     t.add_argument(
         "--llm-model", default=None,
         help=(
-            "Path to a local MLX model directory (default: "
-            "~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit)."
+            "Path to a local MLX model directory used as the default for all "
+            "four LLM stages (default: "
+            "~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit). "
+            "Override per stage with --llm-{proofread,identify,structure,tldr}-model."
+        ),
+    )
+    t.add_argument(
+        "--llm-proofread-model", default=None,
+        help=(
+            "MLX model directory for the proofread stage. Overrides --llm-model "
+            "for proofread only. The pipeline cold-reloads the model when "
+            "consecutive stages request different paths."
+        ),
+    )
+    t.add_argument(
+        "--llm-identify-model", default=None,
+        help="MLX model directory for the speaker-identify stage (overrides --llm-model).",
+    )
+    t.add_argument(
+        "--llm-structure-model", default=None,
+        help="MLX model directory for the section-structuring stage (overrides --llm-model).",
+    )
+    t.add_argument(
+        "--llm-tldr-model", default=None,
+        help="MLX model directory for the TL;DR stage (overrides --llm-model).",
+    )
+    t.add_argument(
+        "--llm-temperature", type=float, default=None, metavar="T",
+        help=(
+            "Override sampling temperature for all LLM stages. Defaults come "
+            "from each prompt's frontmatter (proofread/identify=0.1, "
+            "structure=0.2, tldr=0.3). Pass the model's officially-recommended "
+            "value to bench it on its preferred settings."
+        ),
+    )
+    t.add_argument(
+        "--llm-top-p", type=float, default=None, metavar="P",
+        help="Override nucleus-sampling top_p for all LLM stages (default: 1.0).",
+    )
+    t.add_argument(
+        "--llm-top-k", type=int, default=None, metavar="K",
+        help="Override top_k for all LLM stages (default: 0 = disabled).",
+    )
+    t.add_argument(
+        "--llm-repetition-penalty", type=float, default=None, metavar="R",
+        help=(
+            "Override repetition_penalty for plain-text LLM stages "
+            "(proofread, tldr). Default: none. Some Qwen variants ship "
+            "1.05 as their recommended value."
         ),
     )
     t.add_argument(
@@ -222,6 +269,14 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         names_override=args.names,
         datetime_override=args.datetime_override,
         llm_model=args.llm_model,
+        llm_proofread_model=args.llm_proofread_model,
+        llm_identify_model=args.llm_identify_model,
+        llm_structure_model=args.llm_structure_model,
+        llm_tldr_model=args.llm_tldr_model,
+        llm_temperature=args.llm_temperature,
+        llm_top_p=args.llm_top_p,
+        llm_top_k=args.llm_top_k,
+        llm_repetition_penalty=args.llm_repetition_penalty,
         run_proofread=not args.no_proofread,
         run_tldr=not args.no_tldr,
         run_structure=not args.no_structure,
