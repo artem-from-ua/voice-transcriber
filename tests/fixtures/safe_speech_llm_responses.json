@@ -1,0 +1,7 @@
+[
+  {"redactions": []},
+  {"redactions": [{"start_idx": 0, "end_idx": 1, "topic": "health", "rationale": "Особисте розкриття діагнозу та лікарських рекомендацій"}]},
+  {"redactions": [{"start_idx": 1, "end_idx": 1, "topic": "alcohol", "rationale": "Особисте розкриття вживання алкоголю на вечірці"}]},
+  {"redactions": []},
+  {"redactions": [{"start_idx": 0, "end_idx": 0, "topic": "health", "rationale": "Особисте розкриття депресії"}]}
+]

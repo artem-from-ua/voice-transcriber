@@ -33,6 +33,10 @@ voice transcribe <audio> [options]
 | `--no-proofread` | flag | off | Skip per-segment ASR proof-reading. |
 | `--no-tldr` | flag | off | Skip TL;DR generation. |
 | `--no-structure` | flag | off | Skip LLM-driven sectioning; output is one section "Розмова". |
+| `--no-safe-speech` | flag | off | Skip sensitive-content redaction entirely. |
+| `--llm-safe-speech-model` | path or HF repo-id | inherits `--llm-model` | Per-stage override: model used for safe_speech redaction only. |
+| `--safe-speech-topics` | CSV | `health,drugs,alcohol` | Comma-separated list of topics to redact. Pass `""` to disable redaction. Examples: `health`, `drugs`, `alcohol`, `legal`, `finance`. |
+| `--safe-speech-policy` | `placeholder` \| `drop` | `placeholder` | How to handle flagged utterances. `placeholder` replaces the range with `[muted, X.Xs]`; `drop` removes the segments silently (section header is kept). See [ADR 0024](adr/0024-safe-speech-defaults.md). |
 | `-v`, `--verbose` | flag | off | Stream stage progress to stderr. |
 
 ## Examples
@@ -49,6 +53,15 @@ uv run voice transcribe interview.wav --language en
 
 # 4) Minimal output (plain dialogue), no TL;DR, no sectioning
 uv run voice transcribe quick.mp3 --no-tldr --no-structure --unknown-speaker keep
+
+# 7) Redact health and drug mentions (placeholder policy)
+uv run voice transcribe meeting.m4a --safe-speech-topics health,drugs
+
+# 8) Drop sensitive segments entirely instead of replacing with [muted]
+uv run voice transcribe meeting.m4a --safe-speech-topics health --safe-speech-policy drop
+
+# 9) Disable redaction for a plain unfiltered transcript
+uv run voice transcribe meeting.m4a --no-safe-speech
 
 # 5) Custom output path and a different local LLM (with that model's recommended sampling)
 uv run voice transcribe a.m4a \

@@ -59,7 +59,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "Path to a local MLX model directory used as the default for all "
             "four LLM stages (default: "
             "~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit). "
-            "Override per stage with --llm-{proofread,identify,structure,tldr}-model."
+            "Override per stage with --llm-{proofread,identify,structure,safe-speech,tldr}-model."
         ),
     )
     t.add_argument(
@@ -77,6 +77,10 @@ def _build_parser() -> argparse.ArgumentParser:
     t.add_argument(
         "--llm-structure-model", default=None,
         help="MLX model directory for the section-structuring stage (overrides --llm-model).",
+    )
+    t.add_argument(
+        "--llm-safe-speech-model", default=None,
+        help="MLX model directory for the safe-speech redaction stage (overrides --llm-model).",
     )
     t.add_argument(
         "--llm-tldr-model", default=None,
@@ -114,6 +118,27 @@ def _build_parser() -> argparse.ArgumentParser:
     t.add_argument("--no-proofread", action="store_true", help="Skip per-segment ASR proof-reading.")
     t.add_argument("--no-tldr", action="store_true", help="Skip TL;DR generation.")
     t.add_argument("--no-structure", action="store_true", help="Skip section structuring.")
+    t.add_argument("--no-safe-speech", action="store_true", help="Skip sensitive-content redaction.")
+
+    ss = t.add_argument_group("safe-speech (sensitive-content redaction)")
+    ss.add_argument(
+        "--safe-speech-topics", default=None, metavar="TOPICS",
+        help=(
+            "Comma-separated list of sensitive topics to redact. "
+            "Default: 'health,drugs,alcohol'. "
+            "Pass '' (empty string) to disable redaction entirely. "
+            "Examples: 'health,drugs,alcohol,legal,finance'."
+        ),
+    )
+    ss.add_argument(
+        "--safe-speech-policy", default="placeholder",
+        choices=["placeholder", "drop"],
+        help=(
+            "How to handle redacted segments. "
+            "'placeholder' (default): replace with [muted, X.Xs]. "
+            "'drop': remove the segment silently (section headers remain)."
+        ),
+    )
 
     cs = t.add_argument_group("clearspeech (audio cleanup for ASR)")
     cs.add_argument(
@@ -237,6 +262,17 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _parse_topics(raw: str | None) -> list[str] | None:
+    """Parse --safe-speech-topics CSV into a list, or None for 'use built-in defaults'.
+
+    Empty string → [] (disable redaction). None → None (built-in defaults).
+    """
+    if raw is None:
+        return None
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    return parts
+
+
 def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
     return PipelineOptions(
         audio_path=args.audio,
@@ -249,14 +285,18 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         llm_proofread_model=args.llm_proofread_model,
         llm_identify_model=args.llm_identify_model,
         llm_structure_model=args.llm_structure_model,
+        llm_safe_speech_model=args.llm_safe_speech_model,
         llm_tldr_model=args.llm_tldr_model,
         llm_temperature=args.llm_temperature,
         llm_top_p=args.llm_top_p,
         llm_top_k=args.llm_top_k,
         llm_repetition_penalty=args.llm_repetition_penalty,
         run_proofread=not args.no_proofread,
+        run_safe_speech=not args.no_safe_speech,
         run_tldr=not args.no_tldr,
         run_structure=not args.no_structure,
+        safe_speech_topics=_parse_topics(args.safe_speech_topics),
+        safe_speech_policy=args.safe_speech_policy,
         clearspeech_chain=args.clearspeech_chain,
         clearspeech_autogain_target_dbfs=args.clearspeech_autogain_target_dbfs,
         clearspeech_autogain_max_gain_db=args.clearspeech_autogain_max_gain_db,

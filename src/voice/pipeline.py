@@ -26,6 +26,7 @@ from . import proofread as proofread_module
 from . import whisper_asr as whisper_asr_module
 from ._dump import StageDumper
 from ._memory import free_mlx
+from . import safe_speech as safe_speech_module
 from . import speech_structure as speech_structure_module
 from . import speech_summary as speech_summary_module
 from . import transcode as transcode_module
@@ -48,6 +49,7 @@ class PipelineOptions:
     llm_proofread_model: str | None = None
     llm_identify_model: str | None = None
     llm_structure_model: str | None = None
+    llm_safe_speech_model: str | None = None
     llm_tldr_model: str | None = None
     # Defaults match the Qwen2.5-Instruct family's official recommendation
     # (the project default since v0.22.0 — see ADR 0020). Pass `--llm-...`
@@ -57,8 +59,11 @@ class PipelineOptions:
     llm_top_k: int | None = 20
     llm_repetition_penalty: float | None = 1.05
     run_proofread: bool = True
+    run_safe_speech: bool = True
     run_tldr: bool = True
     run_structure: bool = True
+    safe_speech_topics: list[str] | None = None  # None → built-in defaults
+    safe_speech_policy: str = "placeholder"
     clearspeech_chain: str = "autogain"
     clearspeech_autogain_target_dbfs: float = -20.0
     clearspeech_autogain_max_gain_db: float = 16.0
@@ -117,6 +122,9 @@ def _llm_summary(options: PipelineOptions) -> str:
         enabled.append(("identify_speakers", _resolve_stage_model(options, "identify_speakers")))
     if options.run_structure:
         enabled.append(("speech_structure", _resolve_stage_model(options, "speech_structure")))
+    effective_topics = options.safe_speech_topics if options.safe_speech_topics is not None else safe_speech_module.DEFAULT_TOPICS
+    if options.run_safe_speech and effective_topics:
+        enabled.append(("safe_speech", _resolve_stage_model(options, "safe_speech")))
     if options.run_tldr:
         enabled.append(("speech_summary", _resolve_stage_model(options, "speech_summary")))
 
@@ -158,6 +166,7 @@ def _resolve_stage_model(options: PipelineOptions, stage: str) -> str:
         "proofread": options.llm_proofread_model,
         "identify_speakers": options.llm_identify_model,
         "speech_structure": options.llm_structure_model,
+        "safe_speech": options.llm_safe_speech_model,
         "speech_summary": options.llm_tldr_model,
     }
     return per_stage[stage] or options.llm_model or LLM_DEFAULT_MODEL
@@ -260,10 +269,10 @@ def run(options: PipelineOptions) -> str:
     try:
         with progress:
             wav_path = tmpdir / "audio.wav"
-            with progress.spinner("[1/11] transcode → WAV 16 kHz mono"):
+            with progress.spinner("[1/13] transcode → WAV 16 kHz mono"):
                 transcode_module.transcode(audio, wav_path, log)
 
-            with progress.spinner("[2/11] audio_meta"):
+            with progress.spinner("[2/13] audio_meta"):
                 audio_meta = audio_meta_module.extract_metadata(
                     audio, override_started_at=options.datetime_override
                 )
@@ -284,7 +293,7 @@ def run(options: PipelineOptions) -> str:
             # runs on the normalised WAV. Each module loads its own model and
             # frees it on return; the LLM is loaded after both, so the three
             # are never co-resident.
-            with progress.spinner("[3/11] Діаризація (pyannote 3.1)"), _timed("diarize_speakers"):
+            with progress.spinner("[3/13] Діаризація (pyannote 3.1)"), _timed("diarize_speakers"):
                 turns, diarize_load_s = diarize_speakers_module.diarize(wav_path, log=log)
             stage_models["diarize_speakers"] = _PYANNOTE
             model_load_elapsed[_PYANNOTE] = diarize_load_s
@@ -297,7 +306,7 @@ def run(options: PipelineOptions) -> str:
             # longest pyannote turn instead gives a much stronger signal.
             lang_detect_info: dict | None = None
             if options.language is None:
-                with progress.spinner("[4/11] Визначення мови"), _timed("lang_detect"):
+                with progress.spinner("[4/13] Визначення мови"), _timed("lang_detect"):
                     lang_result = lang_detect_module.detect_language_on_longest_turn(
                         wav_path, turns, log=log,
                     )
@@ -327,7 +336,7 @@ def run(options: PipelineOptions) -> str:
             def _dump_step(idx: int, effect: str, path: Path) -> None:
                 dumper.write_binary(f"02b-clear_speech-{idx}-{effect}.wav", path)
 
-            with progress.spinner(f"[5/11] clear_speech ({chain_label})"):
+            with progress.spinner(f"[5/13] clear_speech ({chain_label})"):
                 processed_wav_path, clearspeech_config = clear_speech_module.clearspeech(
                     wav_path,
                     chain=chain,
@@ -350,11 +359,11 @@ def run(options: PipelineOptions) -> str:
                 )
             dumper.write("02b-clear_speech-config.json", clearspeech_config)
 
-            with progress.spinner(f"[6/11] Завантаження Whisper"):
+            with progress.spinner(f"[6/13] Завантаження Whisper"):
                 whisper_model, whisper_load_s = whisper_asr_module.load_model(log=log)
             model_load_elapsed[_WHISPER] = model_load_elapsed.get(_WHISPER, 0.0) + whisper_load_s
             stage_models["speech2text"] = _WHISPER
-            with progress.spinner(f"[6/11] speech2text ({_WHISPER})"), _timed("speech2text"):
+            with progress.spinner(f"[6/13] speech2text ({_WHISPER})"), _timed("speech2text"):
                 asr_segments = whisper_asr_module.transcribe(
                     processed_wav_path,
                     language=effective_language,
@@ -365,7 +374,7 @@ def run(options: PipelineOptions) -> str:
             log(f"      {len(asr_segments)} ASR-сегментів")
             dumper.write("03-asr.json", asr_segments)
 
-            with progress.spinner("[7/11] Merge"):
+            with progress.spinner("[7/13] Merge"):
                 segments: list[Segment] = merge(asr_segments, turns)
             dumper.write("04-merge.json", segments)
 
@@ -396,7 +405,7 @@ def run(options: PipelineOptions) -> str:
                     dumper.write("05-proofread.json", segments)
                     free_mlx(log)
                 else:
-                    log(f"[8/11] Proofread пропущено")
+                    log(f"[8/13] Proofread пропущено")
 
                 if needs_identify_llm:
                     identify_model = _resolve_stage_model(options, "identify_speakers")
@@ -455,11 +464,40 @@ def run(options: PipelineOptions) -> str:
                         )
                     free_mlx(log)
                 else:
-                    log(f"[10/11] Структурування пропущене")
+                    log(f"[10/13] Структурування пропущене")
                     dialog = speech_structure_module.structure_dialog(
                         segments, llm=None, language=effective_language, log=log,
                     )
                 dumper.write("08-speech_structure.json", dialog)
+
+                effective_topics = (
+                    options.safe_speech_topics
+                    if options.safe_speech_topics is not None
+                    else safe_speech_module.DEFAULT_TOPICS
+                )
+                if options.run_safe_speech and effective_topics:
+                    safe_speech_model = _resolve_stage_model(options, "safe_speech")
+                    llm = _ensure_llm(
+                        llm, safe_speech_model,
+                        log=log, log_memory=options.verbose, progress=progress,
+                        sampling_overrides=sampling_overrides,
+                        model_load_elapsed=model_load_elapsed,
+                    )
+                    stage_models["safe_speech"] = safe_speech_model
+                    with progress.spinner("[11/13] Замовчування чутливого"), _timed("safe_speech"):
+                        dialog, safe_speech_decisions = safe_speech_module.redact_dialog(
+                            dialog,
+                            llm=llm,
+                            topics=effective_topics,
+                            policy=options.safe_speech_policy,  # type: ignore[arg-type]
+                            language=effective_language,
+                            log=log,
+                            progress=progress,
+                        )
+                    free_mlx(log)
+                    dumper.write("09-safe_speech-decisions.json", safe_speech_decisions)
+                else:
+                    log("[11/13] Замовчування чутливого пропущено")
 
                 if options.run_tldr:
                     tldr_model = _resolve_stage_model(options, "speech_summary")
@@ -472,14 +510,14 @@ def run(options: PipelineOptions) -> str:
                     stage_models["speech_summary"] = tldr_model
                     with _timed("speech_summary"):
                         tldr_text = speech_summary_module.generate_tldr(
-                            segments, llm=llm, language=effective_language,
+                            dialog.segments, llm=llm, language=effective_language,
                             log=log, progress=progress,
                         )
                     free_mlx(log)
                 else:
                     tldr_text = ""
-                    log(f"[11/11] TL;DR пропущено")
-                dumper.write("09-speech_summary.txt", tldr_text)
+                    log(f"[12/13] TL;DR пропущено")
+                dumper.write("10-speech_summary.txt", tldr_text)
             finally:
                 if llm is not None:
                     with progress.spinner("Unloading LLM"):

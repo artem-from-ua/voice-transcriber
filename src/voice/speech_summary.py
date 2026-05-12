@@ -69,7 +69,7 @@ def generate_tldr(
     ]
     reporter = progress if progress is not None else NullProgress()
     try:
-        with reporter.token_counter("[11/11] TL;DR") as advance:
+        with reporter.token_counter("[12/13] TL;DR") as advance:
             text = llm.chat(
                 messages, on_token=advance, **call_kwargs(prompt_name),
             )

@@ -16,9 +16,9 @@ The only on-disk artefacts the pipeline writes itself are the final Markdown fil
 
 ## Pipeline stages
 
-> Numbering convention: this document and the component diagram below count **twelve** boxes (render = `[12]`). The runtime log lines in `pipeline.py` and the stage table in [`pipeline.md`](pipeline.md) count **eleven** stages because `render` is pure Python without a `_timed` context — its wall-clock rolls into the total. Stage `[4] lang_detect` is conditional: it runs only when `--language` is omitted; the progress label `[4/11]` is the same whether the stage runs or is skipped. Both views describe the same pipeline; see [#83](https://github.com/artem-from-ua/voice-transcriber/issues/83) for the tracking issue on unifying the count.
+> Numbering convention: this document and the component diagram below count **thirteen** boxes (render = `[13]`). The runtime log lines in `pipeline.py` and the stage table in [`pipeline.md`](pipeline.md) count **twelve** stages because `render` is pure Python without a `_timed` context — its wall-clock rolls into the total. Stage `[4] lang_detect` is conditional: it runs only when `--language` is omitted; the progress label `[4/12]` is the same whether the stage runs or is skipped. Both views describe the same pipeline; see [#83](https://github.com/artem-from-ua/voice-transcriber/issues/83) for the tracking issue on unifying the count.
 
-`pipeline.run()` runs eleven steps in order. transcode (ffmpeg → 16 kHz mono WAV) and audiometa (ffprobe) both start from the user's input file; diarize then reads the temp WAV first to produce per-turn boundaries, the **clearspeech** stage uses those boundaries as guard-rails for a chain of DSP effects (autogain, optional bandpass), and speech2text finally consumes the output of the last applied effect. Everything from merge onwards passes structured Python dataclasses around. Only the final two edges (TL;DR string → render → file) are Markdown. The clearspeech chain currently absorbs autogain, bandpass, presence, denoise, and dereverb effects (added incrementally in v0.10–v0.17); the chain is open-ended and new effects can be appended without growing the stage count.
+`pipeline.run()` runs twelve steps in order. transcode (ffmpeg → 16 kHz mono WAV) and audiometa (ffprobe) both start from the user's input file; diarize then reads the temp WAV first to produce per-turn boundaries, the **clearspeech** stage uses those boundaries as guard-rails for a chain of DSP effects (autogain, optional bandpass), and speech2text finally consumes the output of the last applied effect. Everything from merge onwards passes structured Python dataclasses around. Only the final two edges (TL;DR string → render → file) are Markdown. The clearspeech chain currently absorbs autogain, bandpass, presence, denoise, and dereverb effects (added incrementally in v0.10–v0.17); the chain is open-ended and new effects can be appended without growing the stage count.
 
 ```plantuml
 @startuml
@@ -51,13 +51,15 @@ component "<b>[7] merge</b>" as Merge #E8E8E8
 component "<b>[8] proofread</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as Post #FFCC66
 component "<b>[9] identify_speakers</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as Ident #FFCC66
 component "<b>[10] speech_structure</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as Struct #FFCC66
-component "<b>[11] speech_summary</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as TLDR #FFCC66
-component "<b>[12] render</b>" as Render #E8E8E8
+component "<b>[11] safe_speech</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as Safe #FFCC66
+component "<b>[12] speech_summary</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as TLDR #FFCC66
+component "<b>[13] render</b>" as Render #E8E8E8
 
 User -[#FF6B35]-> FF : <color:#404040>  audio file</color>\n<color:#404040>  (wav, m4a, mp3 ...)</color>
 User -[#FF6B35]-> WAV : <color:#404040>  audio file</color>\n<color:#404040>  (wav, m4a, mp3 ...)</color>
 User -[#3B82F6,dashed]-> LangDet : <color:#404040>  speech language</color>\n<color:#404040>  (optional override)</color>
 User -[#3B82F6,dashed]-> Ident : <color:#404040>  speaker names</color>\n<color:#404040>  (optional)</color>
+User -[#3B82F6,dashed]-> Safe : <color:#404040>  sensitive topics</color>\n<color:#404040>  (optional override)</color>
 
 WAV -[#FF6B35]-> Diar : <color:#404040>  16 kHz</color>\n<color:#404040>  mono WAV</color>
 WAV -[#FF6B35]-> LangDet : <color:#404040>  16 kHz</color>\n<color:#404040>  mono WAV</color>
@@ -73,7 +75,8 @@ Diar -[#3B82F6]-> Merge : <color:#404040>  speaker</color>\n<color:#404040>  tim
 Merge -[#6E9E1F]-> Post : <color:#404040>  text with speaker labels</color>
 Post -[#6E9E1F]-> Ident : <color:#404040>  proof-read text</color>
 Ident -[#6E9E1F]-> Struct : <color:#404040>  text + speaker names</color>
-Struct -[#6E9E1F]-> TLDR : <color:#404040>  split by topic sections</color>
+Struct -[#6E9E1F]-> Safe : <color:#404040>  split by topic sections</color>
+Safe -[#6E9E1F]-> TLDR : <color:#404040>  sensitive topics</color>\n<color:#404040>  removed</color>
 
 FF -[#3B82F6]-> Render : <color:#404040>  recording date,</color>\n<color:#404040>  duration</color>
 TLDR -[#6E9E1F]-> Render : <color:#404040>  + summary</color>
@@ -90,14 +93,14 @@ end legend
 @enduml
 ```
 
-![Pipeline stages](https://www.plantuml.com/plantuml/svg/jPVlRjis4C2_woaEpPSDYvpOJfm_48JcZuqLI80kwTOFdH7GqiKX8f42IITrXm7REnHxc3rEdsH7KhOiH_AyeeiJ8pBlVdUyEzxHhxLXoipoB33SP0XFaYSO6iM4JXIVe88lVto6WXUOSO50qbFKWNxaec2AvP38l902XRarSr9Nc1WcfXckY9mf9P_VFV3aKQ3Mq5jPod2A8ZsNAaLr8JEfm5ccHIA-b6F9urJ9cKYzxCxG_GH1fAtnE018PJBBIHT-emU0QwQcN43la9v-fp-M6DBpQrUqdyghWrNvG_VmbgKf5rFmoj5UQIJma5VqOXf-rgY2O1a5U1LDuW_TiTz78bECzYRnhoBYSNH_dnSuZQCz7ZlLzsU_q1QExMiTq1i3cwLStkLes2gXK7A25M8qQYFqnv1oflWdlDC5iaTKkk8KSoQ4D1Ww8p6K4g7NO8PB4VOxtQMPI_eSTewFBeQZitL31sF8AEDtAHhAVMKZppw6pm-Sq2g6z_wVCAFuOlZKNvAlIFKI3UoSx0-79_lhyCCn91aoPVU0oKD5rxOAxZdbWm9bv9HnOPdbOiABUGoHZYTCf0NJj7KTDwqN2ZMA1ElhPQAiG8f2Serj-bIs-8HgibXtUxguRKlAO0n-8ps37_zphCvkRzhYT3I674dS8ftijNrgS-Du35H7ybuXI-jEP7aCFpsZw7KEmwFpfUMtKbEAHgEBYy5W7NOo1avHCln-tb1f6w1lh5ORjRk_2DMTDcgMc9d2hQYtJheLswsmipndQhuLzDtLvKqhaiugTIkgX6NmRzpZClg1xH4GVY30uBn_E0vZUsvF8Kfi5plTETYthnZyaGTRrT6UMxEUhGjzzyoUTY4_OFHMzA7JwNo_a6umP7lC_scfVtxS6mrsKwOVCBK65mUwmQWFlEiMCpRTQ5aMjWUn32ITBaNrjOLbNq_DTcrLWc0vwcsiLiO26xzQG5qhR33I7S3ZZvysq7Cff4t7alq2lI5qtu1ENUcRW5q0bl7_zvJRq6_W6vwZ7PDwWu5crx-6lN2rXhTzjO7l1ngc6moibt90djQ2teAsCqri9Bi3MfMXvH1uC3mPTaSMxFjx0vekO78gQEnlellfqnhlLlZNX3pmj9htRfuqyArVyCpDm_BCPco2MGLpYZLKwwbt4owq8ww-NQzGOvGpeysX7vexI52grL1kKZH6BkC69dCmik09QAeiQZKhKQA9KCj1EKDQCgpSnJHb1dSt92ETANUNMrfntjNyRJT3krvCo5AxbAtfksxS5BZo2qHXEdbQxTBVusqG8A4qqDKP89hGjVwql5sIAj0SfK_eVaL3kSuzUqFzACNi55PkgWkwdTOLpj-JjiNLRcLDE3_xjyLTNLslOqfHtnhYBv__jBz__RqGQy3LMi0QnjV9LXZx3O8AXRMGV2gt8bKvXHU1ibdroGrUqnjzd_m7)
+![Pipeline stages](https://www.plantuml.com/plantuml/svg/jPVlRjis4C2_woaEpPSDYvp4Jfm_C8GcgOqMI80kwTOFdH7GqjaX8f42IITrXm7REnHxc3rEdsH7KhOiHzAyheiI8pBlVaVUdUvEBxLXoiopD33Sf0YFaiSO6iM4ZXMVe88llt-6dEUOSe50qZFKWNxW8cUAPH3BB9S2XRar2r9N61icPYckYPmh9P_UtVFuGQ3Mq5rRId668hcGAa5rALEfm5ccHI8-bsFnmqp9kKYyxCxG_GJ1G5lZKG2Go7YUaIxyIZS0rqpDk83k4TtzHdyiDgJdrwxeFEMk3jVbZzpDMvOaNCp0Am_s2YE1XxoWYsduIQCAWfKNuCLW4dqu6Fjpn3B1mTua-aKCU3IOJhCSPz5WZqTEzVtvptI44tjj0hfZOFE4oxiC3Lidv4fEi4ICHas4tXWIpXJ_X7SwH_Q0IfUSVC64a0P3PoI2GYBq6inmAS9Uvs1bvXLz3pidnvV3qVcceSCnf1JnkmGDnRwqaQKVmwTxJcWLmNl_JvYIVp5yxAt8LwJw2WtidEuFXwVxc_2ZCSGfCcNFWF5zITSs2wQSua6ECdB6kB3COZ7c-IA2WOucJ2GvqtHq7TMjvmerYXYhwqMWh422GdADJVgKjlY8Qh9STsUwl6qAIdyC_Y1TWn__jQ_ERs-Q_7GyXWn9t2ATxBMzQzh6oHWeZ-HK8KkgcqYp27vyGj7j78N75olBRwMc48r6bvVz_YRiT0oSl6JuT56JQItGDrQhYNgmltJLdJPg7fkvmgsejqww4KjFfcPJV9PFRKIIR-HrostEiuofnLR8TrUlRXgHzEHIzQFCMWNpnjskeXdOcWFX1mBqBtf7up2oTU0C1h6jYcSxX_lsYi2N4B1FoM3FhTcTRGfzzyGUTo4xPFIHzw3JwNo_bAunP6lM_scfTt7I7VLt4wRlCR46bmMYngXtlAi-SpPhjInpMzDO2fAULaNvkeLbdv_rTcsMWs0PwcsiRc7C9LcTBHIQ6_w8O6JEuwtCrHmoi76h1DALz1g31truUFsfnKmcXRHfi68_GxU4x1lGgRf-4x1pm2eK_vngDkGjVCCpjErUjnYet_hNi9TRhU1jVwZX-yQCIOk1pKSee9rMdDw0jhrPj99TOIZJq788t1-U3Wz65kpxL0sQ1aav4pI-jD5z5stqToFyQrmUU5fbzwulrl3jlk29c_jLhKZP1DCIvXGhgCPgupfrQ5jrzRXUeS8eUb_JXdwehrn1eLP5DTMZFEK69WjVZgWynRRchB6iNeNaUjr_gsmACoffIHaAQdULG1SDiY6Db9lY4sPmjyL8CbTky5rPSHkl7ANP3BbssVuBxKAsek-gVrrqYhUjt7IojLFwbnxh7eWfrlIU0J2Oq3lGMJ6AaohGa43Vq31A4qULU_w6Ybw2wHciZVLBkXr5IfmVAhV5LKROEfmVRBR5NLrTRs8AKLz_eY-V_x2_V_wr5Al1LUhC1iRdoLOO-xf5YS8QI3wKMv7AcC8pHzce-k06B-c3Nhx_1W00)
 
 ## Module layout
 
 ```
 src/voice/
 ├── cli.py           # argparse, --help, dispatch to pipeline.run()
-├── pipeline.py      # PipelineOptions + run(): transcode → audio_meta → diarize_speakers → clear_speech → speech2text → merge → proofread → identify_speakers → speech_structure → speech_summary → render
+├── pipeline.py      # PipelineOptions + run(): transcode → audio_meta → diarize_speakers → clear_speech → speech2text → merge → proofread → identify_speakers → speech_structure → safe_speech → speech_summary → render
 ├── types.py         # shared dataclasses (AsrSegment, DiarTurn, Segment, Section, StructuredDialog, AudioMeta)
 ├── transcode.py     # transcode(): ffmpeg → 16 kHz mono PCM WAV
 ├── audio_meta.py    # extract_metadata(): start/end/duration from ffprobe → birthtime → mtime
@@ -110,6 +113,7 @@ src/voice/
 ├── proofread.py     # fix_asr_errors(): per-segment LLM proof-reader with safety net
 ├── identify_speakers.py  # identify_speakers(): LLM self-intro detection with override / ask / keep
 ├── speech_structure.py   # structure_dialog(): LLM-driven section layout with validation
+├── safe_speech.py       # redact_dialog(): per-section sensitive-content redaction (see ADR 0023)
 ├── speech_summary.py   # generate_tldr(): LLM markdown summary
 ├── render.py        # render_markdown(): final output
 ├── speaker_emojis.py # fixed palette assignment
@@ -130,7 +134,8 @@ The pipeline passes increasingly enriched `Segment` lists from stage to stage. N
 8. **Proofread** — LLM proof-reads `content` per segment in-place.
 9. **identify_speakers** — LLM returns `{label → name}`; pipeline assigns `.name` on each segment.
 10. **speech_structure** — LLM produces `StructuredDialog` (segments + section titles). Short dialogues (≤60 segments) go through one LLM call; longer dialogues are split into overlapping ~35-segment chunks, the LLM is called per chunk, and `_reconcile_chunks()` stitches the per-chunk section lists into a single contiguous layout (see [ADR 0018](adr/0018-chunked-structure-dialog.md)).
-11. **speech_summary** — LLM emits a Markdown summary string.
-12. **Render** — combines `AudioMeta`, `StructuredDialog`, and the TL;DR into the final Markdown file.
+11. **safe_speech** — LLM scans each section for sensitive content (health, drugs, alcohol by default) and replaces flagged utterance ranges with `[muted, X.Xs]` placeholders or drops them, depending on `--safe-speech-policy`. Runs per section so the working set is bounded by the largest section (see [ADR 0023](adr/0023-safe-speech-stage.md)). Stage is skipped when `--no-safe-speech` or `--safe-speech-topics ""`.
+12. **speech_summary** — LLM emits a Markdown summary string from the already-redacted `dialog.segments`.
+13. **Render** — combines `AudioMeta`, `StructuredDialog`, and the TL;DR into the final Markdown file.
 
-See [`pipeline.md`](pipeline.md) for the step-by-step sequence with timing details, [`prompts.md`](prompts.md) for the LLM call contracts powering stages 8–11, and [`adr/README.md`](adr/README.md) for the index of architectural decisions behind these boundaries.
+See [`pipeline.md`](pipeline.md) for the step-by-step sequence with timing details, [`prompts.md`](prompts.md) for the LLM call contracts powering stages 8–12, and [`adr/README.md`](adr/README.md) for the index of architectural decisions behind these boundaries.

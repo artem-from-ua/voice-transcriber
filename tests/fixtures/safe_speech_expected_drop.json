@@ -1,0 +1,23 @@
+{
+  "sections": [
+    {"title": "Робота над проєктом", "start_ms": 0, "end_ms": 30000},
+    {"title": "Здоров'я Артема", "start_ms": 30000, "end_ms": 65000},
+    {"title": "Перерва на каву", "start_ms": 65000, "end_ms": 120000},
+    {"title": "Випадкова згадка", "start_ms": 120000, "end_ms": 155000},
+    {"title": "Самотньо", "start_ms": 155000, "end_ms": 165000}
+  ],
+  "segments": [
+    {"start": 1.0,  "end": 5.0,  "content": "Давай подивимось на архітектуру.", "speaker": "SPEAKER_00", "name": "Артем"},
+    {"start": 6.0,  "end": 11.0, "content": "Добре, починаємо з API шару.",     "speaker": "SPEAKER_01", "name": "Остап"},
+    {"start": 12.0, "end": 18.0, "content": "Ок, узгоджено.",                   "speaker": "SPEAKER_00", "name": "Артем"},
+    {"start": 30.0, "end": 65.0, "content": "[muted, 0.0s]",                    "speaker": null, "name": null},
+    {"start": 66.0, "end": 70.0, "content": "Зробимо перерву?",                 "speaker": "SPEAKER_01", "name": "Остап"},
+    {"start": 80.0, "end": 85.3, "content": "Хм, добре хоч прийшов.",           "speaker": "SPEAKER_01", "name": "Остап"},
+    {"start": 86.0, "end": 90.0, "content": "Повернемось до роботи.",            "speaker": "SPEAKER_00", "name": "Артем"},
+    {"start": 90.0, "end": 95.0, "content": "Звісно, не проблема.",              "speaker": "SPEAKER_01", "name": "Остап"},
+    {"start": 121.0, "end": 130.0, "content": "Читав статтю про проблеми з наркотиками у Португалії.", "speaker": "SPEAKER_01", "name": "Остап"},
+    {"start": 131.0, "end": 138.0, "content": "Цікавий підхід до декриміналізації.", "speaker": "SPEAKER_00", "name": "Артем"},
+    {"start": 139.0, "end": 147.0, "content": "Так, результати вражають.",       "speaker": "SPEAKER_01", "name": "Остап"},
+    {"start": 155.0, "end": 165.0, "content": "[muted, 0.0s]",                   "speaker": null, "name": null}
+  ]
+}
