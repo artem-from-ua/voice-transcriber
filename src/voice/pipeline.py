@@ -20,6 +20,7 @@ from . import diarize as diarize_module
 from . import identify as identify_module
 from . import proofread as proofread_module
 from . import speech2text as speech2text_module
+from . import whisper_asr as whisper_asr_module
 from ._dump import StageDumper
 from . import structure as structure_module
 from . import tldr as tldr_module
@@ -36,6 +37,7 @@ class PipelineOptions:
     audio_path: str
     output_path: str | None = None
     language: str = "uk"
+    asr_engine: str = "whisper"             # "vibevoice" | "whisper"
     asr_bits: int = 6
     asr_chunk_duration: float | None = None
     asr_temperature: float | None = None
@@ -155,17 +157,30 @@ def run(options: PipelineOptions) -> str:
                 )
             dumper.write("02b-clearspeech-config.json", clearspeech_config)
 
-            with progress.spinner(
-                f"[5/10] speech2text (VibeVoice-{options.asr_bits}bit)"
-            ):
-                asr_segments = speech2text_module.transcribe(
-                    processed_wav_path,
-                    bitness=options.asr_bits,
-                    language=options.language,
-                    context=f"Розмова мовою {options.language}.",
-                    chunk_duration=options.asr_chunk_duration,
-                    temperature=options.asr_temperature,
-                    log=log,
+            if options.asr_engine == "vibevoice":
+                engine_label = f"VibeVoice-ASR-{options.asr_bits}bit"
+                with progress.spinner(f"[5/10] speech2text ({engine_label})"):
+                    asr_segments = speech2text_module.transcribe(
+                        processed_wav_path,
+                        bitness=options.asr_bits,
+                        language=options.language,
+                        context=f"Розмова мовою {options.language}.",
+                        chunk_duration=options.asr_chunk_duration,
+                        temperature=options.asr_temperature,
+                        log=log,
+                    )
+            elif options.asr_engine == "whisper":
+                engine_label = "Whisper-large-v3-MLX"
+                with progress.spinner(f"[5/10] speech2text ({engine_label})"):
+                    asr_segments = whisper_asr_module.transcribe(
+                        processed_wav_path,
+                        language=options.language,
+                        log=log,
+                    )
+            else:
+                raise ValueError(
+                    f"Unknown ASR engine: {options.asr_engine!r}; "
+                    f"expected 'vibevoice' or 'whisper'"
                 )
             log(f"      {len(asr_segments)} ASR-сегментів")
             dumper.write("03-asr.json", asr_segments)
@@ -243,7 +258,7 @@ def run(options: PipelineOptions) -> str:
             dialog=dialog,
             tldr=tldr_text,
             language=options.language,
-            asr_label=f"VibeVoice-ASR-{options.asr_bits}bit",
+            asr_label=engine_label,
         )
         out_path.write_text(markdown, encoding="utf-8")
         log(f"      → {out_path}")

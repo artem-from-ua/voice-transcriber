@@ -31,8 +31,16 @@ def _build_parser() -> argparse.ArgumentParser:
     t.add_argument("audio", help="Path to the input audio file.")
     t.add_argument("--language", default="uk", help="Conversation language (default: uk).")
     t.add_argument(
+        "--asr-engine", choices=("vibevoice", "whisper"), default="whisper",
+        help=(
+            "ASR engine (default: whisper). 'whisper' uses "
+            "mlx-community/whisper-large-v3-mlx and requires "
+            "`voice download-whisper` to have been run first."
+        ),
+    )
+    t.add_argument(
         "--asr-bits", type=int, choices=(4, 5, 6, 8), default=6,
-        help="VibeVoice-ASR quantisation (default: 6).",
+        help="VibeVoice-ASR quantisation (default: 6). Ignored when --asr-engine=whisper.",
     )
     t.add_argument(
         "--asr-chunk-duration", type=float, default=None,
@@ -180,6 +188,24 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     t.add_argument("-v", "--verbose", action="store_true", help="Verbose progress logs to stderr.")
+
+    dl = sub.add_parser(
+        "download-whisper",
+        help="Download the Whisper ASR model into the HuggingFace cache.",
+        description=(
+            "Pre-fetch the Whisper model so `voice transcribe --asr-engine whisper` "
+            "can find it offline. Idempotent — re-running is a no-op once cached."
+        ),
+    )
+    dl.add_argument(
+        "--repo-id", default="mlx-community/whisper-large-v3-mlx", metavar="REPO_ID",
+        help="HuggingFace repository id (default: %(default)s).",
+    )
+    dl.add_argument(
+        "-v", "--verbose", action="store_true",
+        help="Print download progress lines (default: silent).",
+    )
+
     return p
 
 
@@ -188,6 +214,7 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         audio_path=args.audio,
         output_path=args.output,
         language=args.language,
+        asr_engine=args.asr_engine,
         asr_bits=args.asr_bits,
         asr_chunk_duration=args.asr_chunk_duration,
         asr_temperature=args.asr_temperature,
@@ -225,6 +252,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: {exc}", file=sys.stderr)
             return 1
         print(out)
+        return 0
+    if args.cmd == "download-whisper":
+        from . import download_whisper as download_whisper_module
+
+        log = (lambda msg: print(msg, file=sys.stderr, flush=True)) if args.verbose else print
+        try:
+            download_whisper_module.download(args.repo_id, log=log)
+        except Exception as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
         return 0
     return 2
 

@@ -18,6 +18,7 @@ def test_minimal_invocation_defaults():
     opts = _opts_from_args(ns)
     assert opts.audio_path == "/tmp/a.m4a"
     assert opts.language == "uk"
+    assert opts.asr_engine == "whisper"
     assert opts.asr_bits == 6
     # New ASR tuning knobs default to None — meaning "use module defaults
     # (chunk_duration=45, temperature=0.0)".
@@ -177,3 +178,27 @@ def test_clearspeech_dereverb_tuning_flags():
     assert opts.clearspeech_dereverb_rt60_floor_ms == 500.0
     assert opts.clearspeech_dereverb_subtract_factor == 0.7
     assert opts.clearspeech_dereverb_crossfade_ms == 25.0
+
+
+def test_asr_engine_flag_whisper():
+    ns = _parse(["transcribe", "/tmp/a.m4a", "--asr-engine", "whisper"])
+    assert _opts_from_args(ns).asr_engine == "whisper"
+
+
+def test_asr_engine_rejects_unknown_value():
+    with pytest.raises(SystemExit):
+        _parse(["transcribe", "/tmp/a.m4a", "--asr-engine", "kaldi"])
+
+
+def test_download_whisper_subcommand_defaults():
+    ns = _parse(["download-whisper"])
+    assert ns.cmd == "download-whisper"
+    assert ns.repo_id == "mlx-community/whisper-large-v3-mlx"
+    assert ns.verbose is False
+
+
+def test_download_whisper_subcommand_custom_repo():
+    ns = _parse(["download-whisper", "--repo-id", "foo/bar", "-v"])
+    assert ns.cmd == "download-whisper"
+    assert ns.repo_id == "foo/bar"
+    assert ns.verbose is True

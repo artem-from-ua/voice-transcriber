@@ -20,5 +20,6 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | 14  | [Defaults for the clearspeech denoise effect](0014-clearspeech-denoise.md)             | accepted                     |
 | 15  | [Defaults for the clearspeech dereverb effect](0015-clearspeech-dereverb.md)           | accepted                     |
 | 16  | [Rename clearspeech effect `agc` to `autogain`](0016-rename-agc-to-autogain.md)        | accepted                     |
+| 17  | [Whisper-large-v3-MLX as a second ASR backend behind `--asr-engine`](0017-whisper-asr-backend.md) | accepted             |
 
 New decisions land here as `NNNN-kebab-case-title.md` with the same frontmatter (`status`, `date`, optional `supersedes` / `superseded_by`).
