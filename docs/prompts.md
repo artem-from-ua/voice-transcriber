@@ -30,7 +30,7 @@ Example frontmatter (`identify_system.md`):
 ```yaml
 ---
 name: identify_system
-used_by: voice.identify
+used_by: voice.identify_speakers
 role: system
 placeholders: [language]
 temperature: 0.1
@@ -57,10 +57,10 @@ The wire-level contract (temperature, max_tokens, response_format) stays in the 
 
 | Stage | Function | Temperature | max_tokens | response_format | Retries |
 |-------|----------|-------------|------------|-----------------|---------|
-| identify | `MlxLLM.chat_json` | 0.1 | 64 | schema-constrained | — |
+| identify_speakers | `MlxLLM.chat_json` | 0.1 | 64 | schema-constrained | — |
 | proofread | `MlxLLM.chat` | 0.1 | 512 | free text | — |
-| structure | `MlxLLM.chat_json` | 0.2 | 2048 | schema-constrained | — |
-| tldr | `MlxLLM.chat` | 0.3 | 1024 | free text | — |
+| speech_structure | `MlxLLM.chat_json` | 0.2 | 2048 | schema-constrained | — |
+| speech_summary | `MlxLLM.chat` | 0.3 | 1024 | free text | — |
 
 `chat_json()` installs `lm-format-enforcer` as a logits processor against the supplied JSON schema (default `{"type": "object"}`), so the output is guaranteed valid on the first call. No retry loop. See [ADR 0006](adr/0006-mlx-lm-over-lm-studio.md) for the migration from LM Studio.
 
@@ -68,10 +68,10 @@ The wire-level contract (temperature, max_tokens, response_format) stays in the 
 
 | Stage | Validation |
 |-------|------------|
-| identify | name must start with an uppercase letter, ≥ 2 chars, confidence ≠ low; duplicate-name conflicts resolved by confidence then first appearance |
+| identify_speakers | name must start with an uppercase letter, ≥ 2 chars, confidence ≠ low; duplicate-name conflicts resolved by confidence then first appearance |
 | proofread | reply rejected if length ratio > 2× either way or Levenshtein / max length > 0.5; surrounding quotes stripped |
-| structure | JSON must be `{"sections":[…]}` with 2–7 entries, contiguous, covering the dialogue exactly; otherwise fallback to single "Розмова" / "Conversation" section |
-| tldr | LLM error → empty string; renderer omits the whole "## TL;DR" block silently |
+| speech_structure | JSON must be `{"sections":[…]}` with 2–7 entries, contiguous, covering the dialogue exactly; otherwise fallback to single "Розмова" / "Conversation" section |
+| speech_summary | LLM error → empty string; renderer omits the whole "## TL;DR" block silently |
 
 See each module under `src/voice/` for the implementation of these checks.
 

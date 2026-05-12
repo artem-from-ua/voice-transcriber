@@ -3,6 +3,8 @@ status: accepted
 date: 2026-05-11
 ---
 
+> **Note (v0.25.0):** the module formerly called `clearspeech` is now `clear_speech`. Body of this ADR preserves the historical name.
+
 # ADR 0011 — Defaults for the clearspeech bandpass effect (150 Hz – 5500 Hz)
 
 ## Context

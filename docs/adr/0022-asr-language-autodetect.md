@@ -3,6 +3,8 @@ status: accepted
 date: 2026-05-12
 ---
 
+> **Note (v0.25.0):** modules formerly called `diarize` and `identify` are now `diarize_speakers` and `identify_speakers`. Body of this ADR preserves the historical names.
+
 # ADR 0022 — `--language` defaults to detection on the longest pyannote turn
 
 ## Context

@@ -4,6 +4,8 @@ date: 2026-05-12
 supersedes: 0001
 ---
 
+> **Note (v0.25.0):** modules formerly called `identify`, `structure`, `tldr` are now `identify_speakers`, `speech_structure`, `speech_summary`. Body of this ADR preserves the historical names.
+
 # ADR 0020 — Default LLM is now `Qwen2.5-7B-Instruct-4bit` with model-recommended sampling
 
 ## Context

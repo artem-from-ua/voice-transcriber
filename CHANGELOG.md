@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.0] — 2026-05-12
+
+### Changed
+
+- **Module renames for snake_case consistency** ([#90](https://github.com/artem-from-ua/voice-transcriber/issues/90)). Six modules renamed:
+  - `audiometa` → `audio_meta`
+  - `clearspeech` → `clear_speech`
+  - `diarize` → `diarize_speakers`
+  - `identify` → `identify_speakers`
+  - `structure` → `speech_structure`
+  - `tldr` → `speech_summary`
+  
+  Corresponding test files, dump artifacts (`02-diarize_speakers.json`, `06-identify_speakers.json`, `08-speech_structure.json`, `09-speech_summary.txt`, `02b-clear_speech-*`), `breakdown_order` keys in `render.py`, progress-spinner labels, and all documentation updated in the same commit.
+  
+  **Breaking for direct importers of `voice` internals** (e.g. `from voice.identify import identify_speakers` → `from voice.identify_speakers import identify_speakers`). CLI flags (`--clearspeech-*`, `--no-tldr`, `--no-structure`, `--llm-{identify,structure,tldr}-model`) are unchanged. No known external consumers.
+
+### Internal
+
+- ADRs 0008–0022 that mentioned the old module names have a one-line postscript `> Note (v0.25.0)` pointing at the new names; bodies preserved as immutable historical record.
+
 ## [0.24.0] — 2026-05-12
 
 ### Added

@@ -3,6 +3,8 @@ status: accepted
 date: 2026-05-11
 ---
 
+> **Note (v0.25.0):** the module formerly called `diarize` is now `diarize_speakers`. Body of this ADR preserves the historical name.
+
 # ADR 0009 — Single diarize pass on the raw WAV; do not re-diarize after normalization
 
 ## Context
