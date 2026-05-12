@@ -26,13 +26,6 @@ def _seg(content, start=0.0, end=1.0, speaker="SPEAKER_00"):
     return Segment(start=start, end=end, content=content, speaker=speaker)
 
 
-def test_marker_segment_passes_through_unchanged():
-    llm = StubLLM(reply="should-not-be-called")
-    out = fix_segment("[Human Sounds]", llm=llm, language="uk")
-    assert out == "[Human Sounds]"
-    assert llm.calls == 0
-
-
 def test_very_short_segment_skipped():
     llm = StubLLM(reply="should-not-be-called")
     out = fix_segment("Так.", llm=llm, language="uk")
@@ -86,10 +79,9 @@ def test_rejects_empty_reply():
 
 def test_fix_asr_errors_preserves_order_and_counts():
     segs = [
-        _seg("[Human Sounds]", 0, 1),
-        _seg("ОК.", 1, 2),
-        _seg("додаток на Hugging Space там стоїть", 2, 5),
-        _seg("ще один сегмент текстовий нормальної довжини", 5, 8),
+        _seg("ОК.", 0, 1),
+        _seg("додаток на Hugging Space там стоїть", 1, 4),
+        _seg("ще один сегмент текстовий нормальної довжини", 4, 7),
     ]
     replies = iter([
         "додаток на Hugging Face там стоїть",   # fix applied
@@ -102,8 +94,7 @@ def test_fix_asr_errors_preserves_order_and_counts():
 
     out = fix_asr_errors(segs, llm=SeqLLM(), language="uk", log=lambda _s: None)
     assert [s.content for s in out] == [
-        "[Human Sounds]",
-        "ОК.",
+        "ОК.",  # too short for MIN_LEN_FOR_FIX, passed through
         "додаток на Hugging Face там стоїть",
         "ще один сегмент текстовий нормальної довжини",
     ]

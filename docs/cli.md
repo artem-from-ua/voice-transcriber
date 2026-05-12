@@ -16,8 +16,7 @@ voice transcribe <audio> [options]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--language` | str | `uk` | Conversation language. Affects identify / proofread / structure / tldr prompts. |
-| `--asr-bits` | `{4,5,6,8}` | `6` | VibeVoice quantisation; see [`models.md`](models.md). |
+| `--language` | str | `uk` | Conversation language. Affects identify / proofread / structure / tldr prompts and is passed to Whisper as a hint. |
 | `--unknown-speaker` | `{ask,keep}` | `ask` | What to do when self-intro is missing. `ask` prompts on stdin; `keep` leaves `SPEAKER_XX`. |
 | `--names` | `"A,B,..."` | – | Override automatic naming. Mapped to clusters in order of first appearance. Skips the LLM identify step. |
 | `--datetime` | ISO 8601 | – | Override recording start time. Defaults to `ffprobe creation_time`, then `stat birthtime`, then `stat mtime`. |
@@ -45,8 +44,8 @@ uv run voice transcribe ~/recordings/standup.m4a -v
 # 2) Skip LLM identify; force the order Artem → Ostap
 uv run voice transcribe call.m4a --names "Artem,Ostap"
 
-# 3) High-quality ASR pass, English transcript
-uv run voice transcribe interview.wav --asr-bits 8 --language en
+# 3) English transcript
+uv run voice transcribe interview.wav --language en
 
 # 4) Minimal output (plain dialogue), no TL;DR, no sectioning
 uv run voice transcribe quick.mp3 --no-tldr --no-structure --unknown-speaker keep
@@ -67,4 +66,4 @@ uv run voice transcribe a.m4a \
 
 - `0` — success; the path of the produced Markdown is printed on stdout
 - `1` — any caught exception during the run; the message goes to stderr
-- `2` — `argparse` rejected the invocation (e.g. invalid `--asr-bits`)
+- `2` — `argparse` rejected the invocation (e.g. unknown flag, bad type)

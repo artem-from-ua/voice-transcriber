@@ -5,6 +5,8 @@ date: 2026-05-12
 
 # ADR 0017 — Whisper-large-v3-MLX as a second ASR backend behind `--asr-engine`
 
+> **2026-05-12 update:** the VibeVoice backend was removed entirely in v0.23.0. See [ADR 0021](0021-remove-vibevoice-backend.md). This ADR is preserved as the historical record of *how* Whisper entered the project and the empirical comparison that justified making it the default.
+
 ## Context
 
 Issue #25 has tracked the addition of Whisper as a second ASR backend since the project's early days. The motivation is empirical: VibeVoice-ASR (the current default) is multilingual on paper but drifts to Russian phonetics on Ukrainian conversations regularly enough that we want a second engine available even before a formal benchmark exists.

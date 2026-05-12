@@ -8,13 +8,11 @@ The pipeline expected either an MLX checkpoint directory or a cached HuggingFace
 - To use a model already extracted on disk (e.g. via LM Studio's GUI), pass `--llm-model /path/to/mlx/checkpoint` — any directory containing `config.json` plus the MLX weights works.
 - See [ADR 0020](adr/0020-default-llm-qwen25-7b.md) for the resolver and `docs/models.md` for the table of recommended sampling per model.
 
-## "VibeVoice-ASR-Nbit not found at …"
+## "Whisper model … is not in the HuggingFace cache"
 
-The model directory doesn't exist under `~/.cache/lm-studio/models/mlx-community/`.
+`voice transcribe` checked `~/.cache/huggingface/hub/models--mlx-community--whisper-large-v3-mlx/` and found nothing.
 
-- Download the matching variant in LM Studio (search "VibeVoice-ASR" → pick the bitness).
-- If you already downloaded it manually, make sure it's at exactly that path; the pipeline only looks at LM Studio's cache.
-- The default is 6-bit. To switch: `--asr-bits 4|5|6|8`.
+- Run `voice download-whisper` once to fetch it (~3 GB). The pipeline never auto-downloads — that is intentional, so a 3 GB network fetch cannot start in the middle of a transcription run.
 
 ## "HF token not found at ~/.cache/huggingface/token"
 
@@ -37,11 +35,11 @@ Each pyannote repo needs the license to be accepted with your Hugging Face accou
 
 ## Repetition loops in ASR output ("шо я… шо я… шо я…")
 
-The model's greedy decoder got stuck. The pipeline already enables `repetition_penalty=1.3` and a small chunk size, which mostly fixes it. If it still happens:
+Whisper's decoder occasionally loops on near-silent or very repetitive audio. The pipeline already disables `condition_on_previous_text` (which is Whisper's biggest repetition-loop driver) and lets `mlx-whisper` run its internal temperature schedule, so this should be rare on Whisper.
 
-- Try `--asr-bits 8` (less aggressive quantisation → fewer pathological logits).
 - Re-encode the input to clean WAV first if it's a heavily compressed file (e.g. low-bitrate MP3).
-- For investigation only: run the affected segment through the standalone `mlx_audio.stt.generate` CLI with `--verbose` to see the loop in the log.
+- Check whether the clearspeech chain is dropping signal: try `--clearspeech-chain ""` to bypass preprocessing and see if the loop disappears.
+- For investigation only: run `mlx_whisper.transcribe(...)` directly on the WAV with `verbose=True` to see the per-window log.
 
 ## JSON-constrained LLM call (`identify` / `structure`) still failed
 
@@ -67,10 +65,10 @@ Self-introduction wasn't detected in the first ~60 s of that cluster's speech.
 
 ## "Out of memory" / Metal allocator errors
 
-The pipeline serialises three model loads (VibeVoice → pyannote → LLM) so they are never co-resident, but a single model still has to fit. A 12B LLM 4-bit is ~8 GB; combined with an 8-bit ASR (~9 GB) loaded simultaneously by mistake, you would exceed a 16 GB Mac.
+The pipeline serialises three model loads (Whisper → pyannote → LLM) so they are never co-resident, but a single model still has to fit. A 12B LLM 4-bit is ~8 GB; that is the realistic upper bound on a 16 GB Mac.
 
 - Stick to the default `Qwen2.5-7B-Instruct-4bit` LLM (~4 GB) — the project's default since v0.22.0 specifically because it fits on a 16 GB Mac end-to-end. See [ADR 0020](adr/0020-default-llm-qwen25-7b.md).
-- Stick to the default Whisper ASR (~3 GB) or pick 6-bit VibeVoice. Avoid `--asr-bits 8`.
+- Whisper (~3 GB) is the only ASR backend since v0.23.0 — see [ADR 0021](adr/0021-remove-vibevoice-backend.md).
 - If LM Studio is still running with its own model loaded in the background, quit it — its server is no longer needed at runtime (only the model cache is).
 - Run with `--verbose` to print per-call MLX `pre`/`peak`/`post-clear` lines and prompt/output token counts. The numbers pinpoint which stage actually hits the ceiling.
 - `gemma-3-12b` does **not** fit on a 16 GB Mac for the full pipeline. Even with v0.21's chunked structure + per-stage cleanup, the third chunked structure call OOMs once the allocator is fragmented from proofread. Stay with the default `Qwen2.5-7B` or upgrade to a 24 GB+ machine.

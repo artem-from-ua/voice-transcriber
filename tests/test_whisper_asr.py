@@ -2,7 +2,7 @@
 
 Patches `mlx_whisper.transcribe` and `huggingface_hub.try_to_load_from_cache`
 so the tests never touch the real model or network. The 4 assertions verify:
-  - mlx-whisper segments are parsed into `AsrSegment` with `speaker_asr=None`
+  - mlx-whisper segments are parsed into `AsrSegment`
   - missing-cache raises `AsrError` with an actionable message
   - the `language` kwarg flows through to mlx-whisper
   - `condition_on_previous_text=False` is locked in (matches stone-scriber)
@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 
 from voice import whisper_asr
-from voice.speech2text import AsrError
+from voice.whisper_asr import AsrError
 from voice.types import AsrSegment
 
 
@@ -64,8 +64,8 @@ def test_transcribe_parses_mlx_whisper_segments(monkeypatch):
     out = whisper_asr.transcribe("/tmp/a.wav")
 
     assert out == [
-        AsrSegment(start=0.0, end=1.5, content="привіт", speaker_asr=None),
-        AsrSegment(start=1.5, end=3.0, content="як справи", speaker_asr=None),
+        AsrSegment(start=0.0, end=1.5, content="привіт"),
+        AsrSegment(start=1.5, end=3.0, content="як справи"),
     ]
 
 

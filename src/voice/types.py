@@ -7,14 +7,10 @@ from dataclasses import dataclass, field
 
 @dataclass
 class AsrSegment:
-    """A raw segment from VibeVoice-ASR.
-
-    `speaker_asr` is the speaker id assigned by VibeVoice itself (0/1/None).
-    """
+    """A raw segment from the ASR backend (Whisper-large-v3-MLX)."""
     start: float
     end: float
     content: str
-    speaker_asr: int | None = None
 
 
 @dataclass
@@ -31,8 +27,7 @@ class Segment:
     start: float
     end: float
     content: str
-    speaker: str | None  # pyannote label or None for silence/markers
-    speaker_asr: int | None = None  # kept for debugging / sanity checks
+    speaker: str | None  # pyannote label, or None when no overlap with any turn
     name: str | None = None  # filled in by identify.py
 
 

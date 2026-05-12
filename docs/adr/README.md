@@ -24,5 +24,6 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | 18  | [Chunk the structure_dialog prompt for hour-long recordings](0018-chunked-structure-dialog.md) | accepted                     |
 | 19  | [Allow a different LLM model per pipeline stage](0019-per-stage-llm-models.md)         | accepted                     |
 | 20  | [Default LLM is now `Qwen2.5-7B-Instruct-4bit` with model-recommended sampling](0020-default-llm-qwen25-7b.md) | accepted (supersedes 0001) |
+| 21  | [Remove the VibeVoice ASR backend](0021-remove-vibevoice-backend.md)                  | accepted                     |
 
 New decisions land here as `NNNN-kebab-case-title.md` with the same frontmatter (`status`, `date`, optional `supersedes` / `superseded_by`).

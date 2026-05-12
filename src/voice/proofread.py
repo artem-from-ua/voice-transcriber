@@ -1,9 +1,9 @@
 """Per-segment ASR-error fixer.
 
 Sends each segment's text to the LLM with a strict "fix obvious mishearings
-only" prompt. Skips markers (`[Human Sounds]`), very short fragments, and
-rejects replies that diverge from the original by more than the configured
-safety thresholds (length ratio, edit distance).
+only" prompt. Skips very short fragments and rejects replies that diverge
+from the original by more than the configured safety thresholds (length
+ratio, edit distance).
 
 Operating per-segment, not on the whole transcript, is deliberate: the LLM
 cannot rewrite or summarise globally because it never sees more than one
@@ -27,11 +27,6 @@ from .types import Segment
 MIN_LEN_FOR_FIX = 10
 MAX_EDIT_RATIO = 0.5
 MAX_LENGTH_RATIO = 2.0
-
-
-def _is_marker(text: str) -> bool:
-    t = text.strip()
-    return t.startswith("[") and t.endswith("]")
 
 
 def _looks_safe(original: str, fixed: str) -> bool:
@@ -64,7 +59,7 @@ def fix_segment(
 ) -> str:
     """Return a corrected segment text, or the original if the LLM reply
     is unavailable / unsafe."""
-    if _is_marker(text) or len(text.strip()) < MIN_LEN_FOR_FIX:
+    if len(text.strip()) < MIN_LEN_FOR_FIX:
         return text
     messages = [
         {"role": "system", "content": render_prompt("proofread_system", language=language)},

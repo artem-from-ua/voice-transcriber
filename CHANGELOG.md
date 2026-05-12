@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.0] — 2026-05-12
+
+### Removed (BREAKING)
+
+- **VibeVoice ASR backend deleted in full.** With Whisper-large-v3-MLX winning empirically on every metric on the 16 GB Apple Silicon target (3.4× faster, 2.8× less MLX memory, better Ukrainian fidelity including swearing and code-switched English — see [ADR 0017](docs/adr/0017-whisper-asr-backend.md)) and VibeVoice's two unique features (in-band `[Silence]`/`[Music]`/`[Human Sounds]` markers, per-segment `speaker_asr` hints) going unused by downstream stages, there is no operating point left to defend. Full reasoning in [ADR 0021](docs/adr/0021-remove-vibevoice-backend.md).
+  - Removed CLI flags: `--asr-engine`, `--asr-bits`, `--asr-chunk-duration`, `--asr-temperature`. argparse now rejects them.
+  - Removed dependency: `mlx-audio>=0.4.3`. `uv lock` also drops `miniaudio` and `sounddevice` (transitive deps that only `mlx-audio` pulled).
+  - Removed module: `src/voice/speech2text.py`.
+  - Removed fields: `AsrSegment.speaker_asr` and `Segment.speaker_asr` (debug-only, no downstream consumer). `--dump-stages` artefacts no longer carry the field.
+  - Removed marker pass-through: `merge.py` `_is_marker` branch, `proofread.py` `_is_marker` skip, `render.py` marker prose in docstrings. Stage 6+ now treat every Whisper segment uniformly.
+  - **Migration:** users on the default since v0.20.0 (Whisper) — nothing to do. Users who passed `--asr-engine vibevoice` explicitly: downgrade to v0.22.0 to keep VibeVoice, or run `voice download-whisper` and use the default. There is no scriptable bridge.
+- **`render_markdown(asr_label=…)` parameter removed** from the public signature. The header has not rendered it since v0.9.1; the parameter survived as a no-op for backward compatibility. Now gone.
+
+### Changed
+
+- `docs/architecture.md` stage [5] PlantUML node simplified to one backend (`Whisper-large-v3`). A new optional dashed blue edge `User → [5] speech2text` carries the `speech language (optional)` hint, mirroring the existing `User → [8] identify` edge for `unknown speaker ids`.
+- `docs/models.md`, `docs/cli.md`, `docs/troubleshooting.md`, `docs/pipeline.md`, `README.md` rewritten around Whisper as the only ASR backend; LM Studio is no longer listed as a prerequisite for ASR.
+
+### Internal
+
+- `AsrError` moved from `speech2text.py` (gone) into `whisper_asr.py`.
+- `pipeline.run()` dispatcher (`if asr_engine == "vibevoice": …` / `elif "whisper": …`) collapsed to a direct `whisper_asr.transcribe(...)` call.
+- `tests/test_pipeline_ordering.py` parameterisations for `asr_engine="vibevoice"` and the cross-route assertions (`test_asr_engine_whisper_routes_to_whisper_module`, `test_asr_engine_vibevoice_does_not_invoke_whisper`) removed. `tests/test_cli.py` updated to assert argparse now rejects `--asr-engine`. `tests/test_whisper_asr.py` imports `AsrError` from `voice.whisper_asr` directly.
+
+### Follow-up
+
+- [#88](https://github.com/artem-from-ua/voice-transcriber/issues/88) tracks regenerating pause markers from inter-segment gaps in `merge.py` if a future recording shows that the absence of `[Silence]` cues materially degrades structure / TL;DR output. Gated on observing the problem, not on speculative completeness.
+
 ## [0.22.0] — 2026-05-12
 
 ### Changed (behaviour)

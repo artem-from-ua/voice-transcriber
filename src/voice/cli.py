@@ -31,35 +31,6 @@ def _build_parser() -> argparse.ArgumentParser:
     t.add_argument("audio", help="Path to the input audio file.")
     t.add_argument("--language", default="uk", help="Conversation language (default: uk).")
     t.add_argument(
-        "--asr-engine", choices=("vibevoice", "whisper"), default="whisper",
-        help=(
-            "ASR engine (default: whisper). 'whisper' uses "
-            "mlx-community/whisper-large-v3-mlx and requires "
-            "`voice download-whisper` to have been run first."
-        ),
-    )
-    t.add_argument(
-        "--asr-bits", type=int, choices=(4, 5, 6, 8), default=6,
-        help="VibeVoice-ASR quantisation (default: 6). Ignored when --asr-engine=whisper.",
-    )
-    t.add_argument(
-        "--asr-chunk-duration", type=float, default=None,
-        metavar="SECONDS",
-        help=(
-            "ASR chunk size in seconds (default: 45). VibeVoice supports up to "
-            "60-minute single-pass inputs and benefits from long context; "
-            "shorter chunks tend to drop linguistic continuity."
-        ),
-    )
-    t.add_argument(
-        "--asr-temperature", type=float, default=None,
-        metavar="T",
-        help=(
-            "Sampling temperature for ASR (default: 0.0 = greedy, deterministic). "
-            "Increase if you hit repetition loops the penalty alone can't break."
-        ),
-    )
-    t.add_argument(
         "--unknown-speaker", choices=("ask", "keep"), default="ask",
         help="When self-intro is missing: ask interactively or keep SPEAKER_XX.",
     )
@@ -240,8 +211,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "download-whisper",
         help="Download the Whisper ASR model into the HuggingFace cache.",
         description=(
-            "Pre-fetch the Whisper model so `voice transcribe --asr-engine whisper` "
-            "can find it offline. Idempotent — re-running is a no-op once cached."
+            "Pre-fetch the Whisper model so `voice transcribe` can find it offline. "
+            "Idempotent — re-running is a no-op once cached."
         ),
     )
     dl.add_argument(
@@ -261,10 +232,6 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         audio_path=args.audio,
         output_path=args.output,
         language=args.language,
-        asr_engine=args.asr_engine,
-        asr_bits=args.asr_bits,
-        asr_chunk_duration=args.asr_chunk_duration,
-        asr_temperature=args.asr_temperature,
         unknown_speaker=args.unknown_speaker,
         names_override=args.names,
         datetime_override=args.datetime_override,

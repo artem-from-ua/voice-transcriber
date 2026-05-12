@@ -10,9 +10,8 @@ A paragraph break inside a section happens when:
 - the speaker changes, OR
 - the gap between consecutive same-speaker utterances exceeds `PARAGRAPH_GAP_S`.
 
-Marker segments (`[Human Sounds]`, `[Silence]`) and silent gaps with no
-speaker are dropped unless they are long enough to warrant an explicit
-`> _[пауза Nс]_` quote between paragraphs.
+Silent gaps with no speaker are dropped unless they are long enough to
+warrant an explicit `> _[пауза Nс]_` quote between paragraphs.
 """
 
 from __future__ import annotations
@@ -129,15 +128,10 @@ def render_markdown(
     dialog: StructuredDialog,
     tldr: str = "",
     language: str = "uk",
-    asr_label: str | None = None,  # noqa: ARG001 — kept for backward-compatible signature
     models: dict[str, str] | None = None,
     timings: dict[str, float] | None = None,
 ) -> str:
     """Compose the full Markdown output.
-
-    `asr_label` is accepted but no longer rendered (the header no longer
-    advertises the toolchain). Kept in the signature so existing callers
-    that still pass it don't break.
 
     `models` is an optional mapping with the keys `diarize`, `asr`, and
     `llm` (a single string with the per-stage models — same path repeated

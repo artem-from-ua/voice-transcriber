@@ -43,15 +43,15 @@ def test_dump_dataclass_as_json(tmp_path: Path):
 def test_dump_list_of_dataclasses(tmp_path: Path):
     d = StageDumper(target=tmp_path)
     segs = [
-        AsrSegment(start=0.0, end=1.5, content="hi", speaker_asr=0),
-        AsrSegment(start=1.5, end=3.0, content="bye", speaker_asr=1),
+        AsrSegment(start=0.0, end=1.5, content="hi"),
+        AsrSegment(start=1.5, end=3.0, content="bye"),
     ]
     d.write("02-asr.json", segs)
     out = json.loads((tmp_path / "02-asr.json").read_text(encoding="utf-8"))
     assert isinstance(out, list)
     assert len(out) == 2
     assert out[0]["content"] == "hi"
-    assert out[1]["speaker_asr"] == 1
+    assert out[1]["end"] == 3.0
 
 
 def test_dump_dict_with_non_string_keys(tmp_path: Path):

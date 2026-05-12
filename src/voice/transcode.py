@@ -2,7 +2,7 @@
 
 Stage [1] of the pipeline. The downstream diarize / clearspeech / ASR
 stages all consume the WAV produced here, so the sample rate and channel
-count are fixed (they match VibeVoice-ASR's expected input).
+count are fixed (they match Whisper-large-v3's expected input).
 """
 
 from __future__ import annotations

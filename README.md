@@ -1,6 +1,6 @@
 # voice-transcriber
 
-End-to-end local pipeline that turns an audio recording into a diarized Markdown transcript with a TL;DR — no cloud calls, no Anthropic API, no OpenAI. Speech recognition runs on VibeVoice-ASR (MLX), speaker diarization on pyannote 3.1, and all language tasks (speaker identification, ASR proof-reading, section structuring, TL;DR) run in-process via `mlx-lm` against a local MLX-quantised model.
+End-to-end local pipeline that turns an audio recording into a diarized Markdown transcript with a TL;DR — no cloud calls, no Anthropic API, no OpenAI. Speech recognition runs on Whisper-large-v3-MLX, speaker diarization on pyannote 3.1, and all language tasks (speaker identification, ASR proof-reading, section structuring, TL;DR) run in-process via `mlx-lm` against a local MLX-quantised model.
 
 ```bash
 uv run voice transcribe ~/recordings/meeting.m4a
@@ -13,7 +13,7 @@ The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR
 - macOS on Apple Silicon
 - [`ffmpeg`](https://ffmpeg.org/) in `PATH`
 - [`uv`](https://github.com/astral-sh/uv) for dependency management
-- [`huggingface-cli`](https://huggingface.co/docs/huggingface_hub/guides/cli) (ships with `huggingface_hub`, pulled in by `uv sync`) — for fetching the default LLM and Whisper ASR weights into `~/.cache/huggingface/hub/`. [LM Studio](https://lmstudio.ai/) is **optional** and only useful if you want the legacy VibeVoice ASR or to manage local checkpoints through a GUI — its server never needs to run.
+- [`huggingface-cli`](https://huggingface.co/docs/huggingface_hub/guides/cli) (ships with `huggingface_hub`, pulled in by `uv sync`) — for fetching the default LLM and Whisper ASR weights into `~/.cache/huggingface/hub/`. [LM Studio](https://lmstudio.ai/) is **optional** and only useful if you want to manage local LLM checkpoints through a GUI — its server never needs to run.
 - A Hugging Face account with **accepted licenses** for the three gated pyannote repositories — see [`docs/troubleshooting.md`](docs/troubleshooting.md) under *GatedRepoError* for the exact list and instructions
 
 ## Setup
@@ -40,7 +40,7 @@ The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR
    huggingface-cli download mlx-community/Qwen2.5-7B-Instruct-4bit        # ~4 GB
    ```
 
-   - `Whisper-large-v3-MLX` is the default ASR (see [ADR 0017](docs/adr/0017-whisper-asr-backend.md)). Use `--asr-engine vibevoice` with the legacy `mlx-community/VibeVoice-ASR-{bits}bit` backend (download it via LM Studio's GUI; 4/5/6/8-bit variants are picked by `--asr-bits`).
+   - `Whisper-large-v3-MLX` is the only ASR backend (see [ADR 0017](docs/adr/0017-whisper-asr-backend.md) for how it was chosen, [ADR 0021](docs/adr/0021-remove-vibevoice-backend.md) for why it is now the sole backend).
    - `Qwen2.5-7B-Instruct-4bit` is the default LLM since v0.22.0 (see [ADR 0020](docs/adr/0020-default-llm-qwen25-7b.md)). It is the smallest model that produces multi-section structure reliably on a 16 GB Mac. Use `--llm-model <other-repo-or-path>` to swap in another MLX-format LLM.
 
 ## Run
@@ -48,8 +48,6 @@ The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR
 ```bash
 uv run voice transcribe path/to/audio.m4a              # default settings
 uv run voice transcribe a.m4a --names "Artem,Ostap"    # override speaker names
-uv run voice transcribe a.m4a --asr-engine vibevoice   # legacy backend, with in-band [Silence]/[Music] markers
-uv run voice transcribe a.m4a --asr-engine vibevoice --asr-bits 8  # higher-quality VibeVoice variant
 uv run voice transcribe a.m4a --no-tldr --no-structure # plain dialogue only
 uv run voice transcribe a.m4a --llm-proofread-model …  # smaller model on proofread, default on the rest
 uv run voice transcribe a.m4a --verbose                # progress logs to stderr (also turns on per-LLM-call memory lines)
