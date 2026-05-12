@@ -1,6 +1,6 @@
 # Models
 
-Three model families drive the pipeline: speaker diarization (pyannote), speech-to-text (Whisper by default, VibeVoice as a legacy backend), and a general-purpose LLM (`Qwen2.5-7B-Instruct-4bit` by default since v0.22.0; see [ADR 0020](adr/0020-default-llm-qwen25-7b.md)) covering identify / proofread / structure / TL;DR.
+Three model families drive the pipeline: speaker diarization (pyannote), ASR (Whisper by default, VibeVoice as a legacy backend), and a general-purpose LLM (`Qwen2.5-7B-Instruct-4bit` by default since v0.22.0; see [ADR 0020](adr/0020-default-llm-qwen25-7b.md)) covering identify / proofread / structure / TL;DR.
 
 Every transcript's Markdown header lists the exact models that produced it (`Діаризація`, `ASR`, `LLM` lines) plus wall-clock timings (`Обробка: 5m43s`, `AI-стадії: diarize=… · asr=… · proofread=… · …`) — saved transcripts double as benchmark records.
 
