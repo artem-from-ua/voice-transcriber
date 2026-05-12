@@ -1,13 +1,17 @@
 ---
 status: superseded
-superseded_by: 0006-mlx-lm-over-lm-studio.md
+superseded_by:
+  - 0006-mlx-lm-over-lm-studio.md
+  - 0020-default-llm-qwen25-7b.md
 date: 2026-05-11
 ---
 
 # ADR 0001 — Use LM Studio as the local LLM runtime
 
-> Superseded by [ADR 0006](0006-mlx-lm-over-lm-studio.md). LM Studio is no
-> longer in the runtime path; we still use its model cache.
+> Superseded by [ADR 0006](0006-mlx-lm-over-lm-studio.md) (mlx-lm runtime
+> replaces the LM Studio HTTP server) and [ADR 0020](0020-default-llm-qwen25-7b.md)
+> (default LLM resolves via HuggingFace cache, not the LM Studio path).
+> LM Studio is no longer in the runtime path.
 
 ## Context
 
