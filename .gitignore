@@ -23,9 +23,8 @@ build/
 *.swo
 .DS_Store
 
-# Claude Code local settings (may contain secrets)
-.claude/settings.local.json
-.claude/settings.json
+# Claude Code local state (settings may contain secrets; logs/scheduled tasks are per-machine)
+.claude/
 
 # Pipeline artifacts
 *.wav
