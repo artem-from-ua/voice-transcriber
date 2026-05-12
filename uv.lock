@@ -3338,7 +3338,7 @@ wheels = [
 
 [[package]]
 name = "voice"
-version = "0.20.0"
+version = "0.22.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },

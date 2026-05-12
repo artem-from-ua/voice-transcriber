@@ -190,6 +190,33 @@ def test_asr_engine_rejects_unknown_value():
         _parse(["transcribe", "/tmp/a.m4a", "--asr-engine", "kaldi"])
 
 
+def test_minimal_invocation_per_stage_llm_models_default_to_none():
+    ns = _parse(["transcribe", "/tmp/a.m4a"])
+    opts = _opts_from_args(ns)
+    assert opts.llm_model is None
+    assert opts.llm_proofread_model is None
+    assert opts.llm_identify_model is None
+    assert opts.llm_structure_model is None
+    assert opts.llm_tldr_model is None
+
+
+def test_per_stage_llm_model_flags_parsed():
+    ns = _parse([
+        "transcribe", "/tmp/a.m4a",
+        "--llm-model", "/tmp/big",
+        "--llm-proofread-model", "/tmp/small",
+        "--llm-identify-model", "/tmp/tiny",
+        "--llm-structure-model", "/tmp/big",
+        "--llm-tldr-model", "/tmp/medium",
+    ])
+    opts = _opts_from_args(ns)
+    assert opts.llm_model == "/tmp/big"
+    assert opts.llm_proofread_model == "/tmp/small"
+    assert opts.llm_identify_model == "/tmp/tiny"
+    assert opts.llm_structure_model == "/tmp/big"
+    assert opts.llm_tldr_model == "/tmp/medium"
+
+
 def test_download_whisper_subcommand_defaults():
     ns = _parse(["download-whisper"])
     assert ns.cmd == "download-whisper"

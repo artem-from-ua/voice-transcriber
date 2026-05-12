@@ -10,9 +10,9 @@ The CLI hands a `PipelineOptions` (whose load-bearing field is the audio path) t
 
 The split between the CLI and the pipeline is intentional: `cli.py` only resolves user input (argument parsing, defaults, `--help`) and `pipeline.run()` is the single entry point both the CLI and the test suite call. That makes ordering tests possible without a subprocess — `tests/test_pipeline_ordering.py` monkey-patches each module-level reference and asserts the call sequence directly.
 
-Models are never loaded twice. ASR (mlx-audio), diarization (pyannote 3.1) and the LLM (mlx-lm) each load their weights inside their stage and free them on return; the LLM is then loaded once for the four LLM-driven stages (`proofread`, `identify`, `structure`, `tldr`) and unloaded before `render`. Combined with the in-process design — no HTTP, no daemon — this keeps peak GPU memory bounded by the largest single model, not by their sum.
+Models are never loaded twice. ASR (mlx-audio), diarization (pyannote 3.1) and the LLM (mlx-lm) each load their weights inside their stage and free them on return; the LLM is then loaded for the four LLM-driven stages (`proofread`, `identify`, `structure`, `tldr`) and unloaded before `render`. By default a single LLM serves all four stages; the per-stage flags `--llm-{proofread,identify,structure,tldr}-model` opt into a different model per stage and the pipeline cold-swaps the resident model between stages whose paths differ (see [ADR 0019](adr/0019-per-stage-llm-models.md)). Combined with the in-process design — no HTTP, no daemon — this keeps peak GPU memory bounded by the largest single model, not by their sum.
 
-The only on-disk artefacts the pipeline writes itself are the final Markdown file and an optional per-stage dump tree (`--dump-stages DIR`) used for regression triage. Everything else — temp WAV files, model caches — lives outside the pipeline contract: `~/.cache/lm-studio/models` for MLX weights, `~/.cache/huggingface/token` for the pyannote gated-repo token, a `tempfile.mkdtemp()` directory for the ffmpeg WAV that is cleaned up on return.
+The only on-disk artefacts the pipeline writes itself are the final Markdown file and an optional per-stage dump tree (`--dump-stages DIR`) used for regression triage. Everything else — temp WAV files, model caches — lives outside the pipeline contract: `~/.cache/huggingface/hub/` for the default LLM (`Qwen2.5-7B-Instruct-4bit`, see [ADR 0020](adr/0020-default-llm-qwen25-7b.md)) and Whisper ASR; `~/.cache/lm-studio/models/` for legacy VibeVoice and any LLM checkpoints populated through LM Studio's GUI; `~/.cache/huggingface/token` for the pyannote gated-repo token; a `tempfile.mkdtemp()` directory for the ffmpeg WAV that is cleaned up on return.
 
 ## Pipeline stages
 
@@ -35,10 +35,10 @@ component "<b>[3] diarize</b>\n<i><pyannote-audio> speaker-diarization-3.1</i>" 
 component "<b>[4] clearspeech</b>\n<i><soundfile> autogain</i>\n<i><scipy> <s>bandpass</s></i>\n<i><scipy> <s>presence</s></i>\n<i><ffmpeg> <s>denoise</s></i>\n<i><scipy> <s>dereverb</s></i>" as CS #E8E8E8
 component "<b>[5] speech2text</b>\n<i><mlx-audio> VibeVoice-ASR</i>\n<i><mlx-whisper> Whisper-large-v3</i>" as ASR #90EE90
 component "<b>[6] merge</b>" as Merge #E8E8E8
-component "<b>[7] proofread</b>\n<i><mlx-lm> gemma-3-12b</i>" as Post #FFCC66
-component "<b>[8] identify</b>\n<i><mlx-lm> gemma-3-12b</i>" as Ident #FFCC66
-component "<b>[9] structure</b>\n<i><mlx-lm> gemma-3-12b</i>" as Struct #FFCC66
-component "<b>[10] tldr</b>\n<i><mlx-lm> gemma-3-12b</i>" as TLDR #FFCC66
+component "<b>[7] proofread</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as Post #FFCC66
+component "<b>[8] identify</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as Ident #FFCC66
+component "<b>[9] structure</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as Struct #FFCC66
+component "<b>[10] tldr</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as TLDR #FFCC66
 component "<b>[11] render</b>" as Render #E8E8E8
 
 Input -[#FF6B35]-> FF
@@ -73,7 +73,7 @@ end legend
 @enduml
 ```
 
-![Pipeline stages](https://www.plantuml.com/plantuml/svg/bPRTRjf8583l_HH7vN9h293I45bMIGhQIAcwIghq8il5s3uu8-mPQpmafLVTTwZsOVPn-YHxPiOOJEmL6qS8FETyvyVdnnzApPJUv9cdkSuGdYMFqTUAYJ9MF485ltxyX88Nc761GD8fbbwvvg9WYkKGoxoG0eM-rrjILnXh9j8C3qHcIicNBqyyNWiiInWT76MOeaYkf4fGNSjCAh2MwP28h-LOl4wLt8Z4oVRczi_p7eCe9D6D1hP9k0m6KVYd27YO5-EtyCAUtq9-pkYZE8T-lnyCUBW4LiADLUdDfkQoa5tSXUxdYS5OkSyRVIZerJ736z9v72wTrx5Ci3OTh5PvWMbeZBqnaA-p1tBumbp7WD7I-PsZPeU0Gia8zuJ5eWimNaB2cUBV3-mNMoQ4rEXRT0XbWMoDodU2J7Cf_75_MDC_qdteNRo_dYzcn_pp9SGPCaKCZ9_sDahpB5Oymv02q39bN1XUTHZpOXj2K8OH4qd1oZ8Ob67RUQ6mH15ZyxnAe158K4XUOfS-5Gy-eufsvpQUw_kkRBrRWWjafF6RtaUJPzzsoNgWod-mdJ2xlzkRD18lJvoqLGXVtHS_Oof5_tbSMoOLw4tFvlFfsR7foH9o975ZrCf-Ch-w77s_12e1kLB8agQRMHv2YddE_B4_74MrwJzaINMwM5nVJoR7j8ibS4gavgljQR0R8zr5cr8IjTh4UgFmDDoz5U_Y3S-eYx94dSRwSllnhfD4_KZZWugYplAT_LcdsNEDxpyION8rVhVqGsgkjhlKj9vdEhTnrxRA9GIncKANlVCpSuK0mmciV_yEkHJIQ0O3An2-1b1j_WzrQuxqnrSNeyMaMx_gSD0yHpEBoff0yWtxfa9R0AR71IQx8LefUqQQr2VpwNouCEgkQ5i0DFrbAcWC9U1QgpE2JaHt49xJQNXYwxs5Ogp32zTFDIzZ4MPxc5Lie5orjx1i2_gc1vj1EOK6eohnBeT-gxqHB3-8h59he6o5j-OdungYBMXPy1XAshSqoG-oH5kYaUcgzZkUbaguI25X6icxPAFiNgXXrec6MzsqSaDjghQrRYNPq7QBrFFSEZSXG4n9HEK1115jzyjgnn8Fg7lf3WrucWLDOpTYyDdiUaMpZCMw3jwCXpt9hRB_9irkgDqIp2xXO2ssuzn0FnNNM31jE3UxJiNTtduwnbIYhgd3Np__Clz__xCJQy7PjgRIqVWgOvMWgvgJOEPTXSg6TP3SCp-9j7_dWbVfCbNYYiNxG1_qclel)
+![Pipeline stages](https://www.plantuml.com/plantuml/svg/bPRDRk98483lVehISDmn14X8Y2nh20FQI1dDRZBA7B8-D7P1Mh6xhNOJXZdjliDe7sOVPvvagxkDmSHUiN64m5trrO_hnnyApPHUPwcdkKuHNYMFqTUAYI9MV84AVlxv0tAUOye50acliF2A5ovofbW6iSnoAL3e1xqbTOMnPcALue78H2cv-VBCunU1HG63WwCKLoYI6waIL5EPIWNMCXqIyQqSYrzMIgv5ucGxC_ldUK_18YJHjGQsJhWCUelm3n7mCCk7xs73Njz3Tixe8p-7RhSRz7WO0IlWrgfq9cDpMSWkxbntiyHWhDpdjJuKzAgOuHtfFFKZvtKi4wnC1yjbbkCgDCRU6SZNoICvV6MkOy0WSdvdgDaX85ToWNl2VDu664QGSARuzmFx-PO98JNw5Xr2aIDxGUKxGQQv5Fwmsw_e7-a-TAukfxFvv9X_7a6S8bF4mFXvRwCmpsB9Kmmf02rNZ0l3AmzZdcz328fmmKIIiw88UaNOT9uhB534M3yl4sW44XII5zYcJyM3hwWMktCRp_IXBLiN4RX01Xg_wNqqMVfjbwn7gln7smcJX_kzIIEnUUQahKBuwhxuALChz5-7bMLIWSxuR3ORdnsR7aMG8OaRerRsa_dLvkXb15G2SgcG9NKtqoo4tpSe1jqB__AciloRBAXCv_FfT3GwXbr5m2cFcY-t9x5kZN0RR4mfr6eTwxN2asWFLheDrp-Z5aeJTHBgozt7-rOGzIAD3Yg8AiFtzcULOiyrlVz4XD7Dy2BoGsgifhlKi9vdkhPsrxR9DGIncK3NdVCpSuK0_H6y_FeTCYcaqGnwLY1y2w2w_1_grXpf3s-k1lDHktxPtQ1vXcOE5HM1v6lsJNKs04n_2qns0xHKzemqgOzcurb_RjHTmJO0QFBBbQ0Hb81hgzO8MX7jGNXEf-Q9BVO6Yh4E6wwVArxA5fZkOLQnXdArti2oxUUR_gi7vHHgZBB2snpwfV96iEmWibAjXh8LtfYVb6jOR47BdCTGqAwbANwG9TeGjKoNjT_oj5J2nGeIff6yIzRAxeGAPfsekTLEAzPPnjIsqYqbQzfkYNgUM-Kc18WfYQWyW611c_swtA_40-fUkaF3dKP1tTYjw7qsUrxH86Enhe8tus5FSclilqcJMsgt1DDhE5Y9pJWtp4_5rPPB4yxDhbDnTtUVZZ6bg6lgyEUFlyp_t__in1fmjgsfT3I-oLWfwAhc99XvJw6oOIqazynF8ktVj-1DkaoLk6BnFj07lQB-2m00)
 
 ## Module layout
 
@@ -111,7 +111,7 @@ The pipeline passes increasingly enriched `Segment` lists from stage to stage. N
 6. **Merge** — joins (3) and (5) into `Segment[]` (text + pyannote speaker label).
 7. **Postprocess** — LLM proof-reads `content` per segment in-place.
 8. **Identify** — LLM returns `{label → name}`; pipeline assigns `.name` on each segment.
-9. **Structure** — LLM produces `StructuredDialog` (segments + section titles).
+9. **Structure** — LLM produces `StructuredDialog` (segments + section titles). Short dialogues (≤60 segments) go through one LLM call; longer dialogues are split into overlapping ~35-segment chunks, the LLM is called per chunk, and `_reconcile_chunks()` stitches the per-chunk section lists into a single contiguous layout (see [ADR 0018](adr/0018-chunked-structure-dialog.md)).
 10. **TL;DR** — LLM emits a Markdown summary string.
 11. **Render** — combines `AudioMeta`, `StructuredDialog`, and the TL;DR into the final Markdown file.
 

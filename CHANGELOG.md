@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.0] — 2026-05-12
+
+### Changed (behaviour)
+
+- **Default LLM is now `mlx-community/Qwen2.5-7B-Instruct-4bit`** (was `gemma-3-12b-it-qat-4bit`). On a 16 GB Mac the previous default could not finish `structure_dialog` on long inputs even with v0.21's chunking + per-stage cleanup; Qwen2.5-7B fits and produces multi-section structure reliably. See [ADR 0020](docs/adr/0020-default-llm-qwen25-7b.md) for the bench comparing 5 models. Migration: pass `--llm-model ~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit` to keep the v0.21 default. First-time setup: `huggingface-cli download mlx-community/Qwen2.5-7B-Instruct-4bit` (~4 GB).
+- **Default sampling now matches Qwen2.5's recommended values:** `temperature=0.7`, `top_p=0.8`, `top_k=20`, `repetition_penalty=1.05`. These override the prompt-frontmatter values (which kept their previous per-stage values for `max_tokens`). Users running a different model should pass that model's recommended sampling explicitly — there is no auto-tuning per model. See `docs/troubleshooting.md` for per-model recommended values.
+
+### Added
+
+- `MlxLLM.model_path` now accepts either a filesystem path **or** a HuggingFace `org/repo` id. Repo ids are resolved via `huggingface_hub.try_to_load_from_cache(repo_id, "config.json")` — no network access; missing repos raise `LLMError` with the `huggingface-cli download …` command to run. Filesystem paths keep working unchanged for users with custom MLX checkpoints or the legacy LM Studio cache layout.
+- Markdown header now lists the toolchain that produced the transcript (`Діаризація`, `ASR`, `LLM`) and the wall-clock timings (`Обробка: 5m43s`, `AI-стадії: diarize=25s · asr=53s · proofread=131s · …`). The `LLM` line collapses to a single model name when every enabled stage used the same one, otherwise shows `stage=model` chips. The timings make each saved transcript self-documenting and serve as a built-in benchmark record.
+
+### Internal
+
+- `MlxLLM._resolved_path` populated by `.load()` exposes the on-disk snapshot directory; `_ensure_llm` compares it across repo-id ↔ resolved-path pairs so two specs that point to the same model don't trigger a spurious cold reload.
+
+## [0.21.0] — 2026-05-12
+
+### Added
+
+- `structure_dialog` now chunks long dialogues automatically. Recordings with more than ~60 speech segments are split into overlapping ~35-segment chunks (overlap 2), the LLM is called once per chunk, and the per-chunk section lists are reconciled into one contiguous list (edge-snap, drop overlap dupes, merge same-title neighbours, fuse the shortest pair if total exceeds 7 sections). Short recordings (under 60 segments) use the original single-pass path, unchanged byte-for-byte. See [ADR 0018](docs/adr/0018-chunked-structure-dialog.md) for the design and the per-call validator differences.
+- Per-stage LLM model selection: `--llm-proofread-model`, `--llm-identify-model`, `--llm-structure-model`, `--llm-tldr-model`. Each defaults to `--llm-model` if unset, which itself defaults to `mlx-community/gemma-3-12b-it-qat-4bit`. The pipeline swaps models between stages only when the paths differ, paying one cold load per swap; consecutive stages on the same model share one resident instance. See [ADR 0019](docs/adr/0019-per-stage-llm-models.md). Default behaviour is unchanged from v0.20.0 when no per-stage flags are passed.
+- `MlxLLM.log_memory` (off by default; enabled automatically under `--verbose`). Each `chat()` / `chat_json()` call prints `pre`, `peak`, `post-clear` MLX active/peak memory plus prompt/output token counts, with a best-effort `mx.reset_peak_memory()` before generation so per-call peaks are meaningful.
+- `pipeline.run()` invokes `free_mlx(log)` (`gc.collect()` + `mx.clear_cache()`) after each enabled LLM stage, not only at the end of the run. This shrinks the working set the next stage sees, which materially helps `structure_dialog` after a long proofread pass.
+
+### Changed
+
+- Internal: `pipeline.run()` no longer instantiates one `MlxLLM` for all four stages. The new `_ensure_llm(current, want_path, …)` helper returns the resident instance when the requested path matches, otherwise unloads + cold-reloads. The `finally` block that closes the LLM is unchanged.
+- Internal: `MlxLLM._stream_generate` now returns `(text, output_token_count)` so the memory-logging path can report token counts without double-counting via `on_token`.
+- Internal: `structure._validate` takes optional `min_sections`, `max_sections`, `require_exact_bounds` parameters (defaults reproduce v0.20.0 behaviour) so the chunked path can reuse it with looser per-chunk bounds.
+
+### Known issues
+
+- Empirical per-stage model defaults remain TODO (issue #78 follow-up). v0.21.0 ships the mechanism; deciding which of gemma-3-{12b,4b,1b}, Qwen2.5-3B, Llama-3.2-3B should be the default for each stage requires a subjective quality benchmark on real recordings that has not yet been run. Users who want to try a smaller model on, say, proofread can do so today via `--llm-proofread-model`.
+- On 16 GB Macs, chunked `structure_dialog` on gemma-3-12b is **still** OOM-prone even after the per-stage cleanup — a clean 12b enters chunk 1 OK (peak ~10.6 GB) but the allocator fragmentation accumulated across chunks tips chunk 2 over the Metal ceiling. The working configuration is to swap to a smaller model **either** on proofread (which clears the long-tail KV churn before structure) **or** on structure itself. See `docs/troubleshooting.md` for the exact CLI invocations.
+- On `mlx-community/gemma-3-4b-it-qat-4bit` the `structure_dialog` chunked path frequently returns JSON that fails the per-chunk validator (sections out of bounds, wrong count). When that happens the pipeline gracefully falls back to a single section, but the section titling produced by 12b is more useful in practice. This is a model-choice trade-off, not a bug.
+- Chunk-boundary section duplication is possible when the LLM names the same thread slightly differently across chunks ("обговорення задачі" vs "обговорення задач"). The same-title merge handles the exact-match case; the conservative fuzz-match case is intentionally not handled because false fusing is worse than near-duplicate titles. Acceptable for v0.21.0; will revisit if real long recordings show it as a recurring pain point.
+
 ## [0.20.0] — 2026-05-12
 
 ### Added

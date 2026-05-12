@@ -37,6 +37,18 @@ def _format_duration(seconds: float) -> str:
     return f"{m}:{s2:02d}"
 
 
+def _format_compact_duration(seconds: float) -> str:
+    """Compact human-readable duration: `12m5s`, `45s`, `1h3m20s`."""
+    s = int(round(seconds))
+    h, rem = divmod(s, 3600)
+    m, s2 = divmod(rem, 60)
+    if h:
+        return f"{h}h{m}m{s2}s"
+    if m:
+        return f"{m}m{s2}s"
+    return f"{s2}s"
+
+
 def _format_started_at(iso: str) -> str:
     """ISO datetime → `YYYY-MM-DD HH:MM UTC` (always normalised to UTC)."""
     try:
@@ -118,28 +130,69 @@ def render_markdown(
     tldr: str = "",
     language: str = "uk",
     asr_label: str | None = None,  # noqa: ARG001 — kept for backward-compatible signature
+    models: dict[str, str] | None = None,
+    timings: dict[str, float] | None = None,
 ) -> str:
     """Compose the full Markdown output.
 
     `asr_label` is accepted but no longer rendered (the header no longer
     advertises the toolchain). Kept in the signature so existing callers
     that still pass it don't break.
+
+    `models` is an optional mapping with the keys `diarize`, `asr`, and
+    `llm` (a single string with the per-stage models — same path repeated
+    when one model handles all four stages, otherwise a `proofread=… ·
+    structure=…` listing). The header renders one bullet per non-empty
+    key. Pass `None` to omit the toolchain section entirely.
     """
     basename = Path(audio_meta.path).name
     speakers = _speakers_in_order(dialog.segments)
     emoji_for = assign_emojis(speakers)
 
-    lines: list[str] = []
-    lines.append(f"# Транскрипт: {basename}")
-    lines.append("")
-    lines.append(f"> 📅 **Початок:** {_format_started_at(audio_meta.started_at)}")
-    lines.append(f"> ⏱️ **Тривалість:** {_format_duration(audio_meta.duration_s)}")
-    lines.append(f"> 🌐 **Мова:** {language}")
+    # Each header item is its own blockquote line. CommonMark merges
+    # consecutive `>` lines into one paragraph (so all the chips collapse
+    # onto one rendered line); two trailing spaces force a hard line
+    # break inside the paragraph, which every common renderer respects
+    # (GitHub, VS Code preview, Obsidian, pandoc).
+    header_items: list[str] = []
+    header_items.append(f"📅 **Початок:** {_format_started_at(audio_meta.started_at)}")
+    header_items.append(f"⏱️ **Тривалість:** {_format_duration(audio_meta.duration_s)}")
+    header_items.append(f"🌐 **Мова:** {language}")
     if speakers:
         speaker_chips = ", ".join(
             f"{emoji_for.get(s, '')} {s}".strip() for s in speakers
         )
-        lines.append(f"> 👥 **Учасники:** {speaker_chips}")
+        header_items.append(f"👥 **Учасники:** {speaker_chips}")
+    if models:
+        if models.get("diarize"):
+            header_items.append(f"🗣️ **Діаризація:** {models['diarize']}")
+        if models.get("asr"):
+            header_items.append(f"📝 **ASR:** {models['asr']}")
+        if models.get("llm"):
+            header_items.append(f"🤖 **LLM:** {models['llm']}")
+    if timings:
+        total = timings.get("total")
+        if total is not None:
+            header_items.append(
+                f"⏲️ **Обробка:** {_format_compact_duration(total)}"
+            )
+        breakdown_order = (
+            "diarize", "asr", "proofread", "identify", "structure", "tldr",
+        )
+        chips = [
+            f"{stage}={_format_compact_duration(timings[stage])}"
+            for stage in breakdown_order
+            if stage in timings
+        ]
+        if chips:
+            header_items.append("⏱️ **AI-стадії:** " + " · ".join(chips))
+
+    lines: list[str] = []
+    lines.append(f"# Транскрипт: {basename}")
+    lines.append("")
+    for idx, item in enumerate(header_items):
+        suffix = "  " if idx < len(header_items) - 1 else ""
+        lines.append(f"> {item}{suffix}")
     lines.append("")
 
     if tldr:

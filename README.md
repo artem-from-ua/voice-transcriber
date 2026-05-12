@@ -13,7 +13,7 @@ The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR
 - macOS on Apple Silicon
 - [`ffmpeg`](https://ffmpeg.org/) in `PATH`
 - [`uv`](https://github.com/astral-sh/uv) for dependency management
-- [LM Studio](https://lmstudio.ai/) — for downloading models only; the server does not need to run. The pipeline loads the LLM in-process via `mlx-lm` and just reuses LM Studio's model cache at `~/.cache/lm-studio/models/`.
+- [`huggingface-cli`](https://huggingface.co/docs/huggingface_hub/guides/cli) (ships with `huggingface_hub`, pulled in by `uv sync`) — for fetching the default LLM and Whisper ASR weights into `~/.cache/huggingface/hub/`. [LM Studio](https://lmstudio.ai/) is **optional** and only useful if you want the legacy VibeVoice ASR or to manage local checkpoints through a GUI — its server never needs to run.
 - A Hugging Face account with **accepted licenses** for the three gated pyannote repositories — see [`docs/troubleshooting.md`](docs/troubleshooting.md) under *GatedRepoError* for the exact list and instructions
 
 ## Setup
@@ -26,26 +26,22 @@ The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR
    uv sync
    ```
 
-2. **Download models in LM Studio**
-
-   In LM Studio → Models → search and download:
-   - `mlx-community/VibeVoice-ASR-6bit` (default ASR; 4/5/8-bit variants supported via `--asr-bits`)
-   - `mlx-community/gemma-3-12b-it-qat-4bit` (default LLM)
-
-3. **Save your Hugging Face token**
+2. **Save your Hugging Face token**
 
    ```bash
    echo 'hf_xxx' > ~/.cache/huggingface/token
    chmod 600 ~/.cache/huggingface/token
    ```
 
-4. **Download the Whisper ASR model** (default backend since v0.20.0)
+3. **Download the default models** (~7 GB total into the HuggingFace cache)
 
    ```bash
-   uv run voice download-whisper
+   uv run voice download-whisper                                          # ~3 GB
+   huggingface-cli download mlx-community/Qwen2.5-7B-Instruct-4bit        # ~4 GB
    ```
 
-   Fetches `mlx-community/whisper-large-v3-mlx` (~3 GB) into the standard HuggingFace cache. Required for `voice transcribe` to work out of the box. Pass `--asr-engine vibevoice` to fall back to the legacy backend (uses the VibeVoice model from step 2). See [ADR 0017](docs/adr/0017-whisper-asr-backend.md) for the rationale.
+   - `Whisper-large-v3-MLX` is the default ASR (see [ADR 0017](docs/adr/0017-whisper-asr-backend.md)). Use `--asr-engine vibevoice` with the legacy `mlx-community/VibeVoice-ASR-{bits}bit` backend (download it via LM Studio's GUI; 4/5/6/8-bit variants are picked by `--asr-bits`).
+   - `Qwen2.5-7B-Instruct-4bit` is the default LLM since v0.22.0 (see [ADR 0020](docs/adr/0020-default-llm-qwen25-7b.md)). It is the smallest model that produces multi-section structure reliably on a 16 GB Mac. Use `--llm-model <other-repo-or-path>` to swap in another MLX-format LLM.
 
 ## Run
 
@@ -55,7 +51,8 @@ uv run voice transcribe a.m4a --names "Artem,Ostap"    # override speaker names
 uv run voice transcribe a.m4a --asr-engine vibevoice   # legacy backend, with in-band [Silence]/[Music] markers
 uv run voice transcribe a.m4a --asr-engine vibevoice --asr-bits 8  # higher-quality VibeVoice variant
 uv run voice transcribe a.m4a --no-tldr --no-structure # plain dialogue only
-uv run voice transcribe a.m4a --verbose                # progress logs to stderr
+uv run voice transcribe a.m4a --llm-proofread-model …  # smaller model on proofread, default on the rest
+uv run voice transcribe a.m4a --verbose                # progress logs to stderr (also turns on per-LLM-call memory lines)
 ```
 
 ## Onboarding

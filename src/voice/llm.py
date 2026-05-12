@@ -30,15 +30,77 @@ from lmformatenforcer import JsonSchemaParser, TokenEnforcer
 from lmformatenforcer.tokenenforcer import TokenEnforcerTokenizerData
 
 from ._memory import free_mlx
+from ._memory_stats import read_memory_snapshot
 
 
-DEFAULT_MODEL = os.path.expanduser(
-    "~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit"
-)
+_GB = 1024 ** 3
+
+
+def _reset_peak_memory() -> None:
+    """Best-effort reset of MLX peak counter so per-call peaks are meaningful.
+
+    `mx.get_peak_memory()` is a high-water mark over the process lifetime
+    unless explicitly reset. Available as `mx.reset_peak_memory` in mlx
+    ≥ 0.21 and under `mx.metal` on older builds. Silent no-op otherwise.
+    """
+    fn = getattr(mx, "reset_peak_memory", None)
+    if fn is None:
+        metal = getattr(mx, "metal", None)
+        fn = getattr(metal, "reset_peak_memory", None) if metal is not None else None
+    if callable(fn):
+        try:
+            fn()
+        except Exception:  # noqa: BLE001 — telemetry must not crash the pipeline
+            pass
+
+
+DEFAULT_MODEL = "mlx-community/Qwen2.5-7B-Instruct-4bit"
 
 
 class LLMError(RuntimeError):
     """Raised when the model directory is missing or output is unusable."""
+
+
+def _resolve_model_path(model_spec: str) -> str:
+    """Accept either a filesystem path or a HuggingFace `org/repo` id.
+
+    - Filesystem paths (anything that exists on disk after `expanduser`) are
+      returned as-is — this keeps the legacy LM Studio cache layout working
+      for users with `--llm-model ~/.cache/lm-studio/...`.
+    - HF repo ids are resolved via `try_to_load_from_cache` (no network).
+      The returned snapshot directory is what `mlx_lm.load` accepts. If the
+      repo is not cached, `LLMError` is raised with an actionable message —
+      we never trigger an implicit multi-GB download from the pipeline.
+    """
+    expanded = os.path.expanduser(model_spec)
+    if os.path.isdir(expanded):
+        return expanded
+    if "/" not in model_spec or model_spec.startswith((".", "/", "~")):
+        # Looks like a filesystem path but the directory does not exist.
+        # Let the caller see the path as-is so health_check can produce a
+        # filesystem-flavoured error message.
+        return expanded
+
+    try:
+        from huggingface_hub import try_to_load_from_cache
+        from huggingface_hub.errors import CacheNotFound
+    except ImportError as exc:
+        raise LLMError(
+            f"huggingface_hub not installed; cannot resolve repo id {model_spec!r}"
+        ) from exc
+
+    try:
+        hit = try_to_load_from_cache(repo_id=model_spec, filename="config.json")
+    except CacheNotFound:
+        hit = None
+    if hit is None:
+        raise LLMError(
+            f"LLM model {model_spec!r} is not in the HuggingFace cache. "
+            f"Fetch it once with `huggingface-cli download {model_spec}` "
+            f"(or `uv run python -c \"from huggingface_hub import snapshot_download; "
+            f"snapshot_download('{model_spec}')\"`)."
+        )
+    return os.path.dirname(str(hit))
 
 
 def _build_tokenizer_data(tokenizer) -> TokenEnforcerTokenizerData:
@@ -91,13 +153,25 @@ def _make_json_logits_processor(
 
 @dataclass
 class MlxLLM:
-    """In-process Gemma (or any MLX-supported instruct model)."""
+    """In-process Gemma (or any MLX-supported instruct model).
+
+    `sampling_overrides` lets a caller force sampling params (temperature,
+    top_p, top_k, repetition_penalty) across every chat/chat_json call,
+    overriding what the prompt frontmatter requests. Keys missing from the
+    dict leave the per-call defaults in place. Used by the pipeline to
+    apply each model's officially-recommended params globally; the prompt
+    frontmatter still drives max_tokens (which is task-, not model-,
+    specific).
+    """
 
     model_path: str = DEFAULT_MODEL
     log: Callable[[str], None] = field(default=lambda _s: None)
+    log_memory: bool = False
+    sampling_overrides: dict[str, Any] = field(default_factory=dict)
     _model: Any = None
     _tokenizer: Any = None
     _tokenizer_data: TokenEnforcerTokenizerData | None = None
+    _resolved_path: str | None = None
 
     # ------------------------------------------------------------------ lifecycle
 
@@ -105,12 +179,17 @@ class MlxLLM:
         """Verify the model directory looks like an MLX checkpoint.
 
         Returns the resolved path on success. Raises `LLMError` otherwise.
+        `self.model_path` may be a filesystem path (legacy LM Studio layout)
+        or a HuggingFace `org/repo` id; both shapes resolve to a concrete
+        directory here.
         """
-        path = Path(os.path.expanduser(self.model_path))
+        resolved = _resolve_model_path(self.model_path)
+        path = Path(resolved)
         if not path.is_dir():
             raise LLMError(
-                f"LLM model not found at {path}. "
-                "Download it in LM Studio (Models → Search → mlx-community/...)."
+                f"LLM model not found at {path} (from {self.model_path!r}). "
+                f"For HF repos, run `huggingface-cli download {self.model_path}`. "
+                f"For local paths, point --llm-model at an extracted MLX checkpoint."
             )
         if not (path / "config.json").is_file():
             raise LLMError(f"Missing config.json in {path}; is this an MLX model?")
@@ -124,6 +203,11 @@ class MlxLLM:
         self.log(f"Loading LLM: {path}")
         self._model, self._tokenizer = mlx_lm.load(path)
         self._tokenizer_data = _build_tokenizer_data(self._tokenizer)
+        # Remember the resolved directory so the pipeline can compare two
+        # MlxLLM instances by what they actually loaded — not by what the
+        # caller typed (a repo id vs an absolute snapshot path that resolve
+        # to the same directory should be treated as "same model").
+        self._resolved_path = path
 
     def close(self) -> None:
         """Drop the model and clear MLX cache. Idempotent."""
@@ -132,6 +216,7 @@ class MlxLLM:
         self._model = None
         self._tokenizer = None
         self._tokenizer_data = None
+        self._resolved_path = None
         free_mlx(self.log)
 
     def __enter__(self) -> "MlxLLM":
@@ -160,9 +245,13 @@ class MlxLLM:
         sampler: Callable,
         logits_processors: list,
         on_token: Callable[[int], None] | None,
-    ) -> str:
-        """Run mlx_lm.stream_generate, accumulate text, ping on_token."""
+    ) -> tuple[str, int]:
+        """Run mlx_lm.stream_generate, accumulate text, ping on_token.
+
+        Returns (text, output_token_count).
+        """
         parts: list[str] = []
+        tokens = 0
         for response in mlx_lm.stream_generate(
             self._model,
             self._tokenizer,
@@ -172,9 +261,39 @@ class MlxLLM:
             logits_processors=logits_processors,
         ):
             parts.append(response.text)
+            tokens += 1
             if on_token is not None:
                 on_token(1)
-        return "".join(parts)
+        return "".join(parts), tokens
+
+    def _prompt_token_count(self, prompt: str) -> int:
+        """Best-effort token count of the rendered prompt for telemetry."""
+        if self._tokenizer is None:
+            return 0
+        try:
+            ids = self._tokenizer.encode(prompt)
+            return len(ids) if ids is not None else 0
+        except Exception:  # noqa: BLE001
+            return 0
+
+    def _log_memory_line(
+        self,
+        *,
+        op: str,
+        pre_active_gb: float | None,
+        peak_gb: float | None,
+        post_active_gb: float | None,
+        prompt_tokens: int,
+        output_tokens: int,
+    ) -> None:
+        def _fmt(v: float | None) -> str:
+            return f"{v:.2f} GB" if v is not None else "n/a"
+
+        self.log(
+            f"llm.{op}: pre {_fmt(pre_active_gb)}, peak {_fmt(peak_gb)}, "
+            f"post-clear {_fmt(post_active_gb)}, "
+            f"prompt {prompt_tokens} tok, out {output_tokens} tok"
+        )
 
     # ------------------------------------------------------------------ chat
 
@@ -185,19 +304,30 @@ class MlxLLM:
         temperature: float = 0.2,
         max_tokens: int = 512,
         top_p: float = 1.0,
+        top_k: int = 0,
         repetition_penalty: float | None = None,
         on_token: Callable[[int], None] | None = None,
     ) -> str:
         """Plain-text generation. `on_token(1)` is called for each emitted token."""
         self._ensure_loaded()
         prompt = self._build_prompt(messages)
+        temperature = self.sampling_overrides.get("temperature", temperature)
+        top_p = self.sampling_overrides.get("top_p", top_p)
+        top_k = self.sampling_overrides.get("top_k", top_k)
+        repetition_penalty = self.sampling_overrides.get(
+            "repetition_penalty", repetition_penalty
+        )
         sampler = mlx_lm.sample_utils.make_sampler(
-            temp=temperature, top_p=top_p,
+            temp=temperature, top_p=top_p, top_k=top_k,
         )
         logits_processors = mlx_lm.sample_utils.make_logits_processors(
             repetition_penalty=repetition_penalty,
         )
-        text = self._stream_generate(
+        if self.log_memory:
+            _reset_peak_memory()
+            pre = read_memory_snapshot()
+            prompt_tok = self._prompt_token_count(prompt)
+        text, out_tokens = self._stream_generate(
             prompt=prompt,
             max_tokens=max_tokens,
             sampler=sampler,
@@ -206,7 +336,19 @@ class MlxLLM:
         )
         # Free KV cache between calls so proofread's 60+ short prompts
         # don't poison the long structure prompt that follows.
+        if self.log_memory:
+            peak = read_memory_snapshot()
         mx.clear_cache()
+        if self.log_memory:
+            post = read_memory_snapshot()
+            self._log_memory_line(
+                op="chat",
+                pre_active_gb=pre.mlx_active_gb,
+                peak_gb=peak.mlx_peak_gb,
+                post_active_gb=post.mlx_active_gb,
+                prompt_tokens=prompt_tok,
+                output_tokens=out_tokens,
+            )
         return text
 
     def chat_json(
@@ -217,6 +359,7 @@ class MlxLLM:
         temperature: float = 0.2,
         max_tokens: int = 1024,
         top_p: float = 1.0,
+        top_k: int = 0,
         on_token: Callable[[int], None] | None = None,
     ) -> Any:
         """Schema-constrained generation. Returns parsed JSON.
@@ -228,21 +371,40 @@ class MlxLLM:
         self._ensure_loaded()
         assert self._tokenizer_data is not None
         prompt = self._build_prompt(messages)
+        temperature = self.sampling_overrides.get("temperature", temperature)
+        top_p = self.sampling_overrides.get("top_p", top_p)
+        top_k = self.sampling_overrides.get("top_k", top_k)
         sampler = mlx_lm.sample_utils.make_sampler(
-            temp=temperature, top_p=top_p,
+            temp=temperature, top_p=top_p, top_k=top_k,
         )
         json_processor = _make_json_logits_processor(
             self._tokenizer_data,
             schema or {"type": "object"},
         )
-        text = self._stream_generate(
+        if self.log_memory:
+            _reset_peak_memory()
+            pre = read_memory_snapshot()
+            prompt_tok = self._prompt_token_count(prompt)
+        text, out_tokens = self._stream_generate(
             prompt=prompt,
             max_tokens=max_tokens,
             sampler=sampler,
             logits_processors=[json_processor],
             on_token=on_token,
         )
+        if self.log_memory:
+            peak = read_memory_snapshot()
         mx.clear_cache()
+        if self.log_memory:
+            post = read_memory_snapshot()
+            self._log_memory_line(
+                op="chat_json",
+                pre_active_gb=pre.mlx_active_gb,
+                peak_gb=peak.mlx_peak_gb,
+                post_active_gb=post.mlx_active_gb,
+                prompt_tokens=prompt_tok,
+                output_tokens=out_tokens,
+            )
 
         try:
             return json.loads(text)

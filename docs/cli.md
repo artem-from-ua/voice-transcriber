@@ -21,7 +21,15 @@ voice transcribe <audio> [options]
 | `--unknown-speaker` | `{ask,keep}` | `ask` | What to do when self-intro is missing. `ask` prompts on stdin; `keep` leaves `SPEAKER_XX`. |
 | `--names` | `"A,B,..."` | – | Override automatic naming. Mapped to clusters in order of first appearance. Skips the LLM identify step. |
 | `--datetime` | ISO 8601 | – | Override recording start time. Defaults to `ffprobe creation_time`, then `stat birthtime`, then `stat mtime`. |
-| `--llm-model` | path | `~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit` | Filesystem path to an MLX model directory (anything `mlx_lm.load()` accepts). |
+| `--llm-model` | path or HF repo-id | `mlx-community/Qwen2.5-7B-Instruct-4bit` | HuggingFace `org/repo` id **or** a filesystem path to an MLX model directory, used as the default for all four LLM stages. Repo ids are resolved via `huggingface_hub.try_to_load_from_cache`; missing repos fail fast with the `huggingface-cli download` command to run. See [ADR 0020](adr/0020-default-llm-qwen25-7b.md). |
+| `--llm-temperature` | float | `0.7` (Qwen2.5 rec) | Sampling temperature applied to all LLM stages. Overrides the per-prompt frontmatter value. When switching `--llm-model`, also pass this and the other sampling flags to match that model's recommendation — see `docs/models.md`. |
+| `--llm-top-p` | float | `0.8` (Qwen2.5 rec) | Nucleus-sampling cutoff applied globally. |
+| `--llm-top-k` | int | `20` (Qwen2.5 rec) | Top-K sampling cutoff (0 disables). |
+| `--llm-repetition-penalty` | float | `1.05` (Qwen2.5 rec) | Repetition penalty for plain-text stages (proofread, tldr). |
+| `--llm-proofread-model` | path | inherits `--llm-model` | Per-stage override: model used for proofread only. The pipeline cold-reloads weights between stages whose paths differ; identical paths share one resident instance. See [ADR 0019](adr/0019-per-stage-llm-models.md). |
+| `--llm-identify-model` | path | inherits `--llm-model` | Per-stage override for the speaker-identify stage. |
+| `--llm-structure-model` | path | inherits `--llm-model` | Per-stage override for the section-structuring stage. |
+| `--llm-tldr-model` | path | inherits `--llm-model` | Per-stage override for the TL;DR stage. |
 | `--output`, `-o` | path | `<audio>.md` | Output Markdown path. |
 | `--no-proofread` | flag | off | Skip per-segment ASR proof-reading. |
 | `--no-tldr` | flag | off | Skip TL;DR generation. |
@@ -43,10 +51,16 @@ uv run voice transcribe interview.wav --asr-bits 8 --language en
 # 4) Minimal output (plain dialogue), no TL;DR, no sectioning
 uv run voice transcribe quick.mp3 --no-tldr --no-structure --unknown-speaker keep
 
-# 5) Custom output path and a different local LLM
+# 5) Custom output path and a different local LLM (with that model's recommended sampling)
 uv run voice transcribe a.m4a \
   -o ~/notes/2026-05-11-call.md \
-  --llm-model ~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-4bit
+  --llm-model mlx-community/Qwen3-4B-Instruct-2507-4bit \
+  --llm-temperature 0.7 --llm-top-p 0.8 --llm-top-k 20
+
+# 6) Keep the v0.21 default LLM (gemma-3-12b) on a machine with ≥24 GB unified memory
+uv run voice transcribe a.m4a \
+  --llm-model ~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit \
+  --llm-temperature 1.0 --llm-top-p 0.95 --llm-top-k 64 --llm-repetition-penalty 1.0
 ```
 
 ## Exit codes

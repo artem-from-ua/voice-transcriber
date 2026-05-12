@@ -1,11 +1,12 @@
 # Troubleshooting
 
-## "LLM model not found at …"
+## "LLM model not found at …" / "LLM model `…` is not in the HuggingFace cache"
 
-The pipeline expected an MLX checkpoint directory and found nothing (or no `config.json` inside).
+The pipeline expected either an MLX checkpoint directory or a cached HuggingFace repo and found nothing.
 
-- Open LM Studio → **Models** → search for the default model (`mlx-community/gemma-3-12b-it-qat-4bit`) and download it. The pipeline reads the same cache LM Studio uses; the LM Studio server itself does not need to be running.
-- To point at a different local model directory, pass `--llm-model /path/to/mlx/checkpoint`.
+- Fetch the default model once: `huggingface-cli download mlx-community/Qwen2.5-7B-Instruct-4bit` (~4 GB into `~/.cache/huggingface/hub/`). The pipeline resolves repo ids via that cache automatically.
+- To use a model already extracted on disk (e.g. via LM Studio's GUI), pass `--llm-model /path/to/mlx/checkpoint` — any directory containing `config.json` plus the MLX weights works.
+- See [ADR 0020](adr/0020-default-llm-qwen25-7b.md) for the resolver and `docs/models.md` for the table of recommended sampling per model.
 
 ## "VibeVoice-ASR-Nbit not found at …"
 
@@ -54,7 +55,7 @@ The pipeline degrades gracefully in both cases:
 If you see this repeatedly:
 
 - Check for OOM / Metal allocator errors in the same run (see *"Out of memory" / Metal allocator errors* below) — exhaustion mid-generation is the most common cause.
-- Try a more capable or differently-quantised model: `--llm-model /path/to/mlx-community/gemma-3-12b-it-4bit`.
+- Try a different model: e.g. `--llm-model mlx-community/Qwen3-4B-Instruct-2507-4bit --llm-temperature 0.7 --llm-top-p 0.8 --llm-top-k 20` (see `docs/models.md` for the per-model recommended sampling values; passing the wrong values on the wrong model is a common cause of repeated `chat_json` validator misses).
 
 ## Speaker still labelled `SPEAKER_00` / `SPEAKER_01`
 
@@ -68,9 +69,24 @@ Self-introduction wasn't detected in the first ~60 s of that cluster's speech.
 
 The pipeline serialises three model loads (VibeVoice → pyannote → LLM) so they are never co-resident, but a single model still has to fit. A 12B LLM 4-bit is ~8 GB; combined with an 8-bit ASR (~9 GB) loaded simultaneously by mistake, you would exceed a 16 GB Mac.
 
-- Stick to the default 6-bit ASR.
+- Stick to the default `Qwen2.5-7B-Instruct-4bit` LLM (~4 GB) — the project's default since v0.22.0 specifically because it fits on a 16 GB Mac end-to-end. See [ADR 0020](adr/0020-default-llm-qwen25-7b.md).
+- Stick to the default Whisper ASR (~3 GB) or pick 6-bit VibeVoice. Avoid `--asr-bits 8`.
 - If LM Studio is still running with its own model loaded in the background, quit it — its server is no longer needed at runtime (only the model cache is).
-- Downgrade to `mlx-community/gemma-2-9b-it-4bit` for the LLM (`--llm-model …`).
+- Run with `--verbose` to print per-call MLX `pre`/`peak`/`post-clear` lines and prompt/output token counts. The numbers pinpoint which stage actually hits the ceiling.
+- `gemma-3-12b` does **not** fit on a 16 GB Mac for the full pipeline. Even with v0.21's chunked structure + per-stage cleanup, the third chunked structure call OOMs once the allocator is fragmented from proofread. Stay with the default `Qwen2.5-7B` or upgrade to a 24 GB+ machine.
+- When you switch `--llm-model` to a different family, also pass that model's recommended sampling — Qwen2.5's defaults (`temp=0.7, top_p=0.8, top_k=20, rep_penalty=1.05`) hurt structure output on gemma / Llama. See `docs/models.md` for the per-model table.
+
+  ```bash
+  # Qwen3-4B (smaller, ~2.5 GB, more sections in structure)
+  voice transcribe a.m4a --llm-model mlx-community/Qwen3-4B-Instruct-2507-4bit \
+      --llm-temperature 0.7 --llm-top-p 0.8 --llm-top-k 20
+
+  # Llama-3.2-3B (smallest stable, only with rec params — default sampling breaks JSON)
+  voice transcribe a.m4a --llm-model mlx-community/Llama-3.2-3B-Instruct-4bit \
+      --llm-temperature 0.6 --llm-top-p 0.9
+  ```
+
+  If OOM still hits with `Qwen2.5-7B`, run with `--verbose` and file an issue with the memory trace so we can tune `STRUCTURE_CHUNK_SIZE`.
 
 ## ffmpeg / ffprobe not found
 
