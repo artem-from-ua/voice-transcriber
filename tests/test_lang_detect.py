@@ -102,7 +102,8 @@ def test_picks_longest_turn_and_returns_top1_language(monkeypatch):
     ]
     out = lang_detect.detect_language_on_longest_turn("/tmp/a.wav", turns)
 
-    assert out == "uk"
+    assert out.language == "uk"
+    assert out.probabilities == {"uk": 0.84, "ru": 0.15, "en": 0.01}
     # Whisper repo id passed through unchanged.
     assert capture["load_model_repo_id"] == WHISPER
     # Audio slice corresponds to the longest turn (10.0 to 33.4 s).
@@ -120,7 +121,7 @@ def test_picks_top1_even_when_uk_is_not_first(monkeypatch):
     turns = [DiarTurn(start=0.0, end=20.0, speaker="SPEAKER_00")]
     out = lang_detect.detect_language_on_longest_turn("/tmp/a.wav", turns)
 
-    assert out == "en"
+    assert out.language == "en"
 
 
 def test_empty_turns_returns_fallback_uk(monkeypatch):
@@ -131,7 +132,8 @@ def test_empty_turns_returns_fallback_uk(monkeypatch):
 
     out = lang_detect.detect_language_on_longest_turn("/tmp/a.wav", [])
 
-    assert out == lang_detect.FALLBACK_LANGUAGE
+    assert out.language == lang_detect.FALLBACK_LANGUAGE
+    assert out.probabilities is None
     # Model should NOT have been loaded for a no-turn input.
     assert "load_model_repo_id" not in capture
 
@@ -149,7 +151,8 @@ def test_too_short_turn_returns_fallback_uk(monkeypatch):
     ]
     out = lang_detect.detect_language_on_longest_turn("/tmp/a.wav", turns)
 
-    assert out == lang_detect.FALLBACK_LANGUAGE
+    assert out.language == lang_detect.FALLBACK_LANGUAGE
+    assert out.probabilities is None
     # Model should NOT have been loaded for a too-short input.
     assert "load_model_repo_id" not in capture
 
@@ -176,7 +179,8 @@ def test_empty_probs_falls_back(monkeypatch):
     turns = [DiarTurn(start=0.0, end=20.0, speaker="SPEAKER_00")]
     out = lang_detect.detect_language_on_longest_turn("/tmp/a.wav", turns)
 
-    assert out == lang_detect.FALLBACK_LANGUAGE
+    assert out.language == lang_detect.FALLBACK_LANGUAGE
+    assert out.probabilities is None
 
 
 def test_verifies_model_cached_before_load(monkeypatch):

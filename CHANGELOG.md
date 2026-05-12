@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.0] — 2026-05-12
+
+### Changed
+
+- **Redesigned Markdown header — per-model AI table, lang_detect confidence, speaker source tags** ([#93](https://github.com/artem-from-ua/voice-transcriber/issues/93)).
+
+  The flat chip strip is replaced by a structured header:
+  - `🌐 Мова:` now appends `(user-specified)` when `--language` was given, or `(auto-detected, p=0.74, ru=0.24)` when `[4] lang_detect` ran. Runner-up shown only when ≥ 0.05.
+  - `👥 Учасники:` is now a bulleted list. Each speaker shows its source tag: `(self-introduced)` when extracted by `[9] identify_speakers`'s LLM call, `(user-specified)` when the name came from `--names`, `(interactive)` when typed at the interactive prompt, or `(unidentified)` when none of the above.
+  - `🤖 AI моделі:` is a Markdown table grouping stages by the model that ran them. The **first row for each model** is `model loaded in Xm Ys` — the cold-start load time. Subsequent rows list each stage with its elapsed time. Stages that did not run (disabled via `--no-*` or `--names`) are omitted from the table entirely.
+  - `⏲️ Обробка:` now appends `(X% of duration)` — a quick speed indicator (`<100%` = faster than real-time).
+  - Old `⏱️ AI-стадії: diarize=Xs · asr=Ys …` chip removed.
+
+- **`render_markdown()` signature changed** (`render.py`). Old kwargs `models` and `timings` replaced by:
+  - `stage_models: dict[str, str] | None` — stage name → model repo/label
+  - `stage_timings: dict[str, float] | None` — stage name → elapsed seconds (includes `"total"` key)
+  - `model_load_elapsed: dict[str, float] | None` — model repo/label → load seconds
+  - `name_sources: dict[str, str] | None` — pyannote cluster label → source tag
+  - `lang_detect_info: dict | None` — `{"top": (lang, p), "second": (lang, p)}` or `None`
+
+- **`lang_detect.detect_language_on_longest_turn()` return type changed** from `str` to `LangDetectResult(language: str, probabilities: dict[str, float] | None)`. The `probabilities` field is `None` on all fallback paths (no turns, too-short turn, empty probs from Whisper). Callers must access `.language` for the ISO code.
+
+- **`identify_speakers.identify_speakers()` return type changed** from `dict[str, str]` to `dict[str, NamedAssignment(name, source)]`. The `source` field is `"user-specified"`, `"self-introduced"`, `"interactive"`, or `"unidentified"`. The pipeline builds `name_sources` from this dict and passes it to render.
+
+- **`diarize_speakers.diarize()` return type changed** from `list[DiarTurn]` to `tuple[list[DiarTurn], float]` — the second element is the pyannote model load elapsed seconds.
+
+- **`whisper_asr.load_model()`** new public function. Returns `(model, load_elapsed_s)`. The pipeline calls it explicitly before `transcribe()` to measure Whisper cold-start separately from inference. `transcribe()` accepts a new `model` kwarg — when provided, weights are reused instead of reloaded.
+
+- **`MlxLLM._last_load_s`** new attribute on `llm.MlxLLM`. Set in `load()` to the wall-clock seconds of the last `mlx_lm.load()` call. `pipeline.run()` accumulates these into `model_load_elapsed` per model spec.
+
+### Internal
+
+- `pipeline._llm_summary()` removed (replaced by `stage_models` dict passed to render).
+- `pipeline._ensure_llm()` gains `model_load_elapsed: dict | None` kwarg; accumulates load time into it on each fresh load.
+
 ## [0.25.0] — 2026-05-12
 
 ### Changed

@@ -15,6 +15,8 @@ from typing import Any
 import pytest
 
 from voice import pipeline as pipeline_module
+from voice.identify_speakers import NamedAssignment
+from voice.lang_detect import LangDetectResult
 from voice.pipeline import PipelineOptions, run
 from voice.types import AsrSegment, AudioMeta, DiarTurn, Section, Segment, StructuredDialog
 
@@ -76,7 +78,7 @@ def patched_pipeline(monkeypatch, tmp_path):
 
     def fake_diarize(wav_path, *, log=print):
         rec("diarize", str(wav_path))
-        return fake_turns
+        return fake_turns, 5.0  # (turns, load_elapsed_s)
 
     monkeypatch.setattr(pipeline_module.diarize_speakers_module, "diarize", fake_diarize)
 
@@ -130,7 +132,7 @@ def patched_pipeline(monkeypatch, tmp_path):
     def fake_lang_detect(wav_path, turns, *, log=None):
         rec("lang_detect", {"wav_path": str(wav_path), "turn_count": len(turns)})
         rec.lang_detect_called = True
-        return rec.fake_detected_language
+        return LangDetectResult(language=rec.fake_detected_language, probabilities=None)
 
     monkeypatch.setattr(
         pipeline_module.lang_detect_module,
@@ -144,11 +146,17 @@ def patched_pipeline(monkeypatch, tmp_path):
     # continue to work.
     rec.asr_language_hint = "<unset>"
 
+    def fake_whisper_load_model(log=None):
+        return object(), 10.0  # (model_obj, load_elapsed_s)
+
     def fake_whisper_transcribe(wav_path, **kwargs):
         rec("asr", str(wav_path))
         rec.asr_language_hint = kwargs.get("language")
         return [AsrSegment(start=0.0, end=3.0, content="hi")]
 
+    monkeypatch.setattr(
+        pipeline_module.whisper_asr_module, "load_model", fake_whisper_load_model
+    )
     monkeypatch.setattr(
         pipeline_module.whisper_asr_module, "transcribe", fake_whisper_transcribe
     )
@@ -174,6 +182,7 @@ def patched_pipeline(monkeypatch, tmp_path):
 
         def load(self):
             self._resolved_path = self.model_path
+            self._last_load_s = 0.0
 
         def close(self):
             self.closed = True
@@ -188,7 +197,10 @@ def patched_pipeline(monkeypatch, tmp_path):
     monkeypatch.setattr(
         pipeline_module.identify_speakers_module,
         "identify_speakers",
-        lambda *a, **k: {"SPEAKER_00": "A", "SPEAKER_01": "B"},
+        lambda *a, **k: {
+            "SPEAKER_00": NamedAssignment(name="A", source="user-specified"),
+            "SPEAKER_01": NamedAssignment(name="B", source="user-specified"),
+        },
     )
     monkeypatch.setattr(
         pipeline_module.speech_structure_module,
@@ -420,7 +432,10 @@ def test_lang_detect_result_flows_to_all_downstream_stages(patched_pipeline, tmp
 
     def fake_identify(*args, language=None, **kwargs):
         captured["identify"] = language
-        return {"SPEAKER_00": "A", "SPEAKER_01": "B"}
+        return {
+            "SPEAKER_00": NamedAssignment(name="A", source="user-specified"),
+            "SPEAKER_01": NamedAssignment(name="B", source="user-specified"),
+        }
 
     import pytest as _pytest
     from voice import pipeline as _pipe_mod
@@ -456,7 +471,10 @@ def test_explicit_language_overrides_auto_detect(patched_pipeline, tmp_path):
 
     def fake_identify(*args, language=None, **kwargs):
         captured["identify"] = language
-        return {"SPEAKER_00": "A", "SPEAKER_01": "B"}
+        return {
+            "SPEAKER_00": NamedAssignment(name="A", source="user-specified"),
+            "SPEAKER_01": NamedAssignment(name="B", source="user-specified"),
+        }
 
     import pytest as _pytest
     from voice import pipeline as _pipe_mod

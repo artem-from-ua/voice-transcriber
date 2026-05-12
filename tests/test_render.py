@@ -42,13 +42,13 @@ def test_render_minimal_dialogue():
 
     out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
     assert "# Транскрипт: foo.m4a" in out
-    assert "📅 **Початок:** 2026-05-10 15:44 UTC" in out
-    assert "⏱️ **Тривалість:** 6:14" in out
-    # Language is rendered as the raw ISO code; no friendly translation.
-    assert "🌐 **Мова:** uk" in out
+    assert "📅 Початок: 2026-05-10 15:44 UTC" in out
+    assert "Тривалість: 6:14" in out
+    assert "🌐 Мова: uk (user-specified)" in out
     assert "🏁" not in out, "no 'Кінець' line expected"
-    # Participants header with colour chips in first-appearance order.
-    assert "👥 **Учасники:** 🔵 Артем, 🟢 Остап" in out
+    assert "👥 Учасники:" in out
+    assert "• 🔵 Артем" in out
+    assert "• 🟢 Остап" in out
     assert "## Привітання" in out
     assert "🔵 **Артем:** Привіт!" in out
     assert "🟢 **Остап:** Привіт-привіт." in out
@@ -72,7 +72,9 @@ def test_render_participants_uses_pyannote_label_when_unnamed():
     sections = [Section(title="Test", start_ms=0, end_ms=2000)]
     dialog = StructuredDialog(sections=sections, segments=segs)
     out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
-    assert "👥 **Учасники:** 🔵 SPEAKER_00, 🟢 SPEAKER_01" in out
+    assert "👥 Учасники:" in out
+    assert "🔵 SPEAKER_00" in out
+    assert "🟢 SPEAKER_01" in out
 
 
 def test_render_normalises_started_at_with_offset():
@@ -89,7 +91,7 @@ def test_render_normalises_started_at_with_offset():
         segments=[Segment(start=0, end=1, content="hi", speaker="A", name="Sam")],
     )
     out = render_markdown(audio_meta=meta, dialog=dialog, tldr="", language="uk")
-    assert "📅 **Початок:** 2026-05-10 15:44 UTC" in out
+    assert "📅 Початок: 2026-05-10 15:44 UTC" in out
 
 
 def test_render_includes_tldr_section_when_provided():
@@ -113,7 +115,6 @@ def test_render_merges_same_speaker_short_gap_into_one_paragraph():
     sections = [Section(title="Test", start_ms=0, end_ms=4000)]
     dialog = StructuredDialog(sections=sections, segments=segs)
     out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
-    # 1 paragraph for Артем
     assert out.count("**Артем:**") == 1
     assert "перше речення. друге речення." in out
 
@@ -127,7 +128,6 @@ def test_render_explicit_pause_marker_on_long_gap():
     dialog = StructuredDialog(sections=sections, segments=segs)
     out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
     assert "пауза 8с" in out
-    # two separate Артем blocks now
     assert out.count("**Артем:**") == 2
 
 
@@ -149,3 +149,141 @@ def test_render_uses_label_when_name_missing():
     dialog = StructuredDialog(sections=sections, segments=segs)
     out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
     assert "**SPEAKER_00:**" in out
+
+
+# -------------------------------------------------------- new header features
+
+
+def test_render_lang_user_specified():
+    """Without lang_detect_info → language is tagged as user-specified."""
+    segs = [Segment(start=0, end=1, content="x", speaker="A", name="Sam")]
+    dialog = StructuredDialog(
+        sections=[Section(title="T", start_ms=0, end_ms=1000)], segments=segs
+    )
+    out = render_markdown(audio_meta=_meta(), dialog=dialog, language="uk")
+    assert "🌐 Мова: uk (user-specified)" in out
+
+
+def test_render_lang_auto_detected_with_runner_up():
+    """lang_detect_info with runner-up → probability shown."""
+    segs = [Segment(start=0, end=1, content="x", speaker="A", name="Sam")]
+    dialog = StructuredDialog(
+        sections=[Section(title="T", start_ms=0, end_ms=1000)], segments=segs
+    )
+    out = render_markdown(
+        audio_meta=_meta(), dialog=dialog, language="uk",
+        lang_detect_info={"top": ("uk", 0.74), "second": ("ru", 0.24)},
+    )
+    assert "🌐 Мова: uk (auto-detected=0.74, ru=0.24)" in out
+
+
+def test_render_lang_auto_detected_no_runner_up():
+    """lang_detect_info without 'second' key → no runner-up shown."""
+    segs = [Segment(start=0, end=1, content="x", speaker="A", name="Sam")]
+    dialog = StructuredDialog(
+        sections=[Section(title="T", start_ms=0, end_ms=1000)], segments=segs
+    )
+    out = render_markdown(
+        audio_meta=_meta(), dialog=dialog, language="uk",
+        lang_detect_info={"top": ("uk", 0.95)},
+    )
+    assert "auto-detected=0.95" in out
+    assert "ru=" not in out
+
+
+def test_render_participants_with_source_tags():
+    """Each participant line includes its source tag in parentheses."""
+    segs = [
+        Segment(start=0, end=1, content="x", speaker="SPEAKER_00", name="Остап"),
+        Segment(start=1, end=2, content="y", speaker="SPEAKER_01", name="Артем"),
+    ]
+    sections = [Section(title="T", start_ms=0, end_ms=2000)]
+    dialog = StructuredDialog(sections=sections, segments=segs)
+    out = render_markdown(
+        audio_meta=_meta(), dialog=dialog, language="uk",
+        name_sources={
+            "SPEAKER_00": "self-introduced",
+            "SPEAKER_01": "user-specified",
+        },
+    )
+    assert "• 🔵 Остап (self-introduced)" in out
+    assert "• 🟢 Артем (user-specified)" in out
+
+
+def test_render_ai_models_table_grouping_single_llm():
+    """All LLM stages on one model → one group in the table."""
+    segs = [Segment(start=0, end=1, content="x", speaker="A", name="Sam")]
+    dialog = StructuredDialog(
+        sections=[Section(title="T", start_ms=0, end_ms=1000)], segments=segs
+    )
+    qwen = "mlx-community/Qwen2.5-7B-Instruct-4bit"
+    stage_models = {
+        "diarize_speakers": "pyannote/speaker-diarization-3.1",
+        "asr": "Whisper-large-v3-MLX",
+        "proofread": qwen,
+        "speech_structure": qwen,
+    }
+    stage_timings = {
+        "total": 321.0,
+        "diarize_speakers": 28.0,
+        "asr": 55.0,
+        "proofread": 138.0,
+        "speech_structure": 49.0,
+    }
+    model_load_elapsed = {
+        "pyannote/speaker-diarization-3.1": 5.0,
+        "Whisper-large-v3-MLX": 32.0,
+        qwen: 62.0,
+    }
+    out = render_markdown(
+        audio_meta=_meta(), dialog=dialog, language="uk",
+        stage_models=stage_models,
+        stage_timings=stage_timings,
+        model_load_elapsed=model_load_elapsed,
+    )
+    assert "| --- | --- | --: |" in out
+    # Each model appears once with model loaded as first stage.
+    assert "model loaded" in out
+    assert "pyannote/speaker-diarization-3.1" in out
+    assert "Whisper-large-v3-MLX" in out
+    assert qwen in out
+    # Qwen should appear only once in the table (grouped).
+    assert out.count(qwen) == 1
+
+
+def test_render_ai_models_skips_disabled_stages():
+    """Stages not in stage_models don't appear in the table."""
+    segs = [Segment(start=0, end=1, content="x", speaker="A", name="Sam")]
+    dialog = StructuredDialog(
+        sections=[Section(title="T", start_ms=0, end_ms=1000)], segments=segs
+    )
+    out = render_markdown(
+        audio_meta=_meta(), dialog=dialog, language="uk",
+        stage_models={"asr": "Whisper-large-v3-MLX"},
+        stage_timings={"total": 60.0, "asr": 55.0},
+        model_load_elapsed={"Whisper-large-v3-MLX": 30.0},
+    )
+    assert "speech_tldr" not in out
+    assert "speech_summary" not in out
+
+
+def test_render_processing_percent_of_duration():
+    """⏲️ line shows percentage of audio duration."""
+    segs = [Segment(start=0, end=1, content="x", speaker="A", name="Sam")]
+    dialog = StructuredDialog(
+        sections=[Section(title="T", start_ms=0, end_ms=1000)], segments=segs
+    )
+    meta = AudioMeta(
+        path="/tmp/foo.m4a",
+        started_at="2026-05-10T15:44:02+00:00",
+        ended_at="2026-05-10T15:54:02+00:00",
+        duration_s=600.0,
+        source="test",
+    )
+    out = render_markdown(
+        audio_meta=meta, dialog=dialog, language="uk",
+        stage_timings={"total": 300.0},
+        stage_models={},
+        model_load_elapsed={},
+    )
+    assert "⏲️ Обробка: 5m0s (50% of duration)" in out

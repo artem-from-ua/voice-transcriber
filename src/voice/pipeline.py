@@ -171,10 +171,14 @@ def _ensure_llm(
     log_memory: bool,
     progress: ProgressReporter,
     sampling_overrides: dict | None = None,
+    model_load_elapsed: dict[str, float] | None = None,
 ) -> MlxLLM:
     """Return an MlxLLM ready for use at `want_path`, reusing `current` when
     the resident model already matches; otherwise unload the old one and
     load fresh.
+
+    When `model_load_elapsed` is provided, the freshly-measured load time
+    is accumulated into it under `want_path`.
     """
     if current is not None:
         # `model_path` is the user-supplied spec; `_resolved_path` is the
@@ -201,6 +205,10 @@ def _ensure_llm(
     )
     with progress.spinner(f"Loading LLM ({Path(new_llm.model_path).name})"):
         new_llm.load()
+    if model_load_elapsed is not None:
+        model_load_elapsed[want_path] = (
+            model_load_elapsed.get(want_path, 0.0) + new_llm._last_load_s
+        )
     return new_llm
 
 
@@ -263,13 +271,23 @@ def run(options: PipelineOptions) -> str:
             log(f"      Тривалість: {audio_meta.duration_s:.1f}s")
             dumper.write("01-meta.json", audio_meta)
 
+            # stage_models: stage_name → model repo/label (insertion order = execution order)
+            stage_models: dict[str, str] = {}
+            # model_load_elapsed: model repo/label → cumulative load seconds
+            model_load_elapsed: dict[str, float] = {}
+
+            _PYANNOTE = "pyannote/speaker-diarization-3.1"
+            _WHISPER = "Whisper-large-v3-MLX"
+
             # Diarize first on the raw WAV — its per-turn boundaries are the
             # guard-rails the next stage needs for per-segment autogain. ASR then
             # runs on the normalised WAV. Each module loads its own model and
             # frees it on return; the LLM is loaded after both, so the three
             # are never co-resident.
             with progress.spinner("[3/11] Діаризація (pyannote 3.1)"), _timed("diarize_speakers"):
-                turns = diarize_speakers_module.diarize(wav_path, log=log)
+                turns, diarize_load_s = diarize_speakers_module.diarize(wav_path, log=log)
+            stage_models["diarize_speakers"] = _PYANNOTE
+            model_load_elapsed[_PYANNOTE] = diarize_load_s
             log(f"      {len({t.speaker for t in turns})} мовців")
             dumper.write("02-diarize_speakers.json", turns)
 
@@ -277,11 +295,23 @@ def run(options: PipelineOptions) -> str:
             # Whisper-large-v3's first-30 s auto-detect is unreliable on quiet
             # or short opening segments (see ADR 0022); detecting on the
             # longest pyannote turn instead gives a much stronger signal.
+            lang_detect_info: dict | None = None
             if options.language is None:
                 with progress.spinner("[4/11] Визначення мови"), _timed("lang_detect"):
-                    effective_language = lang_detect_module.detect_language_on_longest_turn(
+                    lang_result = lang_detect_module.detect_language_on_longest_turn(
                         wav_path, turns, log=log,
                     )
+                effective_language = lang_result.language
+                stage_models["lang_detect"] = _WHISPER
+                if lang_result.probabilities:
+                    probs = lang_result.probabilities
+                    top_lang = max(probs, key=probs.get)
+                    top_p = float(probs[top_lang])
+                    others = [(k, float(v)) for k, v in probs.items() if k != top_lang]
+                    second = max(others, key=lambda x: x[1]) if others else None
+                    lang_detect_info = {"top": (top_lang, top_p)}
+                    if second is not None and second[1] >= 0.05:
+                        lang_detect_info["second"] = second
                 origin = "auto-detect"
             else:
                 effective_language = options.language
@@ -320,13 +350,18 @@ def run(options: PipelineOptions) -> str:
                 )
             dumper.write("02b-clear_speech-config.json", clearspeech_config)
 
-            engine_label = "Whisper-large-v3-MLX"
-            with progress.spinner(f"[6/11] speech2text ({engine_label})"), _timed("asr"):
+            with progress.spinner(f"[6/11] Завантаження Whisper"):
+                whisper_model, whisper_load_s = whisper_asr_module.load_model(log=log)
+            model_load_elapsed[_WHISPER] = model_load_elapsed.get(_WHISPER, 0.0) + whisper_load_s
+            stage_models["asr"] = _WHISPER
+            with progress.spinner(f"[6/11] speech2text ({_WHISPER})"), _timed("asr"):
                 asr_segments = whisper_asr_module.transcribe(
                     processed_wav_path,
                     language=effective_language,
+                    model=whisper_model,
                     log=log,
                 )
+            del whisper_model
             log(f"      {len(asr_segments)} ASR-сегментів")
             dumper.write("03-asr.json", asr_segments)
 
@@ -338,14 +373,18 @@ def run(options: PipelineOptions) -> str:
             # `_ensure_llm` reuses the resident model when the next stage wants
             # the same path, otherwise unloads + cold-reloads. close() drops the
             # model and clears MLX cache so render does not contend with weights.
+            name_sources: dict[str, str] = {}
             llm: MlxLLM | None = None
             try:
                 if options.run_proofread:
+                    proofread_model = _resolve_stage_model(options, "proofread")
                     llm = _ensure_llm(
-                        llm, _resolve_stage_model(options, "proofread"),
+                        llm, proofread_model,
                         log=log, log_memory=options.verbose, progress=progress,
                         sampling_overrides=sampling_overrides,
+                        model_load_elapsed=model_load_elapsed,
                     )
+                    stage_models["proofread"] = proofread_model
                     with _timed("proofread"):
                         segments = proofread_module.fix_asr_errors(
                             segments,
@@ -360,11 +399,14 @@ def run(options: PipelineOptions) -> str:
                     log(f"[8/11] Proofread пропущено")
 
                 if needs_identify_llm:
+                    identify_model = _resolve_stage_model(options, "identify_speakers")
                     llm = _ensure_llm(
-                        llm, _resolve_stage_model(options, "identify_speakers"),
+                        llm, identify_model,
                         log=log, log_memory=options.verbose, progress=progress,
                         sampling_overrides=sampling_overrides,
+                        model_load_elapsed=model_load_elapsed,
                     )
+                    stage_models["identify_speakers"] = identify_model
                     identify_llm = llm
                 else:
                     identify_llm = None
@@ -378,9 +420,19 @@ def run(options: PipelineOptions) -> str:
                         log=log,
                         progress=progress,
                     )
+                # Build name_sources for render (covers all pyannote clusters).
+                all_clusters = sorted(
+                    {seg.speaker for seg in segments if seg.speaker is not None}
+                )
+                name_sources: dict[str, str] = {}
+                for cluster in all_clusters:
+                    if cluster in name_map:
+                        name_sources[cluster] = name_map[cluster].source
+                    else:
+                        name_sources[cluster] = "unidentified"
                 for seg in segments:
                     if seg.speaker in name_map:
-                        seg.name = name_map[seg.speaker]
+                        seg.name = name_map[seg.speaker].name
                 log(f"      {len(name_map)} мовців іменовано: {name_map}")
                 dumper.write("06-identify_speakers.json", name_map)
                 dumper.write("07-segments-named.json", segments)
@@ -388,11 +440,14 @@ def run(options: PipelineOptions) -> str:
                     free_mlx(log)
 
                 if options.run_structure:
+                    structure_model = _resolve_stage_model(options, "speech_structure")
                     llm = _ensure_llm(
-                        llm, _resolve_stage_model(options, "speech_structure"),
+                        llm, structure_model,
                         log=log, log_memory=options.verbose, progress=progress,
                         sampling_overrides=sampling_overrides,
+                        model_load_elapsed=model_load_elapsed,
                     )
+                    stage_models["speech_structure"] = structure_model
                     with _timed("speech_structure"):
                         dialog = speech_structure_module.structure_dialog(
                             segments, llm=llm, language=effective_language,
@@ -407,11 +462,14 @@ def run(options: PipelineOptions) -> str:
                 dumper.write("08-speech_structure.json", dialog)
 
                 if options.run_tldr:
+                    tldr_model = _resolve_stage_model(options, "speech_summary")
                     llm = _ensure_llm(
-                        llm, _resolve_stage_model(options, "speech_summary"),
+                        llm, tldr_model,
                         log=log, log_memory=options.verbose, progress=progress,
                         sampling_overrides=sampling_overrides,
+                        model_load_elapsed=model_load_elapsed,
                     )
+                    stage_models["speech_summary"] = tldr_model
                     with _timed("speech_summary"):
                         tldr_text = speech_summary_module.generate_tldr(
                             segments, llm=llm, language=effective_language,
@@ -427,20 +485,17 @@ def run(options: PipelineOptions) -> str:
                     with progress.spinner("Unloading LLM"):
                         llm.close()
 
-        models = {
-            "diarize": "pyannote/speaker-diarization-3.1",
-            "asr": engine_label,
-            "llm": _llm_summary(options),
-        }
         total_elapsed = time.perf_counter() - pipeline_t0
-        timings = {"total": total_elapsed, **stage_timings}
         markdown = render_markdown(
             audio_meta=audio_meta,
             dialog=dialog,
             tldr=tldr_text,
             language=effective_language,
-            models=models,
-            timings=timings,
+            stage_models=stage_models,
+            stage_timings={"total": total_elapsed, **stage_timings},
+            model_load_elapsed=model_load_elapsed,
+            name_sources=name_sources,
+            lang_detect_info=lang_detect_info,
         )
         out_path.write_text(markdown, encoding="utf-8")
         log(f"      → {out_path}")

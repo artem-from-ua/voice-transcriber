@@ -58,8 +58,6 @@ def _format_started_at(iso: str) -> str:
     return dt_utc.strftime("%Y-%m-%d %H:%M UTC")
 
 
-
-
 def _speakers_in_order(segments: list[Segment]) -> list[str]:
     """Display names (or labels) in order of first appearance."""
     seen: list[str] = []
@@ -122,65 +120,132 @@ def _render_section_body(
     return blocks
 
 
+def _render_lang_line(language: str, lang_detect_info: dict | None) -> str:
+    """Format the 🌐 Мова line with optional auto-detect confidence."""
+    if lang_detect_info is None:
+        return f"🌐 Мова: {language} (user-specified)"
+    top_lang, top_p = lang_detect_info["top"]
+    tag = f"auto-detected={top_p:.2f}"
+    second = lang_detect_info.get("second")
+    if second:
+        tag += f", {second[0]}={second[1]:.2f}"
+    return f"🌐 Мова: {top_lang} ({tag})"
+
+
+def _render_participants(
+    speakers: list[str],
+    emoji_for: dict[str, str],
+    name_sources: dict[str, str] | None,
+    segments: list[Segment],
+) -> list[str]:
+    """Return one blockquote line per participant with source tag."""
+    if not speakers:
+        return []
+    lines = ["👥 Учасники:"]
+    for speaker in speakers:
+        emoji = emoji_for.get(speaker, "")
+        # name_sources keys are pyannote cluster labels; speakers here are
+        # display names (seg.name or seg.speaker). Find matching cluster.
+        source = ""
+        if name_sources:
+            # Direct lookup by display name first, then by cluster label.
+            cluster = next(
+                (seg.speaker for seg in segments if (seg.name or seg.speaker) == speaker),
+                None,
+            )
+            if cluster and cluster in name_sources:
+                source = f" ({name_sources[cluster]})"
+        chip = f"{emoji} {speaker}".strip()
+        lines.append(f"  • {chip}{source}")
+    return lines
+
+
+def _render_ai_models_table(
+    stage_models: dict[str, str],
+    stage_timings: dict[str, float],
+    model_load_elapsed: dict[str, float],
+) -> list[str]:
+    """Render a Markdown table grouping stages by model.
+
+    Columns: Model | Stage | Time
+    The first row for each model is "model loaded" with its load elapsed.
+    """
+    # Collect rows in execution order, grouping by model.
+    # stage_models insertion order = execution order.
+    rows: list[tuple[str, str, str]] = []
+    seen_models: list[str] = []
+
+    for stage, model in stage_models.items():
+        if model not in seen_models:
+            seen_models.append(model)
+            load_s = model_load_elapsed.get(model, 0.0)
+            rows.append((model, "model loaded", _format_compact_duration(load_s)))
+
+        timing_s = stage_timings.get(stage)
+        if timing_s is not None:
+            rows.append(("", stage, _format_compact_duration(timing_s)))
+
+    if not rows:
+        return []
+
+    # Build table. Model cell repeats label only on first row; subsequent rows
+    # for same model get an empty cell to visually group them.
+    # Right-align the Час column via `--:` alignment marker.
+    lines = [
+        "|  |  |  |",
+        "| --- | --- | --: |",
+    ]
+    prev_model = None
+    for model, stage, duration in rows:
+        display_model = f"`{model}`" if model and model != prev_model else ""
+        if model:
+            prev_model = model
+        lines.append(f"| {display_model} | {stage} | {duration} |")
+
+    return lines
+
+
 def render_markdown(
     *,
     audio_meta: AudioMeta,
     dialog: StructuredDialog,
     tldr: str = "",
     language: str = "uk",
-    models: dict[str, str] | None = None,
-    timings: dict[str, float] | None = None,
+    stage_models: dict[str, str] | None = None,
+    stage_timings: dict[str, float] | None = None,
+    model_load_elapsed: dict[str, float] | None = None,
+    name_sources: dict[str, str] | None = None,
+    lang_detect_info: dict | None = None,
 ) -> str:
-    """Compose the full Markdown output.
-
-    `models` is an optional mapping with the keys `diarize`, `asr`, and
-    `llm` (a single string with the per-stage models — same path repeated
-    when one model handles all four stages, otherwise a `proofread=… ·
-    structure=…` listing). The header renders one bullet per non-empty
-    key. Pass `None` to omit the toolchain section entirely.
-    """
+    """Compose the full Markdown output."""
     basename = Path(audio_meta.path).name
     speakers = _speakers_in_order(dialog.segments)
     emoji_for = assign_emojis(speakers)
 
-    # Each header item is its own blockquote line. CommonMark merges
-    # consecutive `>` lines into one paragraph (so all the chips collapse
-    # onto one rendered line); two trailing spaces force a hard line
-    # break inside the paragraph, which every common renderer respects
-    # (GitHub, VS Code preview, Obsidian, pandoc).
     header_items: list[str] = []
-    header_items.append(f"📅 **Початок:** {_format_started_at(audio_meta.started_at)}")
-    header_items.append(f"⏱️ **Тривалість:** {_format_duration(audio_meta.duration_s)}")
-    header_items.append(f"🌐 **Мова:** {language}")
-    if speakers:
-        speaker_chips = ", ".join(
-            f"{emoji_for.get(s, '')} {s}".strip() for s in speakers
+    header_items.append(
+        f"📅 Початок: {_format_started_at(audio_meta.started_at)}, "
+        f"Тривалість: {_format_duration(audio_meta.duration_s)}"
+    )
+    header_items.append(_render_lang_line(language, lang_detect_info))
+
+    participant_lines = _render_participants(
+        speakers, emoji_for, name_sources, dialog.segments
+    )
+    header_items.extend(participant_lines)
+
+    total = stage_timings.get("total") if stage_timings else None
+    if total is not None:
+        pct = round(total / audio_meta.duration_s * 100) if audio_meta.duration_s else 0
+        header_items.append(
+            f"⏲️ Обробка: {_format_compact_duration(total)} ({pct}% of duration)"
         )
-        header_items.append(f"👥 **Учасники:** {speaker_chips}")
-    if models:
-        if models.get("diarize"):
-            header_items.append(f"🗣️ **Діаризація:** {models['diarize']}")
-        if models.get("asr"):
-            header_items.append(f"📝 **ASR:** {models['asr']}")
-        if models.get("llm"):
-            header_items.append(f"🤖 **LLM:** {models['llm']}")
-    if timings:
-        total = timings.get("total")
-        if total is not None:
-            header_items.append(
-                f"⏲️ **Обробка:** {_format_compact_duration(total)}"
-            )
-        breakdown_order = (
-            "diarize_speakers", "lang_detect", "asr", "proofread",
-            "identify_speakers", "speech_structure", "speech_summary",
+
+    if stage_models and stage_timings is not None and model_load_elapsed is not None:
+        table_lines = _render_ai_models_table(
+            stage_models, stage_timings, model_load_elapsed
         )
-        chips = [
-            f"{stage}={_format_compact_duration(timings[stage])}"
-            for stage in breakdown_order
-            if stage in timings
-        ]
-        if chips:
-            header_items.append("⏱️ **AI-стадії:** " + " · ".join(chips))
+        header_items.extend(table_lines)
 
     lines: list[str] = []
     lines.append(f"# Транскрипт: {basename}")
