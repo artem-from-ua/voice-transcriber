@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.0] — 2026-05-12
+
+### Added
+
+- Second ASR backend: `--asr-engine {vibevoice,whisper}` routes the speech2text stage to either `mlx-community/VibeVoice-ASR-{bits}bit` (legacy) or `mlx-community/whisper-large-v3-mlx` via `mlx-whisper` (new).
+- New subcommand `voice download-whisper` pre-fetches the Whisper model into the standard HuggingFace cache (~3 GB). `voice transcribe --asr-engine whisper` fails fast with an actionable error if the model isn't cached — no implicit network fetches inside the pipeline.
+- See [ADR 0017](docs/adr/0017-whisper-asr-backend.md) for the design, the empirical default-engine decision on a Ukrainian reference, and the method (copied from the sibling stone-scriber project: `condition_on_previous_text=False`, no custom chunking).
+
+### Changed
+
+- **Default `--asr-engine` is now `whisper`** (was implicitly `vibevoice` in v0.19.0). On our Ukrainian reference recording Whisper-large-v3-MLX is 3.4× faster than VibeVoice-ASR-6bit, uses 2.8× less MLX memory, and produces visibly more faithful Ukrainian text including code-switched English words and swearing. Pass `--asr-engine vibevoice` to keep the old behaviour. The first run after upgrading needs `voice download-whisper` (~3 GB).
+- Whisper emits no speaker hint per ASR segment (`speaker_asr=None`), but stage 6 (merge) already drives speaker assignment from pyannote turns, so the merge / proofread / structure / tldr stages are unaffected. VibeVoice's `[Silence]` / `[Music]` / `[Human Sounds]` in-band markers do not appear when Whisper is active; the LLM stages tolerate this in practice.
+- `render_markdown` now receives a computed `asr_label` (either `VibeVoice-ASR-{bits}bit` or `Whisper-large-v3-MLX`) so the final Markdown header reflects the engine that produced the transcript.
+- Two new direct dependencies: `mlx-whisper>=0.4.3` and `huggingface-hub>=1.14` (the latter promoted from transitive to direct because we now call `snapshot_download` and `try_to_load_from_cache` ourselves).
+- `docs/architecture.md` stage [5] PlantUML node now lists both backends (`VibeVoice-ASR` and `Whisper-large-v3`); the prose under data-flow item 5 explains the dispatcher.
+
+### Known issues
+
+- 16 GB Mac users may still hit a Metal OOM during `structure_dialog` (stage 9) regardless of which ASR engine is active — gemma-3-12b's KV growth at the end of `identify` plus a single-prompt structure pass on 90 segments can exceed available memory. Workaround: run with `--no-structure --no-tldr` to get a flat transcript. The root cause is tracked as a follow-up; it is not caused by either ASR engine but is more visible with Whisper because Whisper leaves less peak headroom upstream.
+
 ## [0.19.0] — 2026-05-12
 
 ### Changed (BREAKING)

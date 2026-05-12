@@ -39,12 +39,21 @@ The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR
    chmod 600 ~/.cache/huggingface/token
    ```
 
+4. **Download the Whisper ASR model** (default backend since v0.20.0)
+
+   ```bash
+   uv run voice download-whisper
+   ```
+
+   Fetches `mlx-community/whisper-large-v3-mlx` (~3 GB) into the standard HuggingFace cache. Required for `voice transcribe` to work out of the box. Pass `--asr-engine vibevoice` to fall back to the legacy backend (uses the VibeVoice model from step 2). See [ADR 0017](docs/adr/0017-whisper-asr-backend.md) for the rationale.
+
 ## Run
 
 ```bash
 uv run voice transcribe path/to/audio.m4a              # default settings
 uv run voice transcribe a.m4a --names "Artem,Ostap"    # override speaker names
-uv run voice transcribe a.m4a --asr-bits 8             # higher-quality ASR
+uv run voice transcribe a.m4a --asr-engine vibevoice   # legacy backend, with in-band [Silence]/[Music] markers
+uv run voice transcribe a.m4a --asr-engine vibevoice --asr-bits 8  # higher-quality VibeVoice variant
 uv run voice transcribe a.m4a --no-tldr --no-structure # plain dialogue only
 uv run voice transcribe a.m4a --verbose                # progress logs to stderr
 ```
