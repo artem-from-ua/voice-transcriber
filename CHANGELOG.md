@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] — 2026-05-12
+
+### Changed (BREAKING)
+
+- Renamed clearspeech effect `agc` → `autogain` for clarity. `agc` was internal jargon (automatic gain control); `autogain` reads as English and is unambiguous in chain strings. See [ADR 0016](docs/adr/0016-rename-agc-to-autogain.md) for the full rationale. Migration:
+  - `--clearspeech-chain agc[,…]` → `--clearspeech-chain autogain[,…]` (also the new default).
+  - `--clearspeech-agc-target-dbfs` → `--clearspeech-autogain-target-dbfs`.
+  - `--clearspeech-agc-max-gain-db` → `--clearspeech-autogain-max-gain-db`.
+  - `clearspeech(...)` kwargs `agc_turns` / `agc_target_dbfs` / `agc_max_gain_db` / `agc_crossfade_ms` → `autogain_*`.
+  - `PipelineOptions.clearspeech_agc_*` → `PipelineOptions.clearspeech_autogain_*`.
+  - Sibling-WAV suffix `<stem>.agc.wav` → `<stem>.autogain.wav` (downstream chain artefacts likewise: `<stem>.autogain.bandpass.wav`, etc.).
+  - Dump-artefact filenames `02b-clearspeech-N-agc.wav` → `02b-clearspeech-N-autogain.wav`.
+
+### Changed
+
+- Architecture diagram (`docs/architecture.md`): edge labels `speaker turn boundaries` → `speaker timecodes` (on both `Diar → Clearspeech` and `Diar → Merge` edges), `text split into sections` → `split by topic sections` (on the `Structure → TLDR` edge).
+- Historical ADRs (0007, 0009, 0010–0015) intentionally keep the legacy `agc` term — they are immutable snapshots of decisions made at the time.
+
 ## [0.18.0] — 2026-05-12
 
 ### Changed (internal)
