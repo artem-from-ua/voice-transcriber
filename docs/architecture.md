@@ -16,7 +16,9 @@ The only on-disk artefacts the pipeline writes itself are the final Markdown fil
 
 ## Pipeline stages
 
-`pipeline.run()` runs eleven steps in order. transcode (ffmpeg → 16 kHz mono WAV) and audiometa (ffprobe) both start from the user's input file; diarize then reads the temp WAV first to produce per-turn boundaries, the **clearspeech** stage uses those boundaries as guard-rails for a chain of DSP effects (autogain, optional bandpass), and speech2text finally consumes the output of the last applied effect. Everything from merge onwards passes structured Python dataclasses around. Only the final two edges (TL;DR string → render → file) are Markdown. The clearspeech chain absorbs new audio-cleanup effects (denoise, presence boost, de-esser planned in PR-2..4) without growing the stage count.
+> Numbering convention: this document and the component diagram below count **eleven** boxes (render = `[11]`). The runtime log lines in `pipeline.py` and the stage table in [`pipeline.md`](pipeline.md) count **ten** stages because `render` is pure Python without a `_timed` context — its wall-clock rolls into the total. Both views describe the same pipeline; see [#83](https://github.com/artem-from-ua/voice-transcriber/issues/83) for the tracking issue on unifying the count.
+
+`pipeline.run()` runs eleven steps in order. transcode (ffmpeg → 16 kHz mono WAV) and audiometa (ffprobe) both start from the user's input file; diarize then reads the temp WAV first to produce per-turn boundaries, the **clearspeech** stage uses those boundaries as guard-rails for a chain of DSP effects (autogain, optional bandpass), and speech2text finally consumes the output of the last applied effect. Everything from merge onwards passes structured Python dataclasses around. Only the final two edges (TL;DR string → render → file) are Markdown. The clearspeech chain currently absorbs autogain, bandpass, presence, denoise, and dereverb effects (added incrementally in v0.10–v0.17); the chain is open-ended and new effects can be appended without growing the stage count.
 
 ```plantuml
 @startuml
@@ -26,8 +28,16 @@ skinparam ArrowThickness 2
 skinparam legendBorderColor transparent
 skinparam legendBackgroundColor #EEEEEE
 
-[<b>input audio</b>\n<i>mp3, wav, m4a, mp4 ...</i>] as Input #A9A9A9
-[<b>transcript.md</b>] as Output #A9A9A9
+<style>
+  document {
+    Margin 25
+  }
+  actor {
+    LineThickness 4
+  }
+</style>
+
+actor " " as User
 
 component "<b>[1] transcode</b>\n<i><ffmpeg></i>" as WAV #E8E8E8
 component "<b>[2] audiometa</b>\n<i><ffprobe></i>" as FF #E8E8E8
@@ -41,8 +51,9 @@ component "<b>[9] structure</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as Struct #FFCC66
 component "<b>[10] tldr</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as TLDR #FFCC66
 component "<b>[11] render</b>" as Render #E8E8E8
 
-Input -[#FF6B35]-> FF
-Input -[#FF6B35]-> WAV
+User -[#FF6B35]-> FF : <color:#404040>  audio file</color>\n<color:#404040>  (wav, m4a, mp3 ...)</color>
+User -[#FF6B35]-> WAV : <color:#404040>  audio file</color>\n<color:#404040>  (wav, m4a, mp3 ...)</color>
+User -[#3B82F6,dashed]-> Ident : <color:#404040>  unknown speaker ids</color>\n<color:#404040>  (optional)</color>
 
 WAV -[#FF6B35]-> Diar : <color:#404040>  16 kHz mono WAV</color>
 WAV -[#FF6B35]-> CS : <color:#404040>  16 kHz mono WAV</color>
@@ -59,10 +70,9 @@ Struct -[#6E9E1F]-> TLDR : <color:#404040>  split by topic sections</color>
 
 FF -[#3B82F6]-> Render : <color:#404040>  recording date + duration</color>
 TLDR -[#6E9E1F]-> Render : <color:#404040>  summary</color>
-Render -[#6E9E1F]-> Output
+Render -[#6E9E1F]-> User : <color:#404040>  transcript.md</color>
 
 legend top center
-  <back:#A9A9A9>   </back> <i><color:#404040>In/Out artifacts</color></i>
   <back:#87CEFA>   </back> <i><color:#404040>AI model: diarization</color></i>
   <back:#90EE90>   </back> <i><color:#404040>AI model: speech2text</color></i>
   <back:#FFCC66>   </back> <i><color:#404040>AI model: LLM</color></i>
@@ -73,7 +83,7 @@ end legend
 @enduml
 ```
 
-![Pipeline stages](https://www.plantuml.com/plantuml/svg/bPRDRk98483lVehISDmn14X8Y2nh20FQI1dDRZBA7B8-D7P1Mh6xhNOJXZdjliDe7sOVPvvagxkDmSHUiN64m5trrO_hnnyApPHUPwcdkKuHNYMFqTUAYI9MV84AVlxv0tAUOye50acliF2A5ovofbW6iSnoAL3e1xqbTOMnPcALue78H2cv-VBCunU1HG63WwCKLoYI6waIL5EPIWNMCXqIyQqSYrzMIgv5ucGxC_ldUK_18YJHjGQsJhWCUelm3n7mCCk7xs73Njz3Tixe8p-7RhSRz7WO0IlWrgfq9cDpMSWkxbntiyHWhDpdjJuKzAgOuHtfFFKZvtKi4wnC1yjbbkCgDCRU6SZNoICvV6MkOy0WSdvdgDaX85ToWNl2VDu664QGSARuzmFx-PO98JNw5Xr2aIDxGUKxGQQv5Fwmsw_e7-a-TAukfxFvv9X_7a6S8bF4mFXvRwCmpsB9Kmmf02rNZ0l3AmzZdcz328fmmKIIiw88UaNOT9uhB534M3yl4sW44XII5zYcJyM3hwWMktCRp_IXBLiN4RX01Xg_wNqqMVfjbwn7gln7smcJX_kzIIEnUUQahKBuwhxuALChz5-7bMLIWSxuR3ORdnsR7aMG8OaRerRsa_dLvkXb15G2SgcG9NKtqoo4tpSe1jqB__AciloRBAXCv_FfT3GwXbr5m2cFcY-t9x5kZN0RR4mfr6eTwxN2asWFLheDrp-Z5aeJTHBgozt7-rOGzIAD3Yg8AiFtzcULOiyrlVz4XD7Dy2BoGsgifhlKi9vdkhPsrxR9DGIncK3NdVCpSuK0_H6y_FeTCYcaqGnwLY1y2w2w_1_grXpf3s-k1lDHktxPtQ1vXcOE5HM1v6lsJNKs04n_2qns0xHKzemqgOzcurb_RjHTmJO0QFBBbQ0Hb81hgzO8MX7jGNXEf-Q9BVO6Yh4E6wwVArxA5fZkOLQnXdArti2oxUUR_gi7vHHgZBB2snpwfV96iEmWibAjXh8LtfYVb6jOR47BdCTGqAwbANwG9TeGjKoNjT_oj5J2nGeIff6yIzRAxeGAPfsekTLEAzPPnjIsqYqbQzfkYNgUM-Kc18WfYQWyW611c_swtA_40-fUkaF3dKP1tTYjw7qsUrxH86Enhe8tus5FSclilqcJMsgt1DDhE5Y9pJWtp4_5rPPB4yxDhbDnTtUVZZ6bg6lgyEUFlyp_t__in1fmjgsfT3I-oLWfwAhc99XvJw6oOIqazynF8ktVj-1DkaoLk6BnFj07lQB-2m00)
+![Pipeline stages](https://www.plantuml.com/plantuml/svg/jPRDRjj6483lV8f1T6dHKBOaM_u1GKHs93I03QHswXnI7LRaI5g8t2LsLrQKea3p3a4Vfe-J9-aibo95cIpKGqrRCBKpt_pipEo-qOOfiquJpt2J83nB7g5l51CwKdo62hx_-Gqodc721G99Br1xUiL5nXHB8P9f9WKAysYsfAumCami4jmJ6IabDn-MF5e9r1hwUqi9Bb34DrB5g6vb8XNabccHY2_bMBHQABaMiPFjZFCVpmkqDHvw0B6CrYdfmk_q0d3Fr88Bw9_Jsn_qno93UcxjZkAfl3hB9OAJWkGvoLVqC0s_QbIULuOAhu9P-AatTSv6CiRWP1R-9W8U1lDvck4Y34vucAj-73sHdvVsEGJqfy3MCPSf6hOFo9ISOKMOJDe0Wod4d2d-PSz-jcL2I8D-ZWv1PyXMg7mdo0oNmXzqUoNzBNqFdSkBs_5aTCW_cqAK85F4m6XPsT1s2-QSyaG16BbWN5XUiHZnR1j2eCCP4t76jAQaXathcKAD8iBwUf50An2Za5nZcpxL33wZcktMytXk7zkoTJu55qZVu6TJHPCcdtV9UgA2VyeROFJuK9cq4fib9sqLmaVtZvzGQQ7_F2Wjamfqhax7uwlJGzF3AQH8ujPeBdjltzeSlPW2bO2SAsHntSqa3U6N3Of-zzo_k2ajlvVQG6SokRqT3WzXbrFWb4V3vzkZME-iS1liYb9er3eoQuL7qHvpwJPSxvHQA8dLKQWFTsyVMa7KYpGng23A33_ahsMAFTl2u7yYmF1cS3xrGzjNrn14Tf9STyvExHE2wqYmnHsSv6lMiqEX7pRi-JMaPum-iW5qkzqVTz8DXkm8-3yj3Muk-vFXwvZf9SRMeDl31fDhiH9o8tP3WIf3_vjjcTbnmPBAf6TZgGMNpuy6KxqXh7x-0gaKqYQW9Bm0KCF-1_NSN1bpk_ukGiDJj0EwZDCZ-PfzsxOD03lu1CPkbwhuhJIf3yTNuzx4ghjERW3GIIWNWcPp36xUj4RGYcWFmdCwDK_oAT10iTPXmysov2LiXaa5onLhgDO2okUIRmTJFIYdK6CKhT_cq4-bDuAbUv4LQZLKtlgD-KcuWTaMZCnu19hk7bIlUrcY5gzbkXWABRkbOYuM43E3v5syLlbXMS9o9sfkjTFqEasPsfQwXMHDE-_UfkmKLw_CTDEu2iNTW6oa456kwJu24CpeGdHT7Dwa2ZJzw1iw76cKrhcZTzHBCIRNi7SHsD7jZArmxWWx5bSxKfjmRc8VYxkxkp_45AAkOyFltxxQtx_-tearuDnadMrDLLS7C5SIHy7ixOngWhMGt8OUHQfs5bwao-wjssBl3NtGVVmV)
 
 ## Module layout
 
@@ -85,7 +95,7 @@ src/voice/
 ├── transcode.py     # transcode(): ffmpeg → 16 kHz mono PCM WAV
 ├── audiometa.py     # extract_metadata(): start/end/duration from ffprobe → birthtime → mtime
 ├── diarize.py       # diarize(): pyannote 3.1, MPS+CPU fallback, exclusive turns
-├── clearspeech.py   # clearspeech(): chain-of-DSP-effects (autogain + bandpass + presence; de-ess / denoise planned)
+├── clearspeech.py   # clearspeech(): chain-of-DSP-effects (autogain + bandpass + presence + denoise + dereverb)
 ├── speech2text.py   # transcribe(): mlx-audio wrapper, bitness 4/5/6/8, JSON timeline parse (default ASR backend)
 ├── whisper_asr.py   # transcribe(): mlx-whisper wrapper for `--asr-engine whisper` (opt-in, see ADR 0017)
 ├── download_whisper.py # `voice download-whisper` subcommand: prefetch Whisper model into HF cache
@@ -109,7 +119,7 @@ The pipeline passes increasingly enriched `Segment` lists from stage to stage. N
 4. **Clearspeech** — `clearspeech.clearspeech(wav, chain, autogain_turns=turns, ...)` runs an ordered chain of DSP effects. Available effects: `autogain`, `bandpass`, `presence`. Chain is configured by the single `--clearspeech-chain` CLI flag (default `"autogain"`). Each enabled effect writes a sibling WAV (`<stem>.autogain.wav`, `<stem>.autogain.bandpass.wav`, `<stem>.autogain.bandpass.presence.wav`, …) and the next effect reads it; speech2text consumes the last applied effect's output. With `--clearspeech-chain ""` the chain is empty and speech2text receives the raw WAV. See [ADR 0010](adr/0010-clearspeech-chain.md) for the chain-of-effects design, [ADR 0012](adr/0012-clearspeech-chain-string-cli.md) for the single-string CLI, and [ADR 0016](adr/0016-rename-agc-to-autogain.md) for the `agc` → `autogain` rename.
 5. **speech2text** — `speech2text.transcribe(cleaned_wav)` or `whisper_asr.transcribe(cleaned_wav)` → `AsrSegment[]`. The default backend is **Whisper-large-v3-MLX** (mlx-community/whisper-large-v3-mlx via `mlx-whisper`); pass `--asr-engine vibevoice` to switch to the legacy VibeVoice-ASR backend (which emits per-segment `speaker_asr` hints and in-band `[Silence]` / `[Music]` markers). Whisper returns segments with `speaker_asr=None` — speaker labels come entirely from pyannote turns at stage 6. See [ADR 0017](adr/0017-whisper-asr-backend.md) for the empirical reason Whisper is the default.
 6. **Merge** — joins (3) and (5) into `Segment[]` (text + pyannote speaker label).
-7. **Postprocess** — LLM proof-reads `content` per segment in-place.
+7. **Proofread** — LLM proof-reads `content` per segment in-place.
 8. **Identify** — LLM returns `{label → name}`; pipeline assigns `.name` on each segment.
 9. **Structure** — LLM produces `StructuredDialog` (segments + section titles). Short dialogues (≤60 segments) go through one LLM call; longer dialogues are split into overlapping ~35-segment chunks, the LLM is called per chunk, and `_reconcile_chunks()` stitches the per-chunk section lists into a single contiguous layout (see [ADR 0018](adr/0018-chunked-structure-dialog.md)).
 10. **TL;DR** — LLM emits a Markdown summary string.
