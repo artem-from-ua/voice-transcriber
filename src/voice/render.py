@@ -120,43 +120,60 @@ def _render_section_body(
     return blocks
 
 
-def _render_lang_line(language: str, lang_detect_info: dict | None) -> str:
-    """Format the 🌐 Мова line with optional auto-detect confidence."""
+def _render_lang_value(language: str, lang_detect_info: dict | None) -> str:
+    """Format the language cell value."""
     if lang_detect_info is None:
-        return f"🌐 **Мова:** {language} (user-specified)"
+        return f"{language} (user-specified)"
     top_lang, top_p = lang_detect_info["top"]
     tag = f"auto-detected={top_p:.2f}"
     second = lang_detect_info.get("second")
     if second:
         tag += f", {second[0]}={second[1]:.2f}"
-    return f"🌐 **Мова:** {top_lang} ({tag})"
+    return f"{top_lang} ({tag})"
 
 
-def _render_participants(
+def _render_meta_table(
+    audio_meta: AudioMeta,
+    language: str,
+    lang_detect_info: dict | None,
+) -> list[str]:
+    """Two-column table: label | value for date/duration and language."""
+    started = _format_started_at(audio_meta.started_at)
+    duration = _format_compact_duration(audio_meta.duration_s)
+    lang_val = _render_lang_value(language, lang_detect_info)
+    return [
+        "| | |",
+        "| --- | --- |",
+        f"| 📅 **Початок (тривалість):** | {started} ({duration}) |",
+        f"| 🌐 **Мова:** | {lang_val} |",
+    ]
+
+
+def _render_participants_table(
     speakers: list[str],
     emoji_for: dict[str, str],
     name_sources: dict[str, str] | None,
     segments: list[Segment],
 ) -> list[str]:
-    """Return one blockquote line per participant with source tag."""
+    """Two-column table: emoji+name | source tag."""
     if not speakers:
         return []
-    lines = ["👥 **Учасники:**"]
+    lines = [
+        "| 👥 **Співрозмовники:** | |",
+        "| --- | --- |",
+    ]
     for speaker in speakers:
         emoji = emoji_for.get(speaker, "")
-        # name_sources keys are pyannote cluster labels; speakers here are
-        # display names (seg.name or seg.speaker). Find matching cluster.
         source = ""
         if name_sources:
-            # Direct lookup by display name first, then by cluster label.
             cluster = next(
                 (seg.speaker for seg in segments if (seg.name or seg.speaker) == speaker),
                 None,
             )
             if cluster and cluster in name_sources:
-                source = f" ({name_sources[cluster]})"
-        chip = f"{emoji} **{speaker}**".strip()
-        lines.append(f"  • {chip}{source}")
+                source = f"*{name_sources[cluster]}*"
+        name_cell = f"{emoji} **{speaker}**".strip()
+        lines.append(f"| {name_cell} | {source} |")
     return lines
 
 
@@ -164,14 +181,14 @@ def _render_ai_models_table(
     stage_models: dict[str, str],
     stage_timings: dict[str, float],
     model_load_elapsed: dict[str, float],
+    total: float,
+    duration_s: float,
 ) -> list[str]:
     """Render a Markdown table grouping stages by model.
 
-    Columns: Model | Stage | Time
-    The first row for each model is "model loaded" with its load elapsed.
+    Header row contains the ⚡ processing summary.
+    Columns: Model | Stage | Time (right-aligned).
     """
-    # Collect rows in execution order, grouping by model.
-    # stage_models insertion order = execution order.
     rows: list[tuple[str, str, str]] = []
     seen_models: list[str] = []
 
@@ -180,19 +197,18 @@ def _render_ai_models_table(
             seen_models.append(model)
             load_s = model_load_elapsed.get(model, 0.0)
             rows.append((model, "model loaded", _format_compact_duration(load_s)))
-
         timing_s = stage_timings.get(stage)
         if timing_s is not None:
             rows.append(("", stage, _format_compact_duration(timing_s)))
 
-    if not rows:
-        return []
+    pct = round(total / duration_s * 100) if duration_s else 0
+    processing = f"⚡ **Час обробки:** {_format_compact_duration(total)} ({pct}% of duration)"
 
-    # Build table. Model cell repeats label only on first row; subsequent rows
-    # for same model get an empty cell to visually group them.
-    # Right-align the Час column via `--:` alignment marker.
+    if not rows:
+        return [f"| {processing} | | |", "| --- | --- | --: |"]
+
     lines = [
-        "|  |  |  |",
+        f"| {processing} | | |",
         "| --- | --- | --: |",
     ]
     prev_model = None
@@ -222,37 +238,33 @@ def render_markdown(
     speakers = _speakers_in_order(dialog.segments)
     emoji_for = assign_emojis(speakers)
 
-    header_items: list[str] = []
-    header_items.append(
-        f"📅 **Початок:** {_format_started_at(audio_meta.started_at)}, "
-        f"**тривалість:** {_format_duration(audio_meta.duration_s)}"
-    )
-    header_items.append(_render_lang_line(language, lang_detect_info))
-
-    participant_lines = _render_participants(
-        speakers, emoji_for, name_sources, dialog.segments
-    )
-    header_items.extend(participant_lines)
-
-    total = stage_timings.get("total") if stage_timings else None
-    if total is not None:
-        pct = round(total / audio_meta.duration_s * 100) if audio_meta.duration_s else 0
-        header_items.append(
-            f"⚡️ **Час обробки:** {_format_compact_duration(total)} ({pct}% of duration)"
-        )
-
-    if stage_models and stage_timings is not None and model_load_elapsed is not None:
-        table_lines = _render_ai_models_table(
-            stage_models, stage_timings, model_load_elapsed
-        )
-        header_items.extend(table_lines)
-
     lines: list[str] = []
     lines.append(f"# Транскрипт: {basename}")
     lines.append("")
-    for idx, item in enumerate(header_items):
-        suffix = "  " if idx < len(header_items) - 1 else ""
-        lines.append(f"> {item}{suffix}")
+
+    # Table 1: date/language
+    for row in _render_meta_table(audio_meta, language, lang_detect_info):
+        lines.append(f"> {row}")
+    lines.append("> ")
+
+    # Table 2: participants (omitted when no speakers)
+    participant_rows = _render_participants_table(
+        speakers, emoji_for, name_sources, dialog.segments
+    )
+    if participant_rows:
+        for row in participant_rows:
+            lines.append(f"> {row}")
+        lines.append("> ")
+
+    # Table 3: AI models + processing time (omitted when no timings)
+    total = stage_timings.get("total") if stage_timings else None
+    if total is not None and stage_timings is not None and model_load_elapsed is not None:
+        for row in _render_ai_models_table(
+            stage_models or {}, stage_timings, model_load_elapsed,
+            total, audio_meta.duration_s,
+        ):
+            lines.append(f"> {row}")
+
     lines.append("")
 
     if tldr:
