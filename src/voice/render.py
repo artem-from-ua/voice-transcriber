@@ -123,13 +123,13 @@ def _render_section_body(
 def _render_lang_line(language: str, lang_detect_info: dict | None) -> str:
     """Format the 🌐 Мова line with optional auto-detect confidence."""
     if lang_detect_info is None:
-        return f"🌐 Мова: {language} (user-specified)"
+        return f"🌐 **Мова:** {language} (user-specified)"
     top_lang, top_p = lang_detect_info["top"]
     tag = f"auto-detected={top_p:.2f}"
     second = lang_detect_info.get("second")
     if second:
         tag += f", {second[0]}={second[1]:.2f}"
-    return f"🌐 Мова: {top_lang} ({tag})"
+    return f"🌐 **Мова:** {top_lang} ({tag})"
 
 
 def _render_participants(
@@ -141,7 +141,7 @@ def _render_participants(
     """Return one blockquote line per participant with source tag."""
     if not speakers:
         return []
-    lines = ["👥 Учасники:"]
+    lines = ["👥 **Учасники:**"]
     for speaker in speakers:
         emoji = emoji_for.get(speaker, "")
         # name_sources keys are pyannote cluster labels; speakers here are
@@ -224,8 +224,8 @@ def render_markdown(
 
     header_items: list[str] = []
     header_items.append(
-        f"📅 Початок: {_format_started_at(audio_meta.started_at)}, "
-        f"Тривалість: {_format_duration(audio_meta.duration_s)}"
+        f"📅 **Початок:** {_format_started_at(audio_meta.started_at)}, "
+        f"**тривалість:** {_format_duration(audio_meta.duration_s)}"
     )
     header_items.append(_render_lang_line(language, lang_detect_info))
 
@@ -238,7 +238,7 @@ def render_markdown(
     if total is not None:
         pct = round(total / audio_meta.duration_s * 100) if audio_meta.duration_s else 0
         header_items.append(
-            f"⏲️ Обробка: {_format_compact_duration(total)} ({pct}% of duration)"
+            f"⚡️ **Час обробки:** {_format_compact_duration(total)} ({pct}% of duration)"
         )
 
     if stage_models and stage_timings is not None and model_load_elapsed is not None:
