@@ -17,17 +17,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from . import audiometa as audiometa_module
-from . import clearspeech as clearspeech_module
-from . import diarize as diarize_module
-from . import identify as identify_module
+from . import audio_meta as audio_meta_module
+from . import clear_speech as clear_speech_module
+from . import diarize_speakers as diarize_speakers_module
+from . import identify_speakers as identify_speakers_module
 from . import lang_detect as lang_detect_module
 from . import proofread as proofread_module
 from . import whisper_asr as whisper_asr_module
 from ._dump import StageDumper
 from ._memory import free_mlx
-from . import structure as structure_module
-from . import tldr as tldr_module
+from . import speech_structure as speech_structure_module
+from . import speech_tldr as speech_tldr_module
 from . import transcode as transcode_module
 from ._progress import ProgressReporter
 from .llm import DEFAULT_MODEL as LLM_DEFAULT_MODEL, LLMError, MlxLLM, _resolve_model_path
@@ -114,11 +114,11 @@ def _llm_summary(options: PipelineOptions) -> str:
         options.unknown_speaker == "ask" and options.names_override is None
     )
     if needs_identify:
-        enabled.append(("identify", _resolve_stage_model(options, "identify")))
+        enabled.append(("identify_speakers", _resolve_stage_model(options, "identify_speakers")))
     if options.run_structure:
-        enabled.append(("structure", _resolve_stage_model(options, "structure")))
+        enabled.append(("speech_structure", _resolve_stage_model(options, "speech_structure")))
     if options.run_tldr:
-        enabled.append(("tldr", _resolve_stage_model(options, "tldr")))
+        enabled.append(("speech_tldr", _resolve_stage_model(options, "speech_tldr")))
 
     if not enabled:
         return ""
@@ -156,9 +156,9 @@ def _resolve_stage_model(options: PipelineOptions, stage: str) -> str:
     """
     per_stage = {
         "proofread": options.llm_proofread_model,
-        "identify": options.llm_identify_model,
-        "structure": options.llm_structure_model,
-        "tldr": options.llm_tldr_model,
+        "identify_speakers": options.llm_identify_model,
+        "speech_structure": options.llm_structure_model,
+        "speech_tldr": options.llm_tldr_model,
     }
     return per_stage[stage] or options.llm_model or LLM_DEFAULT_MODEL
 
@@ -255,8 +255,8 @@ def run(options: PipelineOptions) -> str:
             with progress.spinner("[1/11] transcode → WAV 16 kHz mono"):
                 transcode_module.transcode(audio, wav_path, log)
 
-            with progress.spinner("[2/11] audiometa"):
-                audio_meta = audiometa_module.extract_metadata(
+            with progress.spinner("[2/11] audio_meta"):
+                audio_meta = audio_meta_module.extract_metadata(
                     audio, override_started_at=options.datetime_override
                 )
             log(f"      Початок: {audio_meta.started_at} ({audio_meta.source})")
@@ -268,10 +268,10 @@ def run(options: PipelineOptions) -> str:
             # runs on the normalised WAV. Each module loads its own model and
             # frees it on return; the LLM is loaded after both, so the three
             # are never co-resident.
-            with progress.spinner("[3/11] Діаризація (pyannote 3.1)"), _timed("diarize"):
-                turns = diarize_module.diarize(wav_path, log=log)
+            with progress.spinner("[3/11] Діаризація (pyannote 3.1)"), _timed("diarize_speakers"):
+                turns = diarize_speakers_module.diarize(wav_path, log=log)
             log(f"      {len({t.speaker for t in turns})} мовців")
-            dumper.write("02-diarize.json", turns)
+            dumper.write("02-diarize_speakers.json", turns)
 
             # [4] lang_detect — runs only when --language was not given.
             # Whisper-large-v3's first-30 s auto-detect is unreliable on quiet
@@ -295,10 +295,10 @@ def run(options: PipelineOptions) -> str:
             chain_label = " → ".join(chain) if chain else "no-op"
 
             def _dump_step(idx: int, effect: str, path: Path) -> None:
-                dumper.write_binary(f"02b-clearspeech-{idx}-{effect}.wav", path)
+                dumper.write_binary(f"02b-clear_speech-{idx}-{effect}.wav", path)
 
-            with progress.spinner(f"[5/11] Clearspeech ({chain_label})"):
-                processed_wav_path, clearspeech_config = clearspeech_module.clearspeech(
+            with progress.spinner(f"[5/11] clear_speech ({chain_label})"):
+                processed_wav_path, clearspeech_config = clear_speech_module.clearspeech(
                     wav_path,
                     chain=chain,
                     autogain_turns=turns,
@@ -318,7 +318,7 @@ def run(options: PipelineOptions) -> str:
                     log=log,
                     dump=_dump_step if dumper.enabled() else None,
                 )
-            dumper.write("02b-clearspeech-config.json", clearspeech_config)
+            dumper.write("02b-clear_speech-config.json", clearspeech_config)
 
             engine_label = "Whisper-large-v3-MLX"
             with progress.spinner(f"[6/11] speech2text ({engine_label})"), _timed("asr"):
@@ -361,15 +361,15 @@ def run(options: PipelineOptions) -> str:
 
                 if needs_identify_llm:
                     llm = _ensure_llm(
-                        llm, _resolve_stage_model(options, "identify"),
+                        llm, _resolve_stage_model(options, "identify_speakers"),
                         log=log, log_memory=options.verbose, progress=progress,
                         sampling_overrides=sampling_overrides,
                     )
                     identify_llm = llm
                 else:
                     identify_llm = None
-                with _timed("identify"):
-                    name_map = identify_module.identify_speakers(
+                with _timed("identify_speakers"):
+                    name_map = identify_speakers_module.identify_speakers(
                         segments,
                         language=effective_language,
                         llm=identify_llm,
@@ -382,38 +382,38 @@ def run(options: PipelineOptions) -> str:
                     if seg.speaker in name_map:
                         seg.name = name_map[seg.speaker]
                 log(f"      {len(name_map)} мовців іменовано: {name_map}")
-                dumper.write("06-identify.json", name_map)
+                dumper.write("06-identify_speakers.json", name_map)
                 dumper.write("07-segments-named.json", segments)
                 if identify_llm is not None:
                     free_mlx(log)
 
                 if options.run_structure:
                     llm = _ensure_llm(
-                        llm, _resolve_stage_model(options, "structure"),
+                        llm, _resolve_stage_model(options, "speech_structure"),
                         log=log, log_memory=options.verbose, progress=progress,
                         sampling_overrides=sampling_overrides,
                     )
-                    with _timed("structure"):
-                        dialog = structure_module.structure_dialog(
+                    with _timed("speech_structure"):
+                        dialog = speech_structure_module.structure_dialog(
                             segments, llm=llm, language=effective_language,
                             log=log, progress=progress,
                         )
                     free_mlx(log)
                 else:
                     log(f"[10/11] Структурування пропущене")
-                    dialog = structure_module.structure_dialog(
+                    dialog = speech_structure_module.structure_dialog(
                         segments, llm=None, language=effective_language, log=log,
                     )
-                dumper.write("08-structure.json", dialog)
+                dumper.write("08-speech_structure.json", dialog)
 
                 if options.run_tldr:
                     llm = _ensure_llm(
-                        llm, _resolve_stage_model(options, "tldr"),
+                        llm, _resolve_stage_model(options, "speech_tldr"),
                         log=log, log_memory=options.verbose, progress=progress,
                         sampling_overrides=sampling_overrides,
                     )
-                    with _timed("tldr"):
-                        tldr_text = tldr_module.generate_tldr(
+                    with _timed("speech_tldr"):
+                        tldr_text = speech_tldr_module.generate_tldr(
                             segments, llm=llm, language=effective_language,
                             log=log, progress=progress,
                         )
@@ -421,7 +421,7 @@ def run(options: PipelineOptions) -> str:
                 else:
                     tldr_text = ""
                     log(f"[11/11] TL;DR пропущено")
-                dumper.write("09-tldr.txt", tldr_text)
+                dumper.write("09-speech_tldr.txt", tldr_text)
             finally:
                 if llm is not None:
                     with progress.spinner("Unloading LLM"):

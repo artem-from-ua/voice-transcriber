@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from voice.llm import LLMError
-from voice.tldr import generate_tldr
+from voice.speech_tldr import generate_tldr
 from voice.types import Segment
 
 

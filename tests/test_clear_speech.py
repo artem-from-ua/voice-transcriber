@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from voice.clearspeech import (
+from voice.clear_speech import (
     SR,
     ClearspeechError,
     clearspeech,
@@ -452,7 +452,7 @@ def test_dereverb_estimator_monotonic_in_decay_rate(tmp_path: Path) -> None:
     envelopes), but the relative ordering across two clearly different
     decay rates should be stable.
     """
-    from voice.clearspeech import _estimate_rt60
+    from voice.clear_speech import _estimate_rt60
 
     short = _estimate_rt60(_exponential_decay_tail(int(2.0 * SR), rt60_s=0.2))
     long_ = _estimate_rt60(_exponential_decay_tail(int(2.0 * SR), rt60_s=0.8))

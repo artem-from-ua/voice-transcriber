@@ -5,20 +5,20 @@ artefact per stage so the user can diff what each step produced. The dump
 is purely diagnostic — disabling it changes nothing in the rendered output.
 
 File layout:
-    01-meta.json                  AudioMeta from ffprobe
-    02-diarize.json               list[DiarTurn] (pyannote, run on the raw WAV)
-    02b-clearspeech-config.json   chain + params + per-step stats
-    02b-clearspeech-N-<eff>.wav   one WAV per applied effect, N = position in
-                                  the active chain (e.g. 02b-clearspeech-1-autogain.wav,
-                                  02b-clearspeech-2-bandpass.wav). Absent when
-                                  the chain is empty / fully disabled.
-    03-asr.json                   list[AsrSegment] (Whisper on cleaned WAV)
-    04-merge.json                 list[Segment] after merge (no LLM touches yet)
-    05-proofread.json             list[Segment] after the LLM proof-reader
-    06-identify.json              {pyannote label → human name}
-    07-segments-named.json        list[Segment] with .name filled in
-    08-structure.json             StructuredDialog (sections + segments)
-    09-tldr.txt                   raw Markdown TL;DR string
+    01-meta.json                       AudioMeta from ffprobe
+    02-diarize_speakers.json           list[DiarTurn] (pyannote, run on the raw WAV)
+    02b-clear_speech-config.json       chain + params + per-step stats
+    02b-clear_speech-N-<eff>.wav       one WAV per applied effect, N = position in
+                                       the active chain (e.g. 02b-clear_speech-1-autogain.wav,
+                                       02b-clear_speech-2-bandpass.wav). Absent when
+                                       the chain is empty / fully disabled.
+    03-asr.json                        list[AsrSegment] (Whisper on cleaned WAV)
+    04-merge.json                      list[Segment] after merge (no LLM touches yet)
+    05-proofread.json                  list[Segment] after the LLM proof-reader
+    06-identify_speakers.json          {pyannote label → human name}
+    07-segments-named.json             list[Segment] with .name filled in
+    08-speech_structure.json           StructuredDialog (sections + segments)
+    09-speech_tldr.txt                 raw Markdown TL;DR string
 """
 
 from __future__ import annotations

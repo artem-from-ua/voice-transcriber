@@ -1,8 +1,8 @@
-"""Verify the diarize→clearspeech→ASR order and the autogain/bandpass toggles
+"""Verify the diarize_speakers→clear_speech→ASR order and the autogain/bandpass toggles
 plumbing without loading real models.
 
 Strategy: monkey-patch the pipeline's module-level references for
-whisper_asr, diarize, clearspeech, MlxLLM, audiometa, and the
+whisper_asr, diarize_speakers, clear_speech, MlxLLM, audio_meta, and the
 LLM-dependent stages. Each stub records what it was called with, and the
 test inspects the call log after `pipeline.run()` returns.
 """
@@ -54,7 +54,7 @@ def patched_pipeline(monkeypatch, tmp_path):
         pipeline_module.transcode_module, "transcode", fake_ffmpeg
     )
 
-    # audiometa: return a minimal AudioMeta.
+    # audio_meta: return a minimal AudioMeta.
     fake_meta = AudioMeta(
         path=str(fake_audio),
         started_at="2026-05-10T15:44:02+00:00",
@@ -63,12 +63,12 @@ def patched_pipeline(monkeypatch, tmp_path):
         source="cli override",
     )
     monkeypatch.setattr(
-        pipeline_module.audiometa_module,
+        pipeline_module.audio_meta_module,
         "extract_metadata",
         lambda *a, **k: fake_meta,
     )
 
-    # diarize: return two turns.
+    # diarize_speakers: return two turns.
     fake_turns = [
         DiarTurn(start=0.0, end=1.5, speaker="SPEAKER_00"),
         DiarTurn(start=1.5, end=3.0, speaker="SPEAKER_01"),
@@ -78,15 +78,15 @@ def patched_pipeline(monkeypatch, tmp_path):
         rec("diarize", str(wav_path))
         return fake_turns
 
-    monkeypatch.setattr(pipeline_module.diarize_module, "diarize", fake_diarize)
+    monkeypatch.setattr(pipeline_module.diarize_speakers_module, "diarize", fake_diarize)
 
-    # clearspeech: pretend to write one sibling WAV per applied effect and
+    # clear_speech: pretend to write one sibling WAV per applied effect and
     # record what the dispatcher was asked to do.
     def fake_clearspeech(wav_path, chain, **kwargs):
         chain = tuple(chain)
         current = Path(wav_path)
         for idx, effect in enumerate(chain, start=1):
-            # Mirror real clearspeech: each effect writes a sibling whose
+            # Mirror real clear_speech: each effect writes a sibling whose
             # name is `<previous-stem>.<effect>.wav`.
             current = current.with_suffix(f".{effect}.wav")
             current.write_bytes(f"RIFF\x00\x00\x00\x00fake-{effect}".encode())
@@ -115,7 +115,7 @@ def patched_pipeline(monkeypatch, tmp_path):
         return (current if chain else Path(wav_path)), config
 
     monkeypatch.setattr(
-        pipeline_module.clearspeech_module,
+        pipeline_module.clear_speech_module,
         "clearspeech",
         fake_clearspeech,
     )
@@ -186,12 +186,12 @@ def patched_pipeline(monkeypatch, tmp_path):
     rec.stub_llm = _StubLLM
 
     monkeypatch.setattr(
-        pipeline_module.identify_module,
+        pipeline_module.identify_speakers_module,
         "identify_speakers",
         lambda *a, **k: {"SPEAKER_00": "A", "SPEAKER_01": "B"},
     )
     monkeypatch.setattr(
-        pipeline_module.structure_module,
+        pipeline_module.speech_structure_module,
         "structure_dialog",
         lambda segs, **k: StructuredDialog(
             sections=[Section(title="t", start_ms=0, end_ms=3000)],
@@ -199,7 +199,7 @@ def patched_pipeline(monkeypatch, tmp_path):
         ),
     )
     monkeypatch.setattr(
-        pipeline_module.tldr_module,
+        pipeline_module.speech_tldr_module,
         "generate_tldr",
         lambda *a, **k: "",
     )
@@ -425,7 +425,7 @@ def test_lang_detect_result_flows_to_all_downstream_stages(patched_pipeline, tmp
     import pytest as _pytest
     from voice import pipeline as _pipe_mod
     monkey = _pytest.MonkeyPatch()
-    monkey.setattr(_pipe_mod.identify_module, "identify_speakers", fake_identify)
+    monkey.setattr(_pipe_mod.identify_speakers_module, "identify_speakers", fake_identify)
 
     try:
         run(
@@ -461,7 +461,7 @@ def test_explicit_language_overrides_auto_detect(patched_pipeline, tmp_path):
     import pytest as _pytest
     from voice import pipeline as _pipe_mod
     monkey = _pytest.MonkeyPatch()
-    monkey.setattr(_pipe_mod.identify_module, "identify_speakers", fake_identify)
+    monkey.setattr(_pipe_mod.identify_speakers_module, "identify_speakers", fake_identify)
 
     try:
         run(
