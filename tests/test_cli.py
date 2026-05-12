@@ -29,9 +29,9 @@ def test_minimal_invocation_defaults():
     assert opts.run_proofread is True
     assert opts.run_tldr is True
     assert opts.run_structure is True
-    assert opts.clearspeech_chain == "agc"
-    assert opts.clearspeech_agc_target_dbfs == -20.0
-    assert opts.clearspeech_agc_max_gain_db == 16.0
+    assert opts.clearspeech_chain == "autogain"
+    assert opts.clearspeech_autogain_target_dbfs == -20.0
+    assert opts.clearspeech_autogain_max_gain_db == 16.0
     assert opts.clearspeech_bandpass_low_hz == 150.0
     assert opts.clearspeech_bandpass_high_hz == 5_500.0
     assert opts.clearspeech_presence_center_hz == 3_000.0
@@ -102,9 +102,9 @@ def test_unknown_speaker_choices():
 def test_clearspeech_chain_parsed():
     ns = _parse([
         "transcribe", "/tmp/a.m4a",
-        "--clearspeech-chain", "agc,bandpass,presence",
+        "--clearspeech-chain", "autogain,bandpass,presence",
     ])
-    assert _opts_from_args(ns).clearspeech_chain == "agc,bandpass,presence"
+    assert _opts_from_args(ns).clearspeech_chain == "autogain,bandpass,presence"
 
 
 def test_clearspeech_chain_empty_disables_preprocessing():
@@ -115,20 +115,20 @@ def test_clearspeech_chain_empty_disables_preprocessing():
 def test_clearspeech_chain_reorder_allowed():
     ns = _parse([
         "transcribe", "/tmp/a.m4a",
-        "--clearspeech-chain", "presence,agc,bandpass",
+        "--clearspeech-chain", "presence,autogain,bandpass",
     ])
-    assert _opts_from_args(ns).clearspeech_chain == "presence,agc,bandpass"
+    assert _opts_from_args(ns).clearspeech_chain == "presence,autogain,bandpass"
 
 
-def test_clearspeech_agc_tuning_flags():
+def test_clearspeech_autogain_tuning_flags():
     ns = _parse([
         "transcribe", "/tmp/a.m4a",
-        "--clearspeech-agc-target-dbfs", "-18",
-        "--clearspeech-agc-max-gain-db", "15",
+        "--clearspeech-autogain-target-dbfs", "-18",
+        "--clearspeech-autogain-max-gain-db", "15",
     ])
     opts = _opts_from_args(ns)
-    assert opts.clearspeech_agc_target_dbfs == -18.0
-    assert opts.clearspeech_agc_max_gain_db == 15.0
+    assert opts.clearspeech_autogain_target_dbfs == -18.0
+    assert opts.clearspeech_autogain_max_gain_db == 15.0
 
 
 def test_clearspeech_bandpass_tuning_flags():

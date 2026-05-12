@@ -9,7 +9,7 @@ File layout:
     02-diarize.json               list[DiarTurn] (pyannote, run on the raw WAV)
     02b-clearspeech-config.json   chain + params + per-step stats
     02b-clearspeech-N-<eff>.wav   one WAV per applied effect, N = position in
-                                  the active chain (e.g. 02b-clearspeech-1-agc.wav,
+                                  the active chain (e.g. 02b-clearspeech-1-autogain.wav,
                                   02b-clearspeech-2-bandpass.wav). Absent when
                                   the chain is empty / fully disabled.
     03-asr.json                   list[AsrSegment] (VibeVoice on cleaned WAV)

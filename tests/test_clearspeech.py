@@ -1,8 +1,8 @@
-"""Unit tests for the clearspeech chain (issue #48, PR-1: agc + bandpass).
+"""Unit tests for the clearspeech chain (issue #48, PR-1: autogain + bandpass).
 
-The AGC-only tests mirror the v0.13.0 `test_audio_preprocess.py` suite (same
+The autogain-only tests mirror the v0.13.0 `test_audio_preprocess.py` suite (same
 synthesised inputs, same RMS / continuity / gap-handling invariants) so a
-regression in the AGC transplant fails loudly here. The bandpass tests cover
+regression in the autogain transplant fails loudly here. The bandpass tests cover
 the new E2a effect; the chain tests cover the dispatcher itself.
 
 All inputs are synthesised in `tmp_path`; no fixtures are checked in.
@@ -39,21 +39,21 @@ def _rms_dbfs(arr: np.ndarray) -> float:
     return 20 * np.log10(np.sqrt(np.mean(arr.astype(np.float64) ** 2)) + 1e-12)
 
 
-# ----------------------------- AGC regression -------------------------------
+# ----------------------------- autogain regression -------------------------
 
 
-def test_agc_two_segments_brought_within_2dB_of_target(tmp_path: Path) -> None:
+def test_autogain_two_segments_brought_within_2dB_of_target(tmp_path: Path) -> None:
     audio = np.concatenate([_sine(440, 1.0, -10), _sine(660, 1.0, -30)])
     src = tmp_path / "in.wav"
     _write(src, audio)
     turns = [DiarTurn(0.0, 1.0, "A"), DiarTurn(1.0, 2.0, "B")]
 
     dst, config = clearspeech(
-        src, chain=("agc",), agc_turns=turns,
-        agc_target_dbfs=-20.0, agc_max_gain_db=12.0,
+        src, chain=("autogain",), autogain_turns=turns,
+        autogain_target_dbfs=-20.0, autogain_max_gain_db=12.0,
     )
 
-    assert config["chain"] == ["agc"]
+    assert config["chain"] == ["autogain"]
     assert config["steps"][0]["applied"] is True
     assert config["steps"][0]["stats"]["turn_count"] == 2
 
@@ -65,11 +65,11 @@ def test_agc_two_segments_brought_within_2dB_of_target(tmp_path: Path) -> None:
     assert abs(rms_b - (-20.0)) < 2.0, f"segment B RMS {rms_b:.2f} dBFS"
 
 
-def test_agc_empty_turns_is_byte_identical_copy(tmp_path: Path) -> None:
+def test_autogain_empty_turns_is_byte_identical_copy(tmp_path: Path) -> None:
     src = tmp_path / "in.wav"
     _write(src, _sine(440, 0.5, -20))
 
-    dst, _ = clearspeech(src, chain=("agc",), agc_turns=[])
+    dst, _ = clearspeech(src, chain=("autogain",), autogain_turns=[])
 
     assert dst != src
     assert (
@@ -78,15 +78,15 @@ def test_agc_empty_turns_is_byte_identical_copy(tmp_path: Path) -> None:
     )
 
 
-def test_agc_gain_clipped_at_max_gain_db(tmp_path: Path) -> None:
+def test_autogain_gain_clipped_at_max_gain_db(tmp_path: Path) -> None:
     audio = _sine(440, 1.0, -60)
     src = tmp_path / "in.wav"
     _write(src, audio)
 
     dst, _ = clearspeech(
-        src, chain=("agc",),
-        agc_turns=[DiarTurn(0.0, 1.0, "A")],
-        agc_target_dbfs=-20.0, agc_max_gain_db=12.0,
+        src, chain=("autogain",),
+        autogain_turns=[DiarTurn(0.0, 1.0, "A")],
+        autogain_target_dbfs=-20.0, autogain_max_gain_db=12.0,
     )
 
     out, _ = sf.read(dst, dtype="float32")
@@ -95,7 +95,7 @@ def test_agc_gain_clipped_at_max_gain_db(tmp_path: Path) -> None:
     assert abs(rms_out - (-48.0)) < 1.0, f"output RMS {rms_out:.2f} dBFS"
 
 
-def test_agc_gap_between_turns_keeps_silence_at_unity(tmp_path: Path) -> None:
+def test_autogain_gap_between_turns_keeps_silence_at_unity(tmp_path: Path) -> None:
     a = _sine(440, 0.5, -20)
     silence = np.zeros(int(0.4 * SR), dtype=np.float32)
     b = _sine(440, 0.5, -20)
@@ -103,21 +103,21 @@ def test_agc_gap_between_turns_keeps_silence_at_unity(tmp_path: Path) -> None:
     _write(src, np.concatenate([a, silence, b]))
     turns = [DiarTurn(0.0, 0.5, "A"), DiarTurn(0.9, 1.4, "B")]
 
-    dst, _ = clearspeech(src, chain=("agc",), agc_turns=turns)
+    dst, _ = clearspeech(src, chain=("autogain",), autogain_turns=turns)
 
     out, _ = sf.read(dst, dtype="float32")
     mid = out[int(0.65 * SR):int(0.75 * SR)]
     assert float(np.max(np.abs(mid))) < 1e-6, "silence got amplified"
 
 
-def test_agc_crossfade_boundary_is_continuous(tmp_path: Path) -> None:
+def test_autogain_crossfade_boundary_is_continuous(tmp_path: Path) -> None:
     audio = np.concatenate([_sine(100, 0.5, -20), _sine(100, 0.5, -32)])
     src = tmp_path / "in.wav"
     _write(src, audio)
     turns = [DiarTurn(0.0, 0.5, "A"), DiarTurn(0.5, 1.0, "B")]
 
     dst, _ = clearspeech(
-        src, chain=("agc",), agc_turns=turns, agc_crossfade_ms=100,
+        src, chain=("autogain",), autogain_turns=turns, autogain_crossfade_ms=100,
     )
 
     out, _ = sf.read(dst, dtype="float32")
@@ -128,24 +128,24 @@ def test_agc_crossfade_boundary_is_continuous(tmp_path: Path) -> None:
     assert step_max < 0.05, f"max sample-to-sample step {step_max:.4f}"
 
 
-def test_agc_input_must_be_16k_mono(tmp_path: Path) -> None:
+def test_autogain_input_must_be_16k_mono(tmp_path: Path) -> None:
     src = tmp_path / "in.wav"
     sf.write(src, np.zeros(48_000, dtype=np.float32), 48_000)
 
     with pytest.raises(ClearspeechError):
         clearspeech(
-            src, chain=("agc",),
-            agc_turns=[DiarTurn(0.0, 1.0, "A")],
+            src, chain=("autogain",),
+            autogain_turns=[DiarTurn(0.0, 1.0, "A")],
         )
 
 
-def test_agc_writes_sibling_agc_wav(tmp_path: Path) -> None:
+def test_autogain_writes_sibling_autogain_wav(tmp_path: Path) -> None:
     src = tmp_path / "audio.wav"
     _write(src, _sine(440, 0.5, -20))
     dst, _ = clearspeech(
-        src, chain=("agc",), agc_turns=[DiarTurn(0.0, 0.5, "A")]
+        src, chain=("autogain",), autogain_turns=[DiarTurn(0.0, 0.5, "A")]
     )
-    assert dst.name == "audio.agc.wav"
+    assert dst.name == "audio.autogain.wav"
     assert dst.parent == src.parent
 
 
@@ -240,8 +240,8 @@ def test_empty_chain_returns_input_path_unchanged(tmp_path: Path) -> None:
     assert config["steps"] == []
 
 
-def test_full_chain_runs_agc_then_bandpass(tmp_path: Path) -> None:
-    """Final sibling carries both suffixes; AGC then bandpass writes intermediates."""
+def test_full_chain_runs_autogain_then_bandpass(tmp_path: Path) -> None:
+    """Final sibling carries both suffixes; autogain then bandpass writes intermediates."""
     src = tmp_path / "audio.wav"
     _write(src, _sine(4_000.0, 1.0, -30.0))
     turns = [DiarTurn(0.0, 1.0, "A")]
@@ -252,27 +252,27 @@ def test_full_chain_runs_agc_then_bandpass(tmp_path: Path) -> None:
         seen.append((idx, name, path.name))
 
     dst, config = clearspeech(
-        src, chain=("agc", "bandpass"),
-        agc_turns=turns,
+        src, chain=("autogain", "bandpass"),
+        autogain_turns=turns,
         bandpass_low_hz=80.0, bandpass_high_hz=7_900.0,
         dump=dump,
     )
 
-    assert dst.name == "audio.agc.bandpass.wav"
-    assert config["chain"] == ["agc", "bandpass"]
-    assert [s["name"] for s in config["steps"]] == ["agc", "bandpass"]
-    assert seen == [(1, "agc", "audio.agc.wav"), (2, "bandpass", "audio.agc.bandpass.wav")]
+    assert dst.name == "audio.autogain.bandpass.wav"
+    assert config["chain"] == ["autogain", "bandpass"]
+    assert [s["name"] for s in config["steps"]] == ["autogain", "bandpass"]
+    assert seen == [(1, "autogain", "audio.autogain.wav"), (2, "bandpass", "audio.autogain.bandpass.wav")]
     # Both intermediates physically exist (the dumper would otherwise dump
     # nothing useful in real --dump-stages runs).
-    assert (tmp_path / "audio.agc.wav").exists()
-    assert (tmp_path / "audio.agc.bandpass.wav").exists()
+    assert (tmp_path / "audio.autogain.wav").exists()
+    assert (tmp_path / "audio.autogain.bandpass.wav").exists()
 
 
-def test_chain_missing_agc_turns_raises(tmp_path: Path) -> None:
+def test_chain_missing_autogain_turns_raises(tmp_path: Path) -> None:
     src = tmp_path / "in.wav"
     _write(src, _sine(440, 0.25, -20))
-    with pytest.raises(ClearspeechError, match="agc_turns"):
-        clearspeech(src, chain=("agc",), agc_turns=None)
+    with pytest.raises(ClearspeechError, match="autogain_turns"):
+        clearspeech(src, chain=("autogain",), autogain_turns=None)
 
 
 def test_chain_rejects_unknown_effect(tmp_path: Path) -> None:
@@ -286,14 +286,14 @@ def test_chain_rejects_duplicate_effect(tmp_path: Path) -> None:
     src = tmp_path / "in.wav"
     _write(src, _sine(440, 0.25, -20))
     with pytest.raises(ValueError, match="duplicate effect"):
-        clearspeech(src, chain=("agc", "agc"), agc_turns=[])
+        clearspeech(src, chain=("autogain", "autogain"), autogain_turns=[])
 
 
 @pytest.mark.parametrize("chain", [
-    ("bandpass", "agc"),
-    ("presence", "agc"),
-    ("agc", "presence", "bandpass"),
-    ("presence", "bandpass", "agc"),
+    ("bandpass", "autogain"),
+    ("presence", "autogain"),
+    ("autogain", "presence", "bandpass"),
+    ("presence", "bandpass", "autogain"),
 ])
 def test_chain_allows_any_known_order(tmp_path: Path, chain: tuple[str, ...]) -> None:
     """Free-order is enabled in PR-2 — any permutation of known effects works."""
@@ -301,7 +301,7 @@ def test_chain_allows_any_known_order(tmp_path: Path, chain: tuple[str, ...]) ->
     _write(src, _sine(1_000.0, 0.5, -20))
     turns = [DiarTurn(0.0, 0.5, "A")]
 
-    dst, config = clearspeech(src, chain=chain, agc_turns=turns)
+    dst, config = clearspeech(src, chain=chain, autogain_turns=turns)
 
     assert config["chain"] == list(chain)
     assert [s["name"] for s in config["steps"]] == list(chain)
@@ -374,12 +374,12 @@ def test_presence_invalid_params_raise(tmp_path: Path) -> None:
 
 
 def test_presence_writes_sibling_presence_wav(tmp_path: Path) -> None:
-    src = tmp_path / "voice.agc.bandpass.wav"
+    src = tmp_path / "voice.autogain.bandpass.wav"
     _write(src, _sine(2_000.0, 0.5, -20))
 
     dst, _ = clearspeech(src, chain=("presence",))
 
-    assert dst.name == "voice.agc.bandpass.presence.wav"
+    assert dst.name == "voice.autogain.bandpass.presence.wav"
     assert dst.parent == src.parent
 
 
@@ -546,8 +546,8 @@ def test_dereverb_in_chain_without_turns_raises(tmp_path: Path) -> None:
         clearspeech(src, chain=("dereverb",))  # no turns at all
 
 
-def test_full_chain_agc_denoise_bandpass_presence(tmp_path: Path) -> None:
-    """Four effects, denoise placed after AGC (the Metric-A-best order)."""
+def test_full_chain_autogain_denoise_bandpass_presence(tmp_path: Path) -> None:
+    """Four effects, denoise placed after autogain (the Metric-A-best order)."""
     src = tmp_path / "audio.wav"
     rng = np.random.default_rng(seed=1)
     noise = rng.standard_normal(SR).astype(np.float32) * 0.03
@@ -560,19 +560,19 @@ def test_full_chain_agc_denoise_bandpass_presence(tmp_path: Path) -> None:
         seen.append((idx, name, path.name))
 
     dst, config = clearspeech(
-        src, chain=("agc", "denoise", "bandpass", "presence"),
-        agc_turns=turns, dump=dump,
+        src, chain=("autogain", "denoise", "bandpass", "presence"),
+        autogain_turns=turns, dump=dump,
     )
 
-    assert dst.name == "audio.agc.denoise.bandpass.presence.wav"
-    assert config["chain"] == ["agc", "denoise", "bandpass", "presence"]
+    assert dst.name == "audio.autogain.denoise.bandpass.presence.wav"
+    assert config["chain"] == ["autogain", "denoise", "bandpass", "presence"]
     assert [s["name"] for s in config["steps"]] == [
-        "agc", "denoise", "bandpass", "presence",
+        "autogain", "denoise", "bandpass", "presence",
     ]
-    assert [s[1] for s in seen] == ["agc", "denoise", "bandpass", "presence"]
+    assert [s[1] for s in seen] == ["autogain", "denoise", "bandpass", "presence"]
 
 
-def test_full_chain_agc_bandpass_presence(tmp_path: Path) -> None:
+def test_full_chain_autogain_bandpass_presence(tmp_path: Path) -> None:
     """Three effects in canonical order; intermediate WAVs all written."""
     src = tmp_path / "audio.wav"
     _write(src, _sine(3_000.0, 1.0, -25.0))
@@ -584,16 +584,16 @@ def test_full_chain_agc_bandpass_presence(tmp_path: Path) -> None:
         seen.append((idx, name, path.name))
 
     dst, config = clearspeech(
-        src, chain=("agc", "bandpass", "presence"),
-        agc_turns=turns, dump=dump,
+        src, chain=("autogain", "bandpass", "presence"),
+        autogain_turns=turns, dump=dump,
     )
 
-    assert dst.name == "audio.agc.bandpass.presence.wav"
-    assert config["chain"] == ["agc", "bandpass", "presence"]
+    assert dst.name == "audio.autogain.bandpass.presence.wav"
+    assert config["chain"] == ["autogain", "bandpass", "presence"]
     assert seen == [
-        (1, "agc", "audio.agc.wav"),
-        (2, "bandpass", "audio.agc.bandpass.wav"),
-        (3, "presence", "audio.agc.bandpass.presence.wav"),
+        (1, "autogain", "audio.autogain.wav"),
+        (2, "bandpass", "audio.autogain.bandpass.wav"),
+        (3, "presence", "audio.autogain.bandpass.presence.wav"),
     ]
     for inter in seen:
         assert (tmp_path / inter[2]).exists()

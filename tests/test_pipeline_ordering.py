@@ -1,4 +1,4 @@
-"""Verify the diarize→clearspeech→ASR order and the AGC/bandpass toggles
+"""Verify the diarize→clearspeech→ASR order and the autogain/bandpass toggles
 plumbing without loading real models.
 
 Strategy: monkey-patch the pipeline's module-level references for
@@ -97,9 +97,9 @@ def patched_pipeline(monkeypatch, tmp_path):
             {
                 "wav_path": str(wav_path),
                 "chain": list(chain),
-                "turn_count": len(kwargs.get("agc_turns") or []),
-                "agc_target_dbfs": kwargs.get("agc_target_dbfs"),
-                "agc_max_gain_db": kwargs.get("agc_max_gain_db"),
+                "turn_count": len(kwargs.get("autogain_turns") or []),
+                "autogain_target_dbfs": kwargs.get("autogain_target_dbfs"),
+                "autogain_max_gain_db": kwargs.get("autogain_max_gain_db"),
                 "bandpass_low_hz": kwargs.get("bandpass_low_hz"),
                 "bandpass_high_hz": kwargs.get("bandpass_high_hz"),
                 "presence_center_hz": kwargs.get("presence_center_hz"),
@@ -175,8 +175,8 @@ def patched_pipeline(monkeypatch, tmp_path):
     return rec, fake_audio
 
 
-def test_default_chain_runs_agc_only(patched_pipeline, tmp_path):
-    """0.13.0-equivalent defaults: AGC on, bandpass off."""
+def test_default_chain_runs_autogain_only(patched_pipeline, tmp_path):
+    """0.13.0-equivalent defaults: autogain on, bandpass off."""
     rec, fake_audio = patched_pipeline
     out = tmp_path / "out.md"
 
@@ -199,18 +199,18 @@ def test_default_chain_runs_agc_only(patched_pipeline, tmp_path):
     assert i_diar < i_cs < i_asr, f"unexpected order: {names}"
 
     cs = rec.payload("clearspeech")
-    assert cs["chain"] == ["agc"]
+    assert cs["chain"] == ["autogain"]
     assert cs["turn_count"] == 2
-    assert cs["agc_target_dbfs"] == -20.0
-    assert cs["agc_max_gain_db"] == 16.0
+    assert cs["autogain_target_dbfs"] == -20.0
+    assert cs["autogain_max_gain_db"] == 16.0
 
-    # ASR sees the .agc.wav sibling, not the raw WAV.
+    # ASR sees the .autogain.wav sibling, not the raw WAV.
     asr_path = rec.payload("asr")
-    assert asr_path.endswith(".agc.wav"), asr_path
+    assert asr_path.endswith(".autogain.wav"), asr_path
 
     # Diarize still sees the original raw WAV.
     diar_path = rec.payload("diarize")
-    assert diar_path.endswith("audio.wav") and ".agc" not in diar_path
+    assert diar_path.endswith("audio.wav") and ".autogain" not in diar_path
 
 
 def test_bandpass_extends_chain(patched_pipeline, tmp_path):
@@ -226,17 +226,17 @@ def test_bandpass_extends_chain(patched_pipeline, tmp_path):
             run_structure=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
-            clearspeech_chain="agc,bandpass",
+            clearspeech_chain="autogain,bandpass",
         )
     )
 
     cs = rec.payload("clearspeech")
-    assert cs["chain"] == ["agc", "bandpass"]
+    assert cs["chain"] == ["autogain", "bandpass"]
     assert cs["bandpass_low_hz"] == 150.0
     assert cs["bandpass_high_hz"] == 5_500.0
 
     # ASR sees the final sibling with both suffixes.
-    assert rec.payload("asr").endswith(".agc.bandpass.wav")
+    assert rec.payload("asr").endswith(".autogain.bandpass.wav")
 
 
 def test_empty_chain_passes_raw_wav_to_asr(patched_pipeline, tmp_path):
@@ -268,7 +268,7 @@ def test_empty_chain_passes_raw_wav_to_asr(patched_pipeline, tmp_path):
     assert rec.payload("asr") == rec.payload("diarize")
 
 
-def test_full_chain_agc_bandpass_presence(patched_pipeline, tmp_path):
+def test_full_chain_autogain_bandpass_presence(patched_pipeline, tmp_path):
     """Three effects in canonical order; ASR sees triple-suffixed WAV."""
     rec, fake_audio = patched_pipeline
     out = tmp_path / "out.md"
@@ -282,16 +282,16 @@ def test_full_chain_agc_bandpass_presence(patched_pipeline, tmp_path):
             run_structure=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
-            clearspeech_chain="agc,bandpass,presence",
+            clearspeech_chain="autogain,bandpass,presence",
         )
     )
 
     cs = rec.payload("clearspeech")
-    assert cs["chain"] == ["agc", "bandpass", "presence"]
+    assert cs["chain"] == ["autogain", "bandpass", "presence"]
     assert cs["presence_center_hz"] == 3_000.0
     assert cs["presence_boost_db"] == 6.0
     assert cs["presence_q"] == 1.0
-    assert rec.payload("asr").endswith(".agc.bandpass.presence.wav")
+    assert rec.payload("asr").endswith(".autogain.bandpass.presence.wav")
 
 
 def test_reordered_chain_runs_in_given_order(patched_pipeline, tmp_path):
@@ -308,10 +308,10 @@ def test_reordered_chain_runs_in_given_order(patched_pipeline, tmp_path):
             run_structure=False,
             names_override=["A", "B"],
             unknown_speaker="keep",
-            clearspeech_chain="presence,agc",
+            clearspeech_chain="presence,autogain",
         )
     )
 
     cs = rec.payload("clearspeech")
-    assert cs["chain"] == ["presence", "agc"]
-    assert rec.payload("asr").endswith(".presence.agc.wav")
+    assert cs["chain"] == ["presence", "autogain"]
+    assert rec.payload("asr").endswith(".presence.autogain.wav")

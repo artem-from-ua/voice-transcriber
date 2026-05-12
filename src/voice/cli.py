@@ -81,26 +81,26 @@ def _build_parser() -> argparse.ArgumentParser:
 
     cs = t.add_argument_group("clearspeech (audio cleanup for ASR)")
     cs.add_argument(
-        "--clearspeech-chain", type=str, default="agc", metavar="EFFECTS",
+        "--clearspeech-chain", type=str, default="autogain", metavar="EFFECTS",
         help=(
             "Comma-separated effect names in execution order. Known effects: "
-            "agc, bandpass, presence, denoise, dereverb. Default: 'agc' "
-            "(matches v0.14.0/v0.15.0/v0.16.0 behaviour). Use '' to disable "
-            "preprocessing entirely. WARNING: enabling 'denoise' degrades ASR "
-            "on Ukrainian content even at its empirically best position "
-            "(after AGC); see ADR 0014 for Metric A and the OpenAI "
-            "Whisper-rule check. WARNING: using 'presence' without 'bandpass' "
-            "first catastrophically breaks ASR (see ADR 0013); enable "
-            "bandpass whenever you enable presence. 'dereverb' is per-turn "
-            "(uses pyannote turns) — see ADR 0015 for Metric A."
+            "autogain, bandpass, presence, denoise, dereverb. Default: 'autogain'. "
+            "Use '' to disable preprocessing entirely. WARNING: enabling "
+            "'denoise' degrades ASR on Ukrainian content even at its "
+            "empirically best position (after autogain); see ADR 0014 for "
+            "Metric A and the OpenAI Whisper-rule check. WARNING: using "
+            "'presence' without 'bandpass' first catastrophically breaks ASR "
+            "(see ADR 0013); enable bandpass whenever you enable presence. "
+            "'dereverb' is per-turn (uses pyannote turns) — see ADR 0015 for "
+            "Metric A."
         ),
     )
     cs.add_argument(
-        "--clearspeech-agc-target-dbfs", type=float, default=-20.0, metavar="DBFS",
-        help="Target RMS for per-turn AGC (default: -20.0).",
+        "--clearspeech-autogain-target-dbfs", type=float, default=-20.0, metavar="DBFS",
+        help="Target RMS for per-turn autogain (default: -20.0).",
     )
     cs.add_argument(
-        "--clearspeech-agc-max-gain-db", type=float, default=16.0, metavar="DB",
+        "--clearspeech-autogain-max-gain-db", type=float, default=16.0, metavar="DB",
         help="Max boost per turn; quieter turns clipped at this gain (default: 16.0).",
     )
     cs.add_argument(
@@ -173,7 +173,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Write each stage's output to DIR for troubleshooting "
             "(01-meta.json, 02-diarize.json, 02b-clearspeech-config.json, "
-            "02b-clearspeech-N-<effect>.wav per applied effect — agc, "
+            "02b-clearspeech-N-<effect>.wav per applied effect — autogain, "
             "bandpass, presence — 03-asr.json, 04-merge.json, "
             "05-proofread.json, 06-identify.json, 07-segments-named.json, "
             "08-structure.json, 09-tldr.txt). Disabled when omitted."
@@ -199,8 +199,8 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         run_tldr=not args.no_tldr,
         run_structure=not args.no_structure,
         clearspeech_chain=args.clearspeech_chain,
-        clearspeech_agc_target_dbfs=args.clearspeech_agc_target_dbfs,
-        clearspeech_agc_max_gain_db=args.clearspeech_agc_max_gain_db,
+        clearspeech_autogain_target_dbfs=args.clearspeech_autogain_target_dbfs,
+        clearspeech_autogain_max_gain_db=args.clearspeech_autogain_max_gain_db,
         clearspeech_bandpass_low_hz=args.clearspeech_bandpass_low_hz,
         clearspeech_bandpass_high_hz=args.clearspeech_bandpass_high_hz,
         clearspeech_presence_center_hz=args.clearspeech_presence_center_hz,

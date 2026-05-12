@@ -46,9 +46,9 @@ class PipelineOptions:
     run_proofread: bool = True
     run_tldr: bool = True
     run_structure: bool = True
-    clearspeech_chain: str = "agc"
-    clearspeech_agc_target_dbfs: float = -20.0
-    clearspeech_agc_max_gain_db: float = 16.0
+    clearspeech_chain: str = "autogain"
+    clearspeech_autogain_target_dbfs: float = -20.0
+    clearspeech_autogain_max_gain_db: float = 16.0
     clearspeech_bandpass_low_hz: float = 150.0
     clearspeech_bandpass_high_hz: float = 5_500.0
     clearspeech_presence_center_hz: float = 3_000.0
@@ -114,7 +114,7 @@ def run(options: PipelineOptions) -> str:
             dumper.write("01-meta.json", audio_meta)
 
             # Diarize first on the raw WAV — its per-turn boundaries are the
-            # guard-rails the next stage needs for per-segment AGC. ASR then
+            # guard-rails the next stage needs for per-segment autogain. ASR then
             # runs on the normalised WAV. Each module loads its own model and
             # frees it on return; the LLM is loaded after both, so the three
             # are never co-resident.
@@ -136,9 +136,9 @@ def run(options: PipelineOptions) -> str:
                 processed_wav_path, clearspeech_config = clearspeech_module.clearspeech(
                     wav_path,
                     chain=chain,
-                    agc_turns=turns,
-                    agc_target_dbfs=options.clearspeech_agc_target_dbfs,
-                    agc_max_gain_db=options.clearspeech_agc_max_gain_db,
+                    autogain_turns=turns,
+                    autogain_target_dbfs=options.clearspeech_autogain_target_dbfs,
+                    autogain_max_gain_db=options.clearspeech_autogain_max_gain_db,
                     bandpass_low_hz=options.clearspeech_bandpass_low_hz,
                     bandpass_high_hz=options.clearspeech_bandpass_high_hz,
                     presence_center_hz=options.clearspeech_presence_center_hz,

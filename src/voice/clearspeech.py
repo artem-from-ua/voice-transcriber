@@ -5,12 +5,12 @@ links without growing the pipeline-stage count ([N/10] stays constant) or
 rewriting dump layout per release.
 
 Chain effects (issue #48 + dereverb follow-up):
-  - "agc"      — per-pyannote-turn RMS normalization (was loudness_normalize)
+  - "autogain" — per-pyannote-turn RMS normalization (was loudness_normalize)
   - "bandpass" — Butterworth IIR bandpass via scipy.signal.sosfiltfilt (E2a)
   - "presence" — RBJ-cookbook peaking EQ via scipy.signal.filtfilt (E2b)
   - "denoise"  — FFT-domain spectral subtraction via `ffmpeg afftdn` (E2d).
-                 Empirically best **after** AGC, even though physics-of-noise
-                 intuition argues for pre-AGC — see ADR 0014. Default-off.
+                 Empirically best **after** autogain, even though physics-of-noise
+                 intuition argues for pre-autogain — see ADR 0014. Default-off.
   - "dereverb" — per-pyannote-turn Lebart-Polack spectral subtraction (E2e).
                  Per-segment RT60 estimated via Schroeder backward integration,
                  then late reverberation power subtracted from the STFT. See
@@ -46,7 +46,7 @@ BANDPASS_ORDER = 4  # Butterworth IIR; 4 ≈ 24 dB/octave, doubled by sosfiltfil
 SILENT_RMS_THRESHOLD = 1e-6
 
 KNOWN_EFFECTS: frozenset[str] = frozenset({
-    "agc", "bandpass", "presence", "denoise", "dereverb",
+    "autogain", "bandpass", "presence", "denoise", "dereverb",
 })
 
 ClearspeechDumpHook = Callable[[int, str, Path], None]
@@ -82,10 +82,10 @@ def clearspeech(
     wav_path: str | Path,
     chain: tuple[str, ...],
     *,
-    agc_turns: list[DiarTurn] | None = None,
-    agc_target_dbfs: float = -20.0,
-    agc_max_gain_db: float = 16.0,
-    agc_crossfade_ms: float = 100.0,
+    autogain_turns: list[DiarTurn] | None = None,
+    autogain_target_dbfs: float = -20.0,
+    autogain_max_gain_db: float = 16.0,
+    autogain_crossfade_ms: float = 100.0,
     bandpass_low_hz: float = 150.0,
     bandpass_high_hz: float = 5_500.0,
     presence_center_hz: float = 3_000.0,
@@ -102,8 +102,8 @@ def clearspeech(
 ) -> tuple[Path, dict]:
     """Run the requested chain of DSP effects against `wav_path`.
 
-    Each enabled effect writes a sibling WAV (`<stem>.agc.wav`,
-    `<stem>.agc.bandpass.wav`, …) and the next effect reads it. `dump`, if
+    Each enabled effect writes a sibling WAV (`<stem>.autogain.wav`,
+    `<stem>.autogain.bandpass.wav`, …) and the next effect reads it. `dump`, if
     provided, is invoked with `(step_index, effect_name, intermediate_path)`
     after each effect so the pipeline can mirror intermediates into the
     `--dump-stages` directory.
@@ -115,7 +115,7 @@ def clearspeech(
         step stats, suitable for `02b-clearspeech-config.json`.
 
     Raises ClearspeechError on bad inputs (wrong SR, non-mono, missing
-    `agc_turns` when "agc" is requested, invalid bandpass / presence params).
+    `autogain_turns` when "autogain" is requested, invalid bandpass / presence params).
     Raises ValueError when `chain` contains unknown effects or duplicates.
     """
     chain = tuple(chain)
@@ -134,18 +134,18 @@ def clearspeech(
 
     current = src
     for idx, effect in enumerate(chain, start=1):
-        if effect == "agc":
-            if agc_turns is None:
+        if effect == "autogain":
+            if autogain_turns is None:
                 raise ClearspeechError(
-                    "chain contains 'agc' but agc_turns is None — pass the "
-                    "pyannote turns the AGC needs as per-segment guard-rails"
+                    "chain contains 'autogain' but autogain_turns is None — pass the "
+                    "pyannote turns the autogain needs as per-segment guard-rails"
                 )
-            current, step_info = _apply_agc(
+            current, step_info = _apply_autogain(
                 current,
-                turns=agc_turns,
-                target_dbfs=agc_target_dbfs,
-                max_gain_db=agc_max_gain_db,
-                crossfade_ms=agc_crossfade_ms,
+                turns=autogain_turns,
+                target_dbfs=autogain_target_dbfs,
+                max_gain_db=autogain_max_gain_db,
+                crossfade_ms=autogain_crossfade_ms,
                 log=log,
             )
         elif effect == "bandpass":
@@ -171,16 +171,16 @@ def clearspeech(
                 log=log,
             )
         elif effect == "dereverb":
-            # `dereverb` shares pyannote turns with `agc` — same physical
-            # boundary information. We fall back to `agc_turns` if the caller
+            # `dereverb` shares pyannote turns with `autogain` — same physical
+            # boundary information. We fall back to `autogain_turns` if the caller
             # didn't pass an explicit `dereverb_turns`.
             turns_for_dereverb = (
-                dereverb_turns if dereverb_turns is not None else agc_turns
+                dereverb_turns if dereverb_turns is not None else autogain_turns
             )
             if turns_for_dereverb is None:
                 raise ClearspeechError(
                     "chain contains 'dereverb' but no turns provided — "
-                    "pass `dereverb_turns` (or reuse `agc_turns`) so each "
+                    "pass `dereverb_turns` (or reuse `autogain_turns`) so each "
                     "speaker turn gets its own RT60 estimate"
                 )
             current, step_info = _apply_dereverb(
@@ -205,15 +205,15 @@ def clearspeech(
 
 
 # ---------------------------------------------------------------------------
-# Effect: AGC (per-turn RMS normalization). Logic transplanted byte-for-byte
+# Effect: autogain (per-turn RMS normalization). Logic transplanted byte-for-byte
 # from the v0.13.0 `audio_preprocess.loudness_normalize`; the only changes are
-# the output suffix (`.agc.wav` instead of `.normalized.wav`) and returning a
+# the output suffix (`.autogain.wav` instead of `.normalized.wav`) and returning a
 # stats dict alongside the path so the chain's config can record per-step
 # metrics.
 # ---------------------------------------------------------------------------
 
 
-def _apply_agc(
+def _apply_autogain(
     wav_path: Path,
     *,
     turns: list[DiarTurn],
@@ -223,7 +223,7 @@ def _apply_agc(
     log: Callable[[str], None],
 ) -> tuple[Path, dict]:
     src = Path(wav_path)
-    dst = src.with_suffix(".agc.wav")
+    dst = src.with_suffix(".autogain.wav")
     params = {
         "target_dbfs": float(target_dbfs),
         "max_gain_db": float(max_gain_db),
@@ -289,7 +289,7 @@ def _apply_agc(
 
     sf.write(dst, out, SR, subtype="PCM_16")
     log(
-        f"clearspeech.agc: {len(raw_regions)} turn(s) | "
+        f"clearspeech.autogain: {len(raw_regions)} turn(s) | "
         f"per-turn RMS std-dev {pre_std:.2f} → {post_std:.2f} dB "
         f"({spread_drop:+.1f}%) | "
         f"{ceiling_hits}/{len(raw_regions)} hit +{max_gain_db:.0f} dB ceiling | "
@@ -530,10 +530,10 @@ def _design_peaking_eq(
 
 # ---------------------------------------------------------------------------
 # Effect: denoise (FFT-domain spectral subtraction via ffmpeg's afftdn). The
-# expected place in a chain is **after** AGC, despite the physics intuition
+# expected place in a chain is **after** autogain, despite the physics intuition
 # that says raw signal is the right input for noise estimation — see ADR 0014
-# Metric A grid: pre-AGC denoise gave 27.5 % RU-glyph drift (5× the default
-# baseline), while post-AGC denoise gave 8.2 %. AGC's per-turn normalisation
+# Metric A grid: pre-autogain denoise gave 27.5 % RU-glyph drift (5× the default
+# baseline), while post-autogain denoise gave 8.2 %. Autogain's per-turn normalisation
 # fixes the SNR before afftdn estimates noise, and the residual subtraction
 # artefacts ride at a constant level instead of being amplified per-turn.
 # ---------------------------------------------------------------------------
