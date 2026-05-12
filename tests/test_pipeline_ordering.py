@@ -2,7 +2,7 @@
 plumbing without loading real models.
 
 Strategy: monkey-patch the pipeline's module-level references for
-speech2text, diarize, clearspeech, MlxLLM, audiometa, and the
+whisper_asr, diarize, clearspeech, MlxLLM, audiometa, and the
 LLM-dependent stages. Each stub records what it was called with, and the
 test inspects the call log after `pipeline.run()` returns.
 """
@@ -120,19 +120,10 @@ def patched_pipeline(monkeypatch, tmp_path):
         fake_clearspeech,
     )
 
-    # ASR: record the wav path; return one minimal segment.
-    def fake_transcribe(wav_path, **kwargs):
-        rec("asr", str(wav_path))
-        return [AsrSegment(start=0.0, end=3.0, content="hi", speaker_asr=0)]
-
-    monkeypatch.setattr(
-        pipeline_module.speech2text_module, "transcribe", fake_transcribe
-    )
-
-    # Whisper backend: same shape, no speaker_asr (Whisper has no speaker head).
+    # Whisper backend: record the wav path; return one minimal segment.
     def fake_whisper_transcribe(wav_path, **kwargs):
-        rec("whisper_asr", str(wav_path))
-        return [AsrSegment(start=0.0, end=3.0, content="hi", speaker_asr=None)]
+        rec("asr", str(wav_path))
+        return [AsrSegment(start=0.0, end=3.0, content="hi")]
 
     monkeypatch.setattr(
         pipeline_module.whisper_asr_module, "transcribe", fake_whisper_transcribe
@@ -198,11 +189,7 @@ def patched_pipeline(monkeypatch, tmp_path):
 
 
 def test_default_chain_runs_autogain_only(patched_pipeline, tmp_path):
-    """0.13.0-equivalent defaults: autogain on, bandpass off.
-
-    `asr_engine="vibevoice"` is set explicitly so the assertions below probe
-    the legacy ASR route; default engine is `whisper` since v0.20.0.
-    """
+    """0.13.0-equivalent defaults: autogain on, bandpass off."""
     rec, fake_audio = patched_pipeline
     out = tmp_path / "out.md"
 
@@ -210,7 +197,6 @@ def test_default_chain_runs_autogain_only(patched_pipeline, tmp_path):
         PipelineOptions(
             audio_path=str(fake_audio),
             output_path=str(out),
-            asr_engine="vibevoice",
             run_proofread=False,
             run_tldr=False,
             run_structure=False,
@@ -248,7 +234,6 @@ def test_bandpass_extends_chain(patched_pipeline, tmp_path):
         PipelineOptions(
             audio_path=str(fake_audio),
             output_path=str(out),
-            asr_engine="vibevoice",
             run_proofread=False,
             run_tldr=False,
             run_structure=False,
@@ -276,7 +261,6 @@ def test_empty_chain_passes_raw_wav_to_asr(patched_pipeline, tmp_path):
         PipelineOptions(
             audio_path=str(fake_audio),
             output_path=str(out),
-            asr_engine="vibevoice",
             run_proofread=False,
             run_tldr=False,
             run_structure=False,
@@ -306,7 +290,6 @@ def test_full_chain_autogain_bandpass_presence(patched_pipeline, tmp_path):
         PipelineOptions(
             audio_path=str(fake_audio),
             output_path=str(out),
-            asr_engine="vibevoice",
             run_proofread=False,
             run_tldr=False,
             run_structure=False,
@@ -333,7 +316,6 @@ def test_reordered_chain_runs_in_given_order(patched_pipeline, tmp_path):
         PipelineOptions(
             audio_path=str(fake_audio),
             output_path=str(out),
-            asr_engine="vibevoice",
             run_proofread=False,
             run_tldr=False,
             run_structure=False,
@@ -348,55 +330,6 @@ def test_reordered_chain_runs_in_given_order(patched_pipeline, tmp_path):
     assert rec.payload("asr").endswith(".presence.autogain.wav")
 
 
-def test_asr_engine_whisper_routes_to_whisper_module(patched_pipeline, tmp_path):
-    """`--asr-engine whisper` skips VibeVoice and calls whisper_asr.transcribe."""
-    rec, fake_audio = patched_pipeline
-    out = tmp_path / "out.md"
-
-    run(
-        PipelineOptions(
-            audio_path=str(fake_audio),
-            output_path=str(out),
-            asr_engine="whisper",
-            run_proofread=False,
-            run_tldr=False,
-            run_structure=False,
-            names_override=["A", "B"],
-            unknown_speaker="keep",
-        )
-    )
-
-    names = rec.names()
-    assert "whisper_asr" in names, f"whisper backend not invoked; recorded: {names}"
-    assert "asr" not in names, "VibeVoice backend should not run when engine=whisper"
-    # Whisper still consumes the clearspeech output, not the raw WAV.
-    whisper_path = rec.payload("whisper_asr")
-    assert whisper_path.endswith(".autogain.wav"), whisper_path
-
-
-def test_asr_engine_vibevoice_does_not_invoke_whisper(patched_pipeline, tmp_path):
-    """`--asr-engine vibevoice` skips Whisper and calls speech2text.transcribe."""
-    rec, fake_audio = patched_pipeline
-    out = tmp_path / "out.md"
-
-    run(
-        PipelineOptions(
-            audio_path=str(fake_audio),
-            output_path=str(out),
-            asr_engine="vibevoice",
-            run_proofread=False,
-            run_tldr=False,
-            run_structure=False,
-            names_override=["A", "B"],
-            unknown_speaker="keep",
-        )
-    )
-
-    names = rec.names()
-    assert "asr" in names
-    assert "whisper_asr" not in names
-
-
 # ---------------------------------------------------------------- per-stage LLM
 
 
@@ -409,7 +342,6 @@ def test_single_llm_model_reused_across_all_stages(patched_pipeline, tmp_path):
         PipelineOptions(
             audio_path=str(fake_audio),
             output_path=str(out),
-            asr_engine="vibevoice",
             llm_model="/tmp/single-model",
             run_proofread=True,
             run_tldr=True,
@@ -434,7 +366,6 @@ def test_per_stage_models_swap_when_different(patched_pipeline, tmp_path):
         PipelineOptions(
             audio_path=str(fake_audio),
             output_path=str(out),
-            asr_engine="vibevoice",
             llm_model="/tmp/big",
             llm_proofread_model="/tmp/small",
             llm_structure_model="/tmp/big",
@@ -466,7 +397,6 @@ def test_same_path_across_stages_reuses_one_instance(patched_pipeline, tmp_path)
         PipelineOptions(
             audio_path=str(fake_audio),
             output_path=str(out),
-            asr_engine="vibevoice",
             llm_proofread_model="/tmp/same",
             llm_structure_model="/tmp/same",
             llm_tldr_model="/tmp/same",
@@ -499,7 +429,6 @@ def test_per_stage_override_does_not_leak_to_unspecified_stages(
         PipelineOptions(
             audio_path=str(fake_audio),
             output_path=str(out),
-            asr_engine="vibevoice",
             llm_proofread_model="/tmp/small",  # only proofread overridden
             run_proofread=True,
             run_tldr=True,
@@ -528,7 +457,6 @@ def test_no_llm_required_when_no_stages_and_names_override(patched_pipeline, tmp
         PipelineOptions(
             audio_path=str(fake_audio),
             output_path=str(out),
-            asr_engine="vibevoice",
             run_proofread=False,
             run_tldr=False,
             run_structure=False,

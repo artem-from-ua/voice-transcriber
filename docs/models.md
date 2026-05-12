@@ -1,25 +1,18 @@
 # Models
 
-Three model families drive the pipeline: speaker diarization (pyannote), ASR (Whisper by default, VibeVoice as a legacy backend), and a general-purpose LLM (`Qwen2.5-7B-Instruct-4bit` by default since v0.22.0; see [ADR 0020](adr/0020-default-llm-qwen25-7b.md)) covering identify / proofread / structure / TL;DR.
+Three model families drive the pipeline: speaker diarization (pyannote), ASR (Whisper-large-v3-MLX), and a general-purpose LLM (`Qwen2.5-7B-Instruct-4bit` by default since v0.22.0; see [ADR 0020](adr/0020-default-llm-qwen25-7b.md)) covering identify / proofread / structure / TL;DR.
 
 Every transcript's Markdown header lists the exact models that produced it (`Діаризація`, `ASR`, `LLM` lines) plus wall-clock timings (`Обробка: 5m43s`, `AI-стадії: diarize=… · asr=… · proofread=… · …`) — saved transcripts double as benchmark records.
 
-## ASR — `mlx-community/VibeVoice-ASR-Nbit`
+## ASR — `mlx-community/whisper-large-v3-mlx`
 
-VibeVoice is Microsoft's MLX-quantised speech model; it transcribes the audio and *also* produces speaker tags (0/1/…) inline, which we keep for sanity checks but always override with pyannote's labels at merge time.
+OpenAI Whisper large-v3 converted to MLX. Driven by `mlx-whisper` (in-process, no HTTP). Selected as the default in v0.20.0 after the empirical comparison documented in [ADR 0017](adr/0017-whisper-asr-backend.md); the legacy VibeVoice backend was removed entirely in v0.23.0 — see [ADR 0021](adr/0021-remove-vibevoice-backend.md) for the side-by-side numbers and the reasoning.
 
-Pipeline supports four bitness variants chosen via `--asr-bits`:
+**Onboarding.** `voice download-whisper` fetches the model (~3 GB) into `~/.cache/huggingface/hub/`. `voice transcribe` fails fast with an actionable error if the cache is empty — there is no implicit network fetch inside the pipeline run.
 
-| Bits | Path | Size | Quality | Speed |
-|------|------|------|---------|-------|
-| 4 | `mlx-community/VibeVoice-ASR-4bit` | ~5 GB | acceptable; repetition loops are more common on Ukrainian | fastest |
-| 5 | `mlx-community/VibeVoice-ASR-5bit` | ~6 GB | better than 4-bit, marginally slower | fast |
-| **6 (default)** | `mlx-community/VibeVoice-ASR-6bit` | ~7 GB | the best speed/quality knee-point | moderate |
-| 8 | `mlx-community/VibeVoice-ASR-8bit` | ~9 GB | most accurate, hardware-bound | slowest |
+**Operating settings.** `whisper_asr.transcribe` calls `mlx_whisper.transcribe(audio, path_or_hf_repo=..., language=..., condition_on_previous_text=False)`. The other knobs (`temperature` schedule, `compression_ratio_threshold`, `logprob_threshold`, `no_speech_threshold`, 30-second windowing) are handled internally by `mlx-whisper` — we accept its defaults rather than re-expose them as CLI flags. `condition_on_previous_text=False` is the one explicit override: it prevents the repetition-loop failure mode Whisper is known for on long mono inputs (method copied verbatim from the sibling `stone-scriber` project — see ADR 0017).
 
-The tuning constants in `speech2text.DEFAULT_GEN_KWARGS` (`repetition_penalty=1.3`, `repetition_context_size=64`, `temperature=0.0`) keep VibeVoice from looping on Ukrainian fragments like "шо я… шо я… шо я…" while giving deterministic, run-to-run reproducible output. `chunk_duration=45 s` is the matching default: VibeVoice was trained on up to 60-minute single-pass inputs and explicitly benefits from long context — short chunks were the dominant cause of language drift (Ukrainian → Russian / nonsense). Both can be overridden per run with `--asr-temperature` and `--asr-chunk-duration`.
-
-`speech2text.py` looks up the model under `~/.cache/lm-studio/models/<repo>`. There is no implicit download — if a bitness is missing, the pipeline tells you to install it via LM Studio.
+**Speaker labels.** Whisper has no speaker-prediction head; every ASR segment carries no speaker hint. Speaker labels come entirely from pyannote turns at stage 6 (merge).
 
 ## Diarization — `pyannote/speaker-diarization-3.1`
 

@@ -1,7 +1,7 @@
 [project]
 name = "voice"
-version = "0.22.0"
-description = "End-to-end local pipeline: audio → diarized transcript + TLDR (VibeVoice-ASR or Whisper + pyannote + in-process MLX LLM)"
+version = "0.23.0"
+description = "End-to-end local pipeline: audio → diarized transcript + TLDR (Whisper + pyannote + in-process MLX LLM)"
 readme = "README.md"
 authors = [
     { name = "Artem Naluzhnyy", email = "Artem.Naluzhnyy@gmail.com" }
@@ -11,7 +11,6 @@ dependencies = [
     "httpx>=0.28.1",
     "huggingface-hub>=1.14.0",
     "lm-format-enforcer>=0.10",
-    "mlx-audio>=0.4.3",
     "mlx-lm>=0.21",
     "mlx-whisper>=0.4.3",
     "psutil>=7.2.2",

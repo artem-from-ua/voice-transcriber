@@ -1,15 +1,16 @@
 """Whisper-large-v3-MLX ASR backend.
 
-A second `transcribe()` callable with the same signature shape as
-`speech2text.transcribe()` so `pipeline.run()` can route between them based
-on `PipelineOptions.asr_engine`.
+`transcribe()` runs `mlx-whisper` in-process against
+`mlx-community/whisper-large-v3-mlx`. This is the only ASR backend in the
+project since v0.23.0 — see ADR 0017 (how it was chosen) and ADR 0021 (why
+the legacy VibeVoice backend was removed).
 
 The model is read out of the HuggingFace cache that `huggingface_hub`
-populates — not the LM Studio cache used for VibeVoice — because mlx-whisper
-expects the standard HF layout (blobs/refs/snapshots) and resolves repo ids
-through it directly. The model is never auto-downloaded inside `transcribe`;
-the user runs `voice download-whisper` once at onboarding and we hard-fail
-with an actionable error if the cache is empty.
+populates, because `mlx-whisper` expects the standard HF layout
+(blobs/refs/snapshots) and resolves repo ids through it directly. The
+model is never auto-downloaded inside `transcribe`; the user runs
+`voice download-whisper` once at onboarding and we hard-fail with an
+actionable error if the cache is empty.
 
 Why no chunking/temperature/context kwargs in the public signature: mlx-whisper
 chunks internally (30-second windows are baked into the Whisper architecture)
@@ -25,11 +26,14 @@ from pathlib import Path
 from typing import Callable
 
 from ._memory import free_mlx
-from .speech2text import AsrError
 from .types import AsrSegment
 
 
 WHISPER_REPO_ID = "mlx-community/whisper-large-v3-mlx"
+
+
+class AsrError(RuntimeError):
+    pass
 
 
 def _noop_log(_msg: str) -> None:
@@ -59,9 +63,8 @@ def _verify_model_cached(repo_id: str = WHISPER_REPO_ID) -> None:
 def _parse_segments(result: dict) -> list[AsrSegment]:
     """Convert mlx-whisper's `{text, segments, language}` payload to AsrSegment[].
 
-    `speaker_asr` is left as None — Whisper has no speaker-prediction head,
-    and `merge.py` does not need it (max-overlap with pyannote turns is the
-    sole source of speaker labels downstream).
+    Whisper has no speaker-prediction head; speaker labels are assigned
+    downstream by `merge.py` via max-overlap with pyannote turns.
     """
     segments: list[AsrSegment] = []
     for seg in result.get("segments", []):
@@ -72,7 +75,6 @@ def _parse_segments(result: dict) -> list[AsrSegment]:
             start=float(seg.get("start", 0.0)),
             end=float(seg.get("end", 0.0)),
             content=content,
-            speaker_asr=None,
         ))
     return segments
 
@@ -104,8 +106,8 @@ def transcribe(
 
     segments = _parse_segments(result)
     # Drop the Whisper weights and KV cache before downstream LLM stages —
-    # on 16 GB Macs they otherwise sit alongside gemma and trigger a Metal
-    # OOM at structure_dialog (mirrors speech2text.py:149–152).
+    # on 16 GB Macs they otherwise sit alongside the LLM and trigger a
+    # Metal OOM at structure_dialog.
     del result
     free_mlx(log)
     return segments

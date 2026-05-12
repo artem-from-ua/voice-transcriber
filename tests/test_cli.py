@@ -18,12 +18,6 @@ def test_minimal_invocation_defaults():
     opts = _opts_from_args(ns)
     assert opts.audio_path == "/tmp/a.m4a"
     assert opts.language == "uk"
-    assert opts.asr_engine == "whisper"
-    assert opts.asr_bits == 6
-    # New ASR tuning knobs default to None — meaning "use module defaults
-    # (chunk_duration=45, temperature=0.0)".
-    assert opts.asr_chunk_duration is None
-    assert opts.asr_temperature is None
     assert opts.unknown_speaker == "ask"
     assert opts.names_override is None
     assert opts.datetime_override is None
@@ -44,17 +38,6 @@ def test_minimal_invocation_defaults():
     assert opts.clearspeech_dereverb_subtract_factor == 1.0
     assert opts.clearspeech_dereverb_crossfade_ms == 50.0
     assert opts.verbose is False
-
-
-def test_asr_tuning_knobs_parsed():
-    ns = _parse([
-        "transcribe", "/tmp/a.m4a",
-        "--asr-chunk-duration", "60",
-        "--asr-temperature", "0.2",
-    ])
-    opts = _opts_from_args(ns)
-    assert opts.asr_chunk_duration == 60.0
-    assert opts.asr_temperature == 0.2
 
 
 def test_dump_stages_flag_parsed():
@@ -86,11 +69,6 @@ def test_no_flags_disable_stages():
     assert opts.run_proofread is False
     assert opts.run_tldr is False
     assert opts.run_structure is False
-
-
-def test_asr_bits_must_be_in_choices():
-    with pytest.raises(SystemExit):
-        _parse(["transcribe", "/tmp/a.m4a", "--asr-bits", "7"])
 
 
 def test_unknown_speaker_choices():
@@ -180,14 +158,12 @@ def test_clearspeech_dereverb_tuning_flags():
     assert opts.clearspeech_dereverb_crossfade_ms == 25.0
 
 
-def test_asr_engine_flag_whisper():
-    ns = _parse(["transcribe", "/tmp/a.m4a", "--asr-engine", "whisper"])
-    assert _opts_from_args(ns).asr_engine == "whisper"
-
-
-def test_asr_engine_rejects_unknown_value():
+def test_asr_engine_flag_is_no_longer_accepted():
+    """`--asr-engine` was removed in v0.23.0 along with the VibeVoice backend
+    (see ADR 0021). argparse must reject it rather than silently ignore it.
+    """
     with pytest.raises(SystemExit):
-        _parse(["transcribe", "/tmp/a.m4a", "--asr-engine", "kaldi"])
+        _parse(["transcribe", "/tmp/a.m4a", "--asr-engine", "whisper"])
 
 
 def test_minimal_invocation_per_stage_llm_models_default_to_none():

@@ -12,7 +12,7 @@ File layout:
                                   the active chain (e.g. 02b-clearspeech-1-autogain.wav,
                                   02b-clearspeech-2-bandpass.wav). Absent when
                                   the chain is empty / fully disabled.
-    03-asr.json                   list[AsrSegment] (VibeVoice on cleaned WAV)
+    03-asr.json                   list[AsrSegment] (Whisper on cleaned WAV)
     04-merge.json                 list[Segment] after merge (no LLM touches yet)
     05-proofread.json             list[Segment] after the LLM proof-reader
     06-identify.json              {pyannote label → human name}

@@ -16,7 +16,7 @@ participant cli
 participant pipeline
 participant transcode
 participant audiometa
-participant speech2text
+participant whisper_asr
 participant diarize
 participant merge
 participant llm as "mlx-lm\n(in-process)"
@@ -31,8 +31,8 @@ cli -> pipeline : run(options)
 pipeline -> transcode : foo.m4a → 16 kHz mono WAV
 pipeline -> audiometa : extract_metadata(foo.m4a)
 audiometa --> pipeline : AudioMeta
-pipeline -> speech2text : transcribe(wav, bits, language)
-speech2text --> pipeline : AsrSegment[]
+pipeline -> whisper_asr : transcribe(wav, language)
+whisper_asr --> pipeline : AsrSegment[]
 pipeline -> diarize : diarize(wav)
 diarize --> pipeline : DiarTurn[]
 pipeline -> merge : merge(asr, turns)
@@ -58,7 +58,7 @@ end legend
 @enduml
 ```
 
-![Pipeline sequence](https://www.plantuml.com/plantuml/svg/XLJ1RjGm4BtxAqRbG2AwMug0Gm-eItj0ObT2ei01KEHDPZVMEdOOE-rIXCI93q1yOR-4SJP9umY4LihQCyzlnczcVEwy9DzKMdZbDS8RLQDM1k7kns_OD5e3DGOsP2kGJQ4iU0ihIRl2tXXHgW9XOwrVsxrmEsLgIR82XryQD3akYEpDLQdodK7du7J-R0HQgWqkET1BImNIXTMMuC75u_0JGkQUj-ySac2qLxcgfV6GQnNjwoxPoEX96fVR8hQsoLVePMHrDM9UFl6uzv6zK9BKRSnG8MrZYzOiYeEZIkzdklfa4cLcDTcSBviUHKZMoNYr-HfdJzPk26KHf-IfoNr3aqlf8fQ2qB1iGWIDOFOYI0DdS6rLZfq2fDPjSURLKoc2cr6zO0pbiYQszieQbuh1pfX1FmPrn-7kvoyuVGwxLxTGMMFXm-9zT6PGby-mbiJroyAsa5uc7Kagxb6pE9T5SApQuen8HyLXpFsbaXjvVGnhvTqnQ6csZTnYAiReARsZjxYjk0GVFqSHkZ8pf5i5wbJqvWdD9Pkl6Z8JahOlsDt-9zBHCN3vWge7puJbxvc4LZg3bTulbwkvjh98KdW49KhjoomlCTybgGYW2PlTHJH3IuNQgNt6sMJ8KqWkSOUueTW3w5-fGT9YPW4KDqVVo8pkbnahBtSOXHXWamZVj5oZFWCZA_mU5xjlUqODwumheUrsH7mFc-RUEuhBzapSqZmzZDcYGP8Uix0VaRRk2L_Llt5ZdiFGXU5f5raFIkRpUIewx_-9Xd6jfIzFl3rf9wGu32axsvdkXgyGGYCdNW2fRUa5mEBYDSTtDGykEd0bSxUFDSgyPEbu61uwi8sl6tx7I5qpo9S89Wn6BhMUYy1s81Nd_E77_my0)
+![Pipeline sequence](https://www.plantuml.com/plantuml/svg/XLJ1RjGm4BtxAqRbG2AwAPM0Gm-eItj0ObT2ei01KEJ6iucrZXrifxkqGkB41o2-i5_2E9kaSGH2AsNjcUStupSpFdUUMz_MYddf5S9RsQ2I6k7-ns_Oj4g1RJLihAc1jq8Qy0RMt6w5sMbMIO6mCSPVcprpMwaRRdaD3h-sg0jSMcjsLvKijXgTWzFi-GIqaXjSKQ1NnWgq5qOP2uykdeOVOxpmj7tlq392Urd8XciFXPBHlkcJZOpUSkqA8s9hbtoDdaVMNILTWpRdBWua9BVoDcQeqPQnHIaInS5HhVOBLN_MYTIBnfg2BfiUHKZIINkv-HPdRutPMEGYiZflsyAtTdOf9U8CBMgIZR6W4InU1cdW36wCBB1NmChhhZXP_Oopu2RK81X1gQo9QRmqsgLij1Dcr8z0_N6u__aBJb_0zlKjr4OR-BZy49qPrQKpk2U6mkTXAxZdIK-IiWVK8ivb6HphhZWJqabn2FDmgMJ7Ruv1SLsslCIKJN5pOcVVOLcJ-9--HDnzWGdIhm9foWRpZEQIp5UjrJEIhYF8tVqd5FuOg711puDdnlBtJ48JdS5QxLUhTQOC5qaAJw12hdoL5nKMsoHb0JHZCzk8PcocK3Mv3sBaIFDdNU8ESKEPHz2_KeEamom2A6wBeOK9FInpafrlCGenmcOHxXI_HdK6cjVuFI8U6vvGupgdIYXJJeWVOFFS1uUuxCx4pKnpGvWIDLhkCG_x2Mdddl7Lm-isvJcCMnYRRf4Fe2JBifJrtlyJZOFQS5-TU7FIpOOuZ2Svksdknqumff0I5s1bMNa6iBnuG_5TGoEB3bn5tDqpZRoeI3eQXiSEJEkRbbumAsy8v2i4JHC91LSgOu7jGChEwKFF_Xy0)
 
 ## Stages
 
@@ -70,7 +70,7 @@ Approximate wall-clock figures are for a 6-minute Ukrainian conversation on an M
 | 2 | Metadata | `audiometa` (`ffprobe` subprocess) | original audio | `AudioMeta` (start/end/duration) | < 1 s |
 | 3 | Diarization | `pyannote.audio` 3.1 | WAV | `DiarTurn[]` (exclusive) | ~30 s |
 | 4 | Clearspeech | `clearspeech` (`soundfile` + `scipy` + `ffmpeg`) | WAV + turns | cleaned WAV | < 5 s (autogain only; longer chains add per-effect overhead) |
-| 5 | ASR | `whisper_asr` (`mlx-whisper`, default) or `speech2text` (`mlx-audio`, legacy) | cleaned WAV | `AsrSegment[]` | ~2–4 min |
+| 5 | ASR | `whisper_asr` (`mlx-whisper`) | cleaned WAV | `AsrSegment[]` | ~1 min |
 | 6 | Merge | pure Python | ASR + diar | `Segment[]` | < 1 s |
 | 7 | ASR proof-read | LLM via in-process `mlx-lm` | `Segment[]` | `Segment[]` | ~30–60 s |
 | 8 | Identify | LLM via in-process `mlx-lm` | `Segment[]` | `{label: name}` | ~5–10 s |
@@ -84,7 +84,7 @@ Approximate wall-clock figures are for a 6-minute Ukrainian conversation on an M
 | LLM model directory missing or invalid | health check | `MlxLLM.health_check()` raises `LLMError` with the actionable message *"… is not in the HuggingFace cache. Fetch it once with `huggingface-cli download <repo>`"* (or the equivalent for a filesystem path); pipeline exits before any LLM stage runs. See [`troubleshooting.md`](troubleshooting.md) and [ADR 0020](adr/0020-default-llm-qwen25-7b.md) |
 | Hugging Face token missing | diarize | `DiarizationError` with path/`chmod` instructions |
 | Gated repo not accepted on HF | diarize | `GatedRepoError` from pyannote; see [`troubleshooting.md`](troubleshooting.md) |
-| ASR repetition loop | asr | model usually escapes within seconds thanks to `repetition_penalty=1.3`; if it persists, retry with `--asr-bits 8` |
+| ASR repetition loop | asr | `mlx-whisper` runs an internal temperature schedule that escapes most loops; `condition_on_previous_text=False` removes the dominant trigger. See troubleshooting if it persists. |
 | LLM returns non-JSON for identify/structure | identify / structure | `lm-format-enforcer` guarantees valid JSON on the first try; if generation itself fails (e.g. model crash) → cluster stays unidentified / fallback to a single "Розмова" section |
 | LLM rewrites text too aggressively | proofread | Levenshtein + length ratio check rejects the reply; original kept |
 | LLM error in TL;DR | tldr | empty string returned; render simply omits the `## TL;DR` section |
