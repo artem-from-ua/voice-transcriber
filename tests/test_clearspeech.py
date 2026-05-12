@@ -425,6 +425,127 @@ def test_denoise_writes_sibling_denoise_wav(tmp_path: Path) -> None:
     assert dst.parent == src.parent
 
 
+# ----------------------------- Dereverb effect -----------------------------
+
+
+def _exponential_decay_tail(seg_len: int, rt60_s: float, sr: int = SR) -> np.ndarray:
+    """Synthesise an impulse followed by an exponentially-decaying tail.
+
+    Useful for verifying that RT60 estimation recovers the planted decay
+    and that subtraction reduces the late portion without erasing the impulse.
+    """
+    out = np.zeros(seg_len, dtype=np.float32)
+    out[0] = 1.0
+    decay_per_sample = 10 ** (-60.0 / (rt60_s * sr * 10.0))
+    rng = np.random.default_rng(seed=11)
+    noise = rng.standard_normal(seg_len).astype(np.float32) * 0.05
+    env = decay_per_sample ** np.arange(seg_len)
+    out[1:] = (noise * env)[1:]
+    return out
+
+
+def test_dereverb_estimator_monotonic_in_decay_rate(tmp_path: Path) -> None:
+    """Longer planted RT60 → longer estimated RT60.
+
+    Absolute calibration is not tight (Schroeder backward-integration on a
+    500-2000 Hz bandpass tends to underestimate by ~2× on broadband noise
+    envelopes), but the relative ordering across two clearly different
+    decay rates should be stable.
+    """
+    from voice.clearspeech import _estimate_rt60
+
+    short = _estimate_rt60(_exponential_decay_tail(int(2.0 * SR), rt60_s=0.2))
+    long_ = _estimate_rt60(_exponential_decay_tail(int(2.0 * SR), rt60_s=0.8))
+    assert short is not None and long_ is not None
+    assert long_ > short, f"expected long > short, got short={short:.2f} long={long_:.2f}"
+
+
+def test_dereverb_no_turns_is_passthrough(tmp_path: Path) -> None:
+    """Empty turns list ⇒ output is a byte-identical copy of the input WAV."""
+    import hashlib
+
+    src = tmp_path / "in.wav"
+    _write(src, _sine(1_000.0, 0.5, -20))
+
+    dst, config = clearspeech(src, chain=("dereverb",), dereverb_turns=[])
+
+    assert dst != src
+    assert (
+        hashlib.sha256(dst.read_bytes()).hexdigest()
+        == hashlib.sha256(src.read_bytes()).hexdigest()
+    )
+    assert config["steps"][0]["stats"]["turn_count"] == 0
+
+
+def test_dereverb_subtracts_reverb_tail(tmp_path: Path) -> None:
+    """A reverb-like input should have its late-energy reduced.
+
+    We compare late-tail RMS (after the first 50 ms) before vs after the
+    Lebart-Polack subtraction. The subtraction should knock at least 2 dB
+    off the tail while leaving the early portion (where the direct sound
+    lives) largely intact.
+    """
+    src = tmp_path / "in.wav"
+    seg = _exponential_decay_tail(int(2.0 * SR), rt60_s=0.5)
+    _write(src, seg)
+    turns = [DiarTurn(0.0, 2.0, "A")]
+
+    dst, _ = clearspeech(
+        src, chain=("dereverb",), dereverb_turns=turns,
+        dereverb_rt60_floor_ms=300.0, dereverb_subtract_factor=1.0,
+        dereverb_crossfade_ms=0.0,
+    )
+
+    out, _ = sf.read(dst, dtype="float32")
+    # Tail = samples after 50 ms (skip the direct-sound region entirely).
+    tail_start = int(0.05 * SR)
+    in_tail_rms = _rms_dbfs(seg[tail_start:])
+    out_tail_rms = _rms_dbfs(out[tail_start:])
+    assert out_tail_rms < in_tail_rms - 2.0, (
+        f"expected ≥2 dB reduction; got {in_tail_rms:.2f} → {out_tail_rms:.2f}"
+    )
+
+
+def test_dereverb_invalid_params_raise(tmp_path: Path) -> None:
+    src = tmp_path / "in.wav"
+    _write(src, _sine(440, 0.25, -20))
+    turns = [DiarTurn(0.0, 0.25, "A")]
+    with pytest.raises(ClearspeechError, match="rt60_floor_ms"):
+        clearspeech(
+            src, chain=("dereverb",), dereverb_turns=turns,
+            dereverb_rt60_floor_ms=10.0,  # below floor
+        )
+    with pytest.raises(ClearspeechError, match="subtract_factor"):
+        clearspeech(
+            src, chain=("dereverb",), dereverb_turns=turns,
+            dereverb_subtract_factor=1.5,
+        )
+    with pytest.raises(ClearspeechError, match="crossfade_ms"):
+        clearspeech(
+            src, chain=("dereverb",), dereverb_turns=turns,
+            dereverb_crossfade_ms=-10.0,
+        )
+
+
+def test_dereverb_writes_sibling_dereverb_wav(tmp_path: Path) -> None:
+    src = tmp_path / "voice.raw.wav"
+    _write(src, _sine(1_000.0, 0.5, -20))
+    dst, _ = clearspeech(
+        src, chain=("dereverb",),
+        dereverb_turns=[DiarTurn(0.0, 0.5, "A")],
+    )
+    assert dst.name == "voice.raw.dereverb.wav"
+    assert dst.parent == src.parent
+
+
+def test_dereverb_in_chain_without_turns_raises(tmp_path: Path) -> None:
+    """`dereverb` is per-turn — refuse to run without diarisation info."""
+    src = tmp_path / "in.wav"
+    _write(src, _sine(1_000.0, 0.5, -20))
+    with pytest.raises(ClearspeechError, match="dereverb"):
+        clearspeech(src, chain=("dereverb",))  # no turns at all
+
+
 def test_full_chain_agc_denoise_bandpass_presence(tmp_path: Path) -> None:
     """Four effects, denoise placed after AGC (the Metric-A-best order)."""
     src = tmp_path / "audio.wav"

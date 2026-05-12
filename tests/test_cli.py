@@ -39,6 +39,9 @@ def test_minimal_invocation_defaults():
     assert opts.clearspeech_presence_q == 1.0
     assert opts.clearspeech_denoise_noise_floor_db == -25.0
     assert opts.clearspeech_denoise_reduction_db == 12.0
+    assert opts.clearspeech_dereverb_rt60_floor_ms == 300.0
+    assert opts.clearspeech_dereverb_subtract_factor == 1.0
+    assert opts.clearspeech_dereverb_crossfade_ms == 50.0
     assert opts.verbose is False
 
 
@@ -161,3 +164,16 @@ def test_clearspeech_denoise_tuning_flags():
     opts = _opts_from_args(ns)
     assert opts.clearspeech_denoise_noise_floor_db == -30.0
     assert opts.clearspeech_denoise_reduction_db == 9.0
+
+
+def test_clearspeech_dereverb_tuning_flags():
+    ns = _parse([
+        "transcribe", "/tmp/a.m4a",
+        "--clearspeech-dereverb-rt60-floor-ms", "500",
+        "--clearspeech-dereverb-subtract-factor", "0.7",
+        "--clearspeech-dereverb-crossfade-ms", "25",
+    ])
+    opts = _opts_from_args(ns)
+    assert opts.clearspeech_dereverb_rt60_floor_ms == 500.0
+    assert opts.clearspeech_dereverb_subtract_factor == 0.7
+    assert opts.clearspeech_dereverb_crossfade_ms == 25.0

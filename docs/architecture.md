@@ -33,9 +33,9 @@ database "Local files" {
   file "~/.cache/huggingface/token" as HFToken
 }
 
-User -[#red]-> CLI : audio path + opts
-CLI -[#red]-> Pipeline : PipelineOptions (audio path)
-Pipeline -[#7CCD7C]-> User : transcript.md
+User -[#FF6B35]-> CLI : audio path + opts
+CLI -[#FF6B35]-> Pipeline : PipelineOptions (audio path)
+Pipeline -[#A8D957]-> User : transcript.md
 
 Pipeline ..> Ffmpeg : ffmpeg / ffprobe subprocess
 Pipeline ..> MLX : ASR inference
@@ -48,13 +48,13 @@ Pyannote ..> HFToken
 
 legend right
   <color:red>Red</color>: audio in
-  <color:#7CCD7C>Green</color>: Markdown out
+  <color:#A8D957>Green</color>: Markdown out
   Dotted arrows: library / file dependencies
 end legend
 @enduml
 ```
 
-![High-level architecture](https://www.plantuml.com/plantuml/svg/NLJ1QXin4BthAmRt4bFMfkqXO899S9gsiAOXJaCXv21Bixl2Mab8MiTkQUb7z0lx9Ht9NZlEPP5ctioycQVPon2vZrshMLHH8woj4bX4pqqGNYtHmxy_Vw5HTLDeNAC6xaMZ8ehOUMHXfOpZdhSWREkiGHCNSKjfF06ugVLBo9Ntzlc-KM9bC0HupnWNqNhu5j0pvhXOyHfXa1d0hFmoW9yCZebX8BGQ00_9T-fmog5M1hFtTdzXlnWJsdOI1Xyt4RtX6hHQUkuLXbtknwfg7TOmXgfotYxnAIMuoSRaVg01FEI1N2tkOAquj7fJy4ugcv7pydk2kIqtnaQ43wDtsNwxDoHdYj0jd2bJK0b1dGztiNfJjecZv94lUQ3EIok8OwLqpw-oMf82Wz_ZaU2YmR5kYn1J-N5h9UgG6oxdYrdofW2AVG5lkhfMfgwum76qApGP__dcFfrJxJHwA1xVU9HFnJGD5YQG-mF7OmDlmReOMB8VKVs02TeVlxgeh0bmTemTiWEEGizdi-lpMOhE9IVGlp0NHwraH-neDDqBGA3Nya3ebliXdaQG40HF8YbJeKSZy1JGAq8egUW5_E29yAiaIH42bEKSQ2jgf7wecgqySaaabAJ7fgej7KFqNTu0EaSj_P2nH25bEQYnItTYEh18rbu6fh568y7JZaNIy49ORVs4XZszGtanpjTfBuioHyX-gjDF7j4SWNFkLz8-6x1TodTjOqH9UqlR5oRx5KXDvCSYqL5n6XWj1KiqTcpO9Nteh_0V)
+![High-level architecture](https://www.plantuml.com/plantuml/svg/NLJRRjim37tNLn3PIul12RQYkmH5qAnTjW4ELZHTCQ3eWoBHjX1P4YIvJJTis4Vi2_SbevIuQVfYIEGXUSWZ-ZH4xcFNQXPLr0XtLWaiekSc2A-MwE7Vdx_GgBefDDwX1kv5eoAAs7baOQMCuvwt86phh44J5_61qdW2S5Fhfv2fz_R-gb5YPJ04UCqO5z5w-1RGC-QuMF4QOP0Pm5dvPG0_6UmImq1eDG0Uac_VuPH3hGncxyNsmdun9hJj90m-hYDwmpLejVJSAmoRt3TLrJgiOGHLvRnTucrACCl6vBwc0LpdWKmNbt2dEBHwNV1EAfkHy_9xWha7ReoD24V3Lzb-iJKaPuhGBHmeKr09GPqVRcBrkcmJHyaZN_90dPTM4CTAwPvVPRKa1GQ_HqF1HOCZtHOXflAZrahK8JTSpXTdoPi2AFO9lEdgMfcwuW97qQxGPFpdsLKwfzffz53Sl9ZDtdmuEhuj9ccsC8RS8ZWU6tW9riN0adqFs8-PqFtngulAcW07k_13zeYZwEcxy_V7RrDqBZo6_fsvE6mbss67mybM1W8z5mb2jzoESZ-2v21uaagP2ZqQWVk0NXT2IKNlu0TFX9ybIReGe2pdGBjH8_L3rMpbaKiYeIGzELKzq354t-Kze7FKqXyobYYaB8-QRDBjcHvP96il1jDOev7WQTCYANaYhBP-x55EBb6UZF9rqYkZp0wodUhaaqSqE-2S-vMqzmPib_ATsnXHqlRI3eRnTX5I4_d9I7HKd0P6gy4IZGqRTaeV-ZVy1m00)
 
 ## Pipeline stages
 
@@ -71,55 +71,51 @@ skinparam legendBackgroundColor #EEEEEE
 [<b>input audio</b>\n<i>mp3, wav, m4a, mp4 ...</i>] as Input #A9A9A9
 [<b>transcript.md</b>] as Output #A9A9A9
 
-component "<b>[1] audiotranscode</b>\n<i><ffmpeg></i>" as WAV #FFA07A
-component "<b>[2] audiometa</b>\n<i><ffprobe></i>" as FF #FFA07A
+component "<b>[1] audiotranscode</b>\n<i><ffmpeg></i>" as WAV #E8E8E8
+component "<b>[2] audiometa</b>\n<i><ffprobe></i>" as FF #E8E8E8
 component "<b>[3] diarize</b>\n<i><pyannote-audio> speaker-diarization-3.1</i>" as Diar #87CEFA
-component "<b>[4] clearspeech</b>\n<i><soundfile> agc</i>\n<i><scipy> <s>bandpass</s></i>\n<i><scipy> <s>presence</s></i>\n<i><ffmpeg> <s>denoise</s></i>" as CS #E8E8E8
+component "<b>[4] clearspeech</b>\n<i><soundfile> agc</i>\n<i><scipy> <s>bandpass</s></i>\n<i><scipy> <s>presence</s></i>\n<i><ffmpeg> <s>denoise</s></i>\n<i><scipy> <s>dereverb</s></i>" as CS #E8E8E8
 component "<b>[5] asr</b>\n<i><mlx-audio> VibeVoice-ASR</i>" as ASR #90EE90
 component "<b>[6] merge</b>" as Merge #E8E8E8
-component "<b>[7] proofread</b>\n<i><mlx-lm> gemma-3-12b</i>" as Post #DDA0DD
-component "<b>[8] identify</b>\n<i><mlx-lm> gemma-3-12b</i>" as Ident #DDA0DD
-component "<b>[9] structure</b>\n<i><mlx-lm> gemma-3-12b</i>" as Struct #DDA0DD
-component "<b>[10] tldr</b>\n<i><mlx-lm> gemma-3-12b</i>" as TLDR #DDA0DD
+component "<b>[7] proofread</b>\n<i><mlx-lm> gemma-3-12b</i>" as Post #FFCC66
+component "<b>[8] identify</b>\n<i><mlx-lm> gemma-3-12b</i>" as Ident #FFCC66
+component "<b>[9] structure</b>\n<i><mlx-lm> gemma-3-12b</i>" as Struct #FFCC66
+component "<b>[10] tldr</b>\n<i><mlx-lm> gemma-3-12b</i>" as TLDR #FFCC66
 component "<b>[11] render</b>" as Render #E8E8E8
 
-Input -[#red]-> FF
-Input -[#red]-> WAV
+Input -[#FF6B35]-> FF
+Input -[#FF6B35]-> WAV
 
-WAV -[#red]-> Diar : <color:#404040>16 kHz mono WAV</color>
-WAV -[#red]-> CS : <color:#404040>16 kHz mono WAV</color>
-Diar -[#blue]-> CS : <color:#404040>speaker turn boundaries</color>
-CS -[#red]-> ASR : <color:#404040>cleaned audio</color>
+WAV -[#FF6B35]-> Diar : <color:#404040>16 kHz mono WAV</color>
+WAV -[#FF6B35]-> CS : <color:#404040>16 kHz mono WAV</color>
+Diar -[#3B82F6]-> CS : <color:#404040>speaker turn boundaries</color>
+CS -[#FF6B35]-> ASR : <color:#404040>cleaned audio</color>
 
-ASR -[#blue]-> Merge : <color:#404040>recognized text</color>
-Diar -[#blue]-> Merge : <color:#404040>speaker turn boundaries</color>
+ASR -[#A8D957]-> Merge : <color:#404040>recognized text</color>
+Diar -[#3B82F6]-> Merge : <color:#404040>speaker turn boundaries</color>
 
-Merge -[#blue]-> Post : <color:#404040>text with speaker labels</color>
-Post -[#blue]-> Ident : <color:#404040>proof-read text</color>
-Ident -[#blue]-> Struct : <color:#404040>text + speaker names</color>
-Struct -[#blue]-> TLDR : <color:#404040>text split into sections</color>
+Merge -[#A8D957]-> Post : <color:#404040>text with speaker labels</color>
+Post -[#A8D957]-> Ident : <color:#404040>proof-read text</color>
+Ident -[#A8D957]-> Struct : <color:#404040>text + speaker names</color>
+Struct -[#A8D957]-> TLDR : <color:#404040>text split into sections</color>
 
-FF -[#blue]-> Render : <color:#404040>recording date + duration</color>
-TLDR -[#7CCD7C]-> Render : <color:#404040>summary</color>
-Render -[#7CCD7C]-> Output
+FF -[#3B82F6]-> Render : <color:#404040>recording date + duration</color>
+TLDR -[#A8D957]-> Render : <color:#404040>summary</color>
+Render -[#A8D957]-> Output
 
 legend top right
-  <color:#404040>**Box fill** (stage category):</color>
-  <back:#FFA07A>   </back> <color:#404040>subprocess (external binary)</color>
-  <back:#87CEFA>   </back> <color:#404040>AI model — "pyannote/speaker-diarization-3.1"</color>
-  <back:#90EE90>   </back> <color:#404040>AI model — "mlx-community/VibeVoice-ASR-6bit"</color>
-  <back:#DDA0DD>   </back> <color:#404040>AI model — "mlx-community/gemma-3-12b-it-qat-4bit"</color>
-  <back:#E8E8E8>   </back> <color:#404040>pure-Python</color>
-  <back:#A9A9A9>   </back> <color:#404040>I/O payload</color>
-  <color:#404040>**Arrows:**</color>
-  <color:red>Red</color>: <color:#404040>audio bytes</color>
-  <color:blue>Blue</color>: <color:#404040>structured data (dataclass / JSON)</color>
-  <color:#3A9D3A>Green</color>: <color:#404040>Markdown</color>
+  <back:#A9A9A9>   </back> <i><color:#404040>In/Out artifacts</color></i>
+  <back:#87CEFA>   </back> <i><color:#404040>AI model: "pyannote/speaker-diarization-3.1"</color></i>
+  <back:#90EE90>   </back> <i><color:#404040>AI model: "mlx-community/VibeVoice-ASR-6bit"</color></i>
+  <back:#FFCC66>   </back> <i><color:#404040>AI model: "mlx-community/gemma-3-12b-it-qat-4bit"</color></i>
+  <color:#FF6B35>**▬▶**</color> <i><color:#404040>audio bytes</color></i>
+  <color:#3B82F6>**▬▶**</color> <i><color:#404040>metadata (turns, recording date)</color></i>
+  <color:#6E9E1F>**▬▶**</color> <i><color:#404040>transcript text (recognized → enriched → Markdown)</color></i>
 end legend
 @enduml
 ```
 
-![Pipeline stages](https://www.plantuml.com/plantuml/svg/dLRRRkCs47tNLmpYbyHTnKwSvc8OmZfst6RHRHR98dr8_K194uMmHAeajOdtQJ-YNzWlwP1oPCMoKgCM85Zad7E6v5puKHkcJ96bdk4cHVWcUOI-KKpeIF4G5Vppus_8UOuf5mXadQ3sz8ABd2cMGIIpN0eKviui2QumCamaATPCnah9vwzFF5e8r1gEQrCf9YZYIwbYL1EPIWLEcIQ9iMd7eaMYP27YqhPpvNwUzp0A0p8j3B0YvdBK2uC_nOW7MJxu0C_ismV8JXYzyXCuF3mSzNWm1wRXsa4wumlxE9BNTUVcC8ijZRExAKpTqAlM37k4UJYQbx8bMCPOwOyU7xCSay0gxbccFyRtq9dDnlspyIRByOebGyFg1BcI8QuPPhCsWi4SOiuK_rxJpvTC26dGTzG1w1pP0fLV6ZB3fV07XqSL-vJ6eND-DhcQDVXFvX2bo1HnOFIqrj3sG1vvYW6m9B9Kg_68vyi0HZe8cOXpflMefuDjyxb2ZIB2j_EhlRC6CGh9TJNlN9tSqVcVssVJqP_jeQcrWrdwyhh-UuheUnVXuxlRYeh-G-UYVtLrqT_aEfr3XYfnM-fiFzklDkMpET1noKU5B7whdsO199Xbp1_uHyTX9Vr5QWgiwNJSdqutsSxdm6dbXZykToExjjPjR1TpIbvLHAPGk1lTdJDluplgpy6aiTgDw-jlqzjM9aeWodSg0TKktxhFQfkzCbFzXux2UEu7b0MD8KejpxFvjHvoqJo4KMIhnR1pqhTFS7GAYr-_GoQ5jA1Hpqq76rWAhvsHJeUWOLfW6tQLUK3RBo2qAKCPYBhY8CnQt0PaWy4cdy3ujSIjS9wrhMcNyTa0KrsMYQ3Q48F15zFgUWlylxptIboDo0LsWyTgmpCtJw-L258MOhecSh0QJHdI3HwNPRvDixVBASrh-5KCRtVafyeBmRBQQbQW6eqBt-qaEa-v0IwC14tDZofgRLkeMjTOLb6zzN1Kp4K2CJD8RiM5ShMv8dBwn7GscKpF9kznwOAIJoqhvChk3RRiPvvNTbKmCWV5aoVZmIPRjtifNu2AUzhjmhvh_X2HZubKouDX9KAua7hpSDMP0g21dXq9ckw5T7QHlGViq-wX4Yo5a0jo-Q19LpQYT-Z6rvIDCQRkahBtskrwBMrkhwbGLlsT5Mo9e-gL5OARPUzDD_5FGswsA9Grxtygr4gfput_5pF-oNQPibA-8vDJtVU_BCrJBQmgT7cpUGTztRk1d2rJQHlR6hqPBUwgfuVTRjE8IbjmYnMw4RYkh46uDBL4hC0sWu9BUhN2gzuMsoHYi6_VKKgt3kZ1fxkRtm-s-3qONqm7u-0NXIXQcJypjOZbythNRCwKgUDzf1VTdVy5)
+![Pipeline stages](https://www.plantuml.com/plantuml/svg/dLRDRkCs4BxhAGR9PPj6TXmxJXmOmZg9ZGtGnHR98ZsaFb3IM24iaIf99-izzTG7A8fzYfxxG7cI3YbPjc9hQpG2Z8YSx_luC_EDtcl3b5bagMUuIH6U9O_GDue97IaUeeBNt_-2dEUOSe50qGbgJy-vo9bY6KGoowL0OUxDak0A8yD4ak96o4Wf-VBvYKTpWLh3wSPKYWcA-4gg6DMrJAK2fqoJnBWTnw9vekH2n4NiuTZzUTxZC0meT660BM8kX-qm-5KCUP3btMDuOS_7aFKO_UGzQBLQmpOFfi0qt3h8uMXW7qUosdTkMbbiQLpSfuNP3FIgFSC1OHuxqqAs0CiOA_tXR9Rbc0HMyS0o_J9we5LVsESjosd9ag5XcmIvaY6k6IQJ9eBk56BE5F-wePylcH3IeE-e0z0viZaglmXaXalXTrkTYls6nk7mulnwF1czvUzD8KgHAUB0w6cjeUs5p7YA0R0aibJbUCJpPG137OHCn3dJUjZMmQxvNA564M5zlZmx6n2Za5nZ4vwI1vzHXQjvjvNh-wQ3EhENgjORoD8lg_Dve8n_S1Kmkh-hgEX_E1oSZCU3axTS_Ibag19tv2xsetrhKZwV0bsdd2baSLq_pG98CCkOt_Kxfs4b_RFKb7YJoVLrl_-MxM8Ad4x6yDboFx9R6zt4DfXISQj5P1OAzwExT-5DV9sJAPWqLljnVVxfvgwHYGgC_81kkJhbE_TQ7RDNLBB_I0pzg-xPr0-eK7QDKW5wdgt2sgXB-qiOHjPMBWzx9_O9EdsOV_WAcHJIuePjDnrimodLzWOxAK9thovE9_qcT5cdG9SX8BG5HlMAkc8XJ6q5DaEtI6or2enNdbX2FHjBuD75pU3it8ABbDs2avNBH92Tn63mY_dE3Xe8_ciJNe6hhSNb-nQJrOSNRfvM1WOf2p5TKpbOZQZ8zIqcLtw-hR_wfehm6aEPthiNysEr4i6oZJsLe1gHo-tTD3fFkG4kZ0HDdPFiUEDuoEfhnrmc_SwBKZ4N2SJC82qjNYXdxHMLMq5jJKrSUa6rgPOLieohOOjsw7b5KmOZSr0yUJ8Um32a5drPDie0QA1jHyYbgVxhIhUY_SasR4N-nI9JxTjQmfgfQ4NVPnhTKfd5c5x2mQhVjHiQtS5kbSBRzrQnHaOUbIq4DyjshMVu_P2R1fN2tVwdoePf-jpulp7ZztP9bNI5DGH7Hw_V_dxzzi_HqIfkXwRp1mYN1hSkeGmiSd0_DllzGdd8u9sjUtqCzVJyeK6YFnwCEvFz9DPVQQw8uTs6LRt-yIUWK3nwAby-CZMFvOke2zl4BVBNUqy_zFtxBm00)
 
 ## Module layout
 

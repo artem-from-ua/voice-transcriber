@@ -84,14 +84,15 @@ def _build_parser() -> argparse.ArgumentParser:
         "--clearspeech-chain", type=str, default="agc", metavar="EFFECTS",
         help=(
             "Comma-separated effect names in execution order. Known effects: "
-            "agc, bandpass, presence, denoise. Default: 'agc' (matches "
-            "v0.14.0/v0.15.0 behaviour). Use '' to disable preprocessing "
-            "entirely. WARNING: enabling 'denoise' degrades ASR on Ukrainian "
-            "content even at its empirically best position (after AGC); see "
-            "ADR 0014 for Metric A and the OpenAI Whisper-rule check. "
-            "WARNING: using 'presence' without 'bandpass' first "
-            "catastrophically breaks ASR (see ADR 0013); enable bandpass "
-            "whenever you enable presence."
+            "agc, bandpass, presence, denoise, dereverb. Default: 'agc' "
+            "(matches v0.14.0/v0.15.0/v0.16.0 behaviour). Use '' to disable "
+            "preprocessing entirely. WARNING: enabling 'denoise' degrades ASR "
+            "on Ukrainian content even at its empirically best position "
+            "(after AGC); see ADR 0014 for Metric A and the OpenAI "
+            "Whisper-rule check. WARNING: using 'presence' without 'bandpass' "
+            "first catastrophically breaks ASR (see ADR 0013); enable "
+            "bandpass whenever you enable presence. 'dereverb' is per-turn "
+            "(uses pyannote turns) — see ADR 0015 for Metric A."
         ),
     )
     cs.add_argument(
@@ -147,6 +148,25 @@ def _build_parser() -> argparse.ArgumentParser:
             "ffmpeg afftdn subtraction amount in dB (default: 12)."
         ),
     )
+    cs.add_argument(
+        "--clearspeech-dereverb-rt60-floor-ms", type=float, default=300.0, metavar="MS",
+        help=(
+            "Per-turn RT60 estimate is clamped above this floor in ms (default: "
+            "300). Lower lets the estimator pick shorter RT60s on already-dry "
+            "segments; higher forces stronger dereverb everywhere."
+        ),
+    )
+    cs.add_argument(
+        "--clearspeech-dereverb-subtract-factor", type=float, default=1.0, metavar="ALPHA",
+        help=(
+            "How aggressively to subtract predicted late-reverb power "
+            "(0.0 = no-op, 1.0 = full Lebart-Polack). Default: 1.0."
+        ),
+    )
+    cs.add_argument(
+        "--clearspeech-dereverb-crossfade-ms", type=float, default=50.0, metavar="MS",
+        help="Crossfade duration at per-turn boundaries (default: 50).",
+    )
 
     t.add_argument(
         "--dump-stages", dest="dump_stages_dir", default=None, metavar="DIR",
@@ -188,6 +208,9 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         clearspeech_presence_q=args.clearspeech_presence_q,
         clearspeech_denoise_noise_floor_db=args.clearspeech_denoise_noise_floor_db,
         clearspeech_denoise_reduction_db=args.clearspeech_denoise_reduction_db,
+        clearspeech_dereverb_rt60_floor_ms=args.clearspeech_dereverb_rt60_floor_ms,
+        clearspeech_dereverb_subtract_factor=args.clearspeech_dereverb_subtract_factor,
+        clearspeech_dereverb_crossfade_ms=args.clearspeech_dereverb_crossfade_ms,
         dump_stages_dir=args.dump_stages_dir,
         verbose=args.verbose,
     )

@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] — 2026-05-12
+
+### Added
+- New clearspeech effect **dereverb** — per-pyannote-turn Lebart-Polack spectral subtraction (room reverberation removal). RT60 is estimated per turn via Schroeder backward integration on a 500–2000 Hz bandpassed envelope; the predicted late-reverberation power is then subtracted from the STFT magnitude before iSTFT. No new dependencies — `scipy.signal.stft`/`istft`/`hilbert` already available. **Default off; experimental opt-in.** Three new tuning knobs: `--clearspeech-dereverb-rt60-floor-ms` (default `300`), `--clearspeech-dereverb-subtract-factor` (default `1.0`), `--clearspeech-dereverb-crossfade-ms` (default `50`).
+- `dereverb` is the first chain effect that *requires* `pyannote` turns to run — short or quiet stretches of audio don't carry enough decay information for the RT60 fit. Chains containing `dereverb` without an upstream diarisation step raise `ClearspeechError`.
+- The `--clearspeech-chain` `--help` text now lists `dereverb` among the known effects and points to ADR 0015 for empirical caveats.
+
+### Changed
+- Pipeline stage `[4/10] Clearspeech (…)` accepts `dereverb` anywhere in the chain string; no other behavioural change.
+
+### Empirical results
+A four-run Metric A grid on the reference recording (RU-glyph drift rate):
+
+| Chain | RU-glyph | Note |
+| --- | --- | --- |
+| `agc` (default, unchanged) | 5.1 % | best-balanced baseline |
+| `dereverb,agc` | 7.1 % | pre-AGC; merges short Ukrainian turns into long Russian-leaning blocks |
+| `agc,dereverb` | 10.5 % | post-AGC; AGC lifts reverb tails before subtraction can target them |
+| `dereverb` (isolated) | 0.0 % | **Simpson's paradox** — drops ~9 % of Ukrainian text into `[Human Sounds]` markers, the 0 % is rate-not-volume |
+
+Default chain stays `"agc"`. See [`docs/adr/0015-clearspeech-dereverb.md`](docs/adr/0015-clearspeech-dereverb.md) for the side-by-side transcript audit and the cross-engine-validation follow-up.
+
 ## [0.16.0] — 2026-05-12
 
 ### Added
