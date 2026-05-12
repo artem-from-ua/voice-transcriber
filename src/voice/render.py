@@ -155,7 +155,7 @@ def _render_participants(
             )
             if cluster and cluster in name_sources:
                 source = f" ({name_sources[cluster]})"
-        chip = f"{emoji} {speaker}".strip()
+        chip = f"{emoji} **{speaker}**".strip()
         lines.append(f"  • {chip}{source}")
     return lines
 

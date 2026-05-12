@@ -47,8 +47,8 @@ def test_render_minimal_dialogue():
     assert "🌐 Мова: uk (user-specified)" in out
     assert "🏁" not in out, "no 'Кінець' line expected"
     assert "👥 Учасники:" in out
-    assert "• 🔵 Артем" in out
-    assert "• 🟢 Остап" in out
+    assert "• 🔵 **Артем**" in out
+    assert "• 🟢 **Остап**" in out
     assert "## Привітання" in out
     assert "🔵 **Артем:** Привіт!" in out
     assert "🟢 **Остап:** Привіт-привіт." in out
@@ -73,8 +73,8 @@ def test_render_participants_uses_pyannote_label_when_unnamed():
     dialog = StructuredDialog(sections=sections, segments=segs)
     out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
     assert "👥 Учасники:" in out
-    assert "🔵 SPEAKER_00" in out
-    assert "🟢 SPEAKER_01" in out
+    assert "🔵 **SPEAKER_00**" in out
+    assert "🟢 **SPEAKER_01**" in out
 
 
 def test_render_normalises_started_at_with_offset():
@@ -206,8 +206,8 @@ def test_render_participants_with_source_tags():
             "SPEAKER_01": "user-specified",
         },
     )
-    assert "• 🔵 Остап (self-introduced)" in out
-    assert "• 🟢 Артем (user-specified)" in out
+    assert "• 🔵 **Остап** (self-introduced)" in out
+    assert "• 🟢 **Артем** (user-specified)" in out
 
 
 def test_render_ai_models_table_grouping_single_llm():
