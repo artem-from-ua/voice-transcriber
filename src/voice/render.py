@@ -74,8 +74,6 @@ def _segments_in_section(segments: list[Segment], section: Section) -> list[Segm
     """Segments whose midpoint lies within the section's range."""
     out = []
     for seg in segments:
-        if seg.speaker is None:
-            continue
         mid_ms = int(((seg.start + seg.end) / 2) * 1000)
         if section.start_ms <= mid_ms < section.end_ms:
             out.append(seg)
@@ -102,6 +100,16 @@ def _render_section_body(
             blocks.append(f"{label} " + " ".join(cur_lines).strip())
 
     for seg in seg_in_section:
+        if seg.speaker is None:
+            # Speakerless segments: emit [muted, Xs] placeholders, skip ASR noise tags
+            if seg.content.startswith("[muted"):
+                flush()
+                cur_lines = []
+                cur_speaker = None
+                blocks.append(seg.content.strip())
+                prev_end = seg.end
+            continue
+
         label = seg.name or seg.speaker
         same_speaker = label == cur_speaker
         gap = (seg.start - prev_end) if prev_end is not None else 0.0
