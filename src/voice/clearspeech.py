@@ -1,8 +1,8 @@
 """Audio cleanup chain between diarize and ASR.
 
 The chain-of-effects design lets future PRs add new DSP effects as ordered
-links without growing the pipeline-stage count ([N/10] stays constant) or
-rewriting dump layout per release.
+links without growing the pipeline-stage count (the slot stays `[5/11]`)
+or rewriting dump layout per release.
 
 Chain effects (issue #48 + dereverb follow-up):
   - "autogain" — per-pyannote-turn RMS normalization (was loudness_normalize)

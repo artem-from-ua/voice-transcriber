@@ -29,7 +29,17 @@ def _build_parser() -> argparse.ArgumentParser:
 
     t = sub.add_parser("transcribe", help="Transcribe an audio file end-to-end.")
     t.add_argument("audio", help="Path to the input audio file.")
-    t.add_argument("--language", default="uk", help="Conversation language (default: uk).")
+    t.add_argument(
+        "--language", default=None, metavar="ISO",
+        help=(
+            "Conversation language hint (e.g. 'uk', 'en'). Default: detect "
+            "at stage [4] lang_detect on the longest pyannote turn. Pass an "
+            "explicit value to skip detection — useful when the diarized "
+            "recording has only very short turns or when you already know "
+            "the language and want to avoid the extra model load. The "
+            "override flows through to all LLM / render stages. See ADR 0022."
+        ),
+    )
     t.add_argument(
         "--unknown-speaker", choices=("ask", "keep"), default="ask",
         help="When self-intro is missing: ask interactively or keep SPEAKER_XX.",

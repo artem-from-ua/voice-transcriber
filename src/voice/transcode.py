@@ -21,7 +21,7 @@ def transcode(src: Path, dst: Path, log: Callable[[str], None]) -> None:
         "-c:a", "pcm_s16le",
         str(dst),
     ]
-    log(f"[1/10] transcode → WAV 16 kHz mono")
+    log(f"[1/11] transcode → WAV 16 kHz mono")
     try:
         subprocess.run(cmd, check=True, capture_output=True, text=True)
     except FileNotFoundError as exc:

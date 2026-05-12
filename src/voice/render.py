@@ -171,7 +171,7 @@ def render_markdown(
                 f"⏲️ **Обробка:** {_format_compact_duration(total)}"
             )
         breakdown_order = (
-            "diarize", "asr", "proofread", "identify", "structure", "tldr",
+            "diarize", "lang_detect", "asr", "proofread", "identify", "structure", "tldr",
         )
         chips = [
             f"{stage}={_format_compact_duration(timings[stage])}"

@@ -21,6 +21,7 @@ from . import audiometa as audiometa_module
 from . import clearspeech as clearspeech_module
 from . import diarize as diarize_module
 from . import identify as identify_module
+from . import lang_detect as lang_detect_module
 from . import proofread as proofread_module
 from . import whisper_asr as whisper_asr_module
 from ._dump import StageDumper
@@ -39,7 +40,7 @@ from .types import Segment
 class PipelineOptions:
     audio_path: str
     output_path: str | None = None
-    language: str = "uk"
+    language: str | None = None    # None → detect on the longest pyannote turn ([4] lang_detect)
     unknown_speaker: str = "ask"           # "ask" | "keep"
     names_override: list[str] | None = None
     datetime_override: datetime | None = None
@@ -251,10 +252,10 @@ def run(options: PipelineOptions) -> str:
     try:
         with progress:
             wav_path = tmpdir / "audio.wav"
-            with progress.spinner("[1/10] transcode → WAV 16 kHz mono"):
+            with progress.spinner("[1/11] transcode → WAV 16 kHz mono"):
                 transcode_module.transcode(audio, wav_path, log)
 
-            with progress.spinner("[2/10] audiometa"):
+            with progress.spinner("[2/11] audiometa"):
                 audio_meta = audiometa_module.extract_metadata(
                     audio, override_started_at=options.datetime_override
                 )
@@ -267,10 +268,25 @@ def run(options: PipelineOptions) -> str:
             # runs on the normalised WAV. Each module loads its own model and
             # frees it on return; the LLM is loaded after both, so the three
             # are never co-resident.
-            with progress.spinner("[3/10] Діаризація (pyannote 3.1)"), _timed("diarize"):
+            with progress.spinner("[3/11] Діаризація (pyannote 3.1)"), _timed("diarize"):
                 turns = diarize_module.diarize(wav_path, log=log)
             log(f"      {len({t.speaker for t in turns})} мовців")
             dumper.write("02-diarize.json", turns)
+
+            # [4] lang_detect — runs only when --language was not given.
+            # Whisper-large-v3's first-30 s auto-detect is unreliable on quiet
+            # or short opening segments (see ADR 0022); detecting on the
+            # longest pyannote turn instead gives a much stronger signal.
+            if options.language is None:
+                with progress.spinner("[4/11] Визначення мови"), _timed("lang_detect"):
+                    effective_language = lang_detect_module.detect_language_on_longest_turn(
+                        wav_path, turns, log=log,
+                    )
+                origin = "auto-detect"
+            else:
+                effective_language = options.language
+                origin = "cli override"
+            log(f"      Мова: {effective_language} ({origin})")
 
             chain = tuple(
                 part.strip() for part in options.clearspeech_chain.split(",")
@@ -281,7 +297,7 @@ def run(options: PipelineOptions) -> str:
             def _dump_step(idx: int, effect: str, path: Path) -> None:
                 dumper.write_binary(f"02b-clearspeech-{idx}-{effect}.wav", path)
 
-            with progress.spinner(f"[4/10] Clearspeech ({chain_label})"):
+            with progress.spinner(f"[5/11] Clearspeech ({chain_label})"):
                 processed_wav_path, clearspeech_config = clearspeech_module.clearspeech(
                     wav_path,
                     chain=chain,
@@ -305,16 +321,16 @@ def run(options: PipelineOptions) -> str:
             dumper.write("02b-clearspeech-config.json", clearspeech_config)
 
             engine_label = "Whisper-large-v3-MLX"
-            with progress.spinner(f"[5/10] speech2text ({engine_label})"), _timed("asr"):
+            with progress.spinner(f"[6/11] speech2text ({engine_label})"), _timed("asr"):
                 asr_segments = whisper_asr_module.transcribe(
                     processed_wav_path,
-                    language=options.language,
+                    language=effective_language,
                     log=log,
                 )
             log(f"      {len(asr_segments)} ASR-сегментів")
             dumper.write("03-asr.json", asr_segments)
 
-            with progress.spinner("[6/10] Merge"):
+            with progress.spinner("[7/11] Merge"):
                 segments: list[Segment] = merge(asr_segments, turns)
             dumper.write("04-merge.json", segments)
 
@@ -334,14 +350,14 @@ def run(options: PipelineOptions) -> str:
                         segments = proofread_module.fix_asr_errors(
                             segments,
                             llm=llm,
-                            language=options.language,
+                            language=effective_language,
                             log=log,
                             progress=progress,
                         )
                     dumper.write("05-proofread.json", segments)
                     free_mlx(log)
                 else:
-                    log(f"[7/10] Proofread пропущено")
+                    log(f"[8/11] Proofread пропущено")
 
                 if needs_identify_llm:
                     llm = _ensure_llm(
@@ -355,7 +371,7 @@ def run(options: PipelineOptions) -> str:
                 with _timed("identify"):
                     name_map = identify_module.identify_speakers(
                         segments,
-                        language=options.language,
+                        language=effective_language,
                         llm=identify_llm,
                         unknown_policy=options.unknown_speaker,  # type: ignore[arg-type]
                         names_override=options.names_override,
@@ -379,14 +395,14 @@ def run(options: PipelineOptions) -> str:
                     )
                     with _timed("structure"):
                         dialog = structure_module.structure_dialog(
-                            segments, llm=llm, language=options.language,
+                            segments, llm=llm, language=effective_language,
                             log=log, progress=progress,
                         )
                     free_mlx(log)
                 else:
-                    log(f"[9/10] Структурування пропущене")
+                    log(f"[10/11] Структурування пропущене")
                     dialog = structure_module.structure_dialog(
-                        segments, llm=None, language=options.language, log=log,
+                        segments, llm=None, language=effective_language, log=log,
                     )
                 dumper.write("08-structure.json", dialog)
 
@@ -398,13 +414,13 @@ def run(options: PipelineOptions) -> str:
                     )
                     with _timed("tldr"):
                         tldr_text = tldr_module.generate_tldr(
-                            segments, llm=llm, language=options.language,
+                            segments, llm=llm, language=effective_language,
                             log=log, progress=progress,
                         )
                     free_mlx(log)
                 else:
                     tldr_text = ""
-                    log(f"[10/10] TL;DR пропущено")
+                    log(f"[11/11] TL;DR пропущено")
                 dumper.write("09-tldr.txt", tldr_text)
             finally:
                 if llm is not None:
@@ -422,7 +438,7 @@ def run(options: PipelineOptions) -> str:
             audio_meta=audio_meta,
             dialog=dialog,
             tldr=tldr_text,
-            language=options.language,
+            language=effective_language,
             models=models,
             timings=timings,
         )

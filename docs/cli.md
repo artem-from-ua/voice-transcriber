@@ -16,7 +16,7 @@ voice transcribe <audio> [options]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--language` | str | `uk` | Conversation language. Affects identify / proofread / structure / tldr prompts and is passed to Whisper as a hint. |
+| `--language` | str (ISO) | auto-detect | Conversation language hint. Default: detected at stage `[4] lang_detect` on the longest pyannote turn via Whisper's `model.detect_language()` ([ADR 0022](adr/0022-asr-language-autodetect.md)). Pass an explicit value (e.g. `--language uk`) to skip detection — useful when the diarized recording has only very short turns or when you already know the language and want to save the 3-5 s detect step. The override flows through to ASR, proofread, identify, structure, TL;DR and render. |
 | `--unknown-speaker` | `{ask,keep}` | `ask` | What to do when self-intro is missing. `ask` prompts on stdin; `keep` leaves `SPEAKER_XX`. |
 | `--names` | `"A,B,..."` | – | Override automatic naming. Mapped to clusters in order of first appearance. Skips the LLM identify step. |
 | `--datetime` | ISO 8601 | – | Override recording start time. Defaults to `ffprobe creation_time`, then `stat birthtime`, then `stat mtime`. |
@@ -44,7 +44,7 @@ uv run voice transcribe ~/recordings/standup.m4a -v
 # 2) Skip LLM identify; force the order Artem → Ostap
 uv run voice transcribe call.m4a --names "Artem,Ostap"
 
-# 3) English transcript
+# 3) Force English transcript (skip the [4] lang_detect probe)
 uv run voice transcribe interview.wav --language en
 
 # 4) Minimal output (plain dialogue), no TL;DR, no sectioning

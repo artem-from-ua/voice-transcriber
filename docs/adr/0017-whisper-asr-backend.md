@@ -1,11 +1,13 @@
 ---
-status: accepted
+status: superseded
+superseded_by:
+  - 0021-remove-vibevoice-backend.md
 date: 2026-05-12
 ---
 
 # ADR 0017 — Whisper-large-v3-MLX as a second ASR backend behind `--asr-engine`
 
-> **2026-05-12 update:** the VibeVoice backend was removed entirely in v0.23.0. See [ADR 0021](0021-remove-vibevoice-backend.md). This ADR is preserved as the historical record of *how* Whisper entered the project and the empirical comparison that justified making it the default.
+> **2026-05-12 update:** superseded by [ADR 0021](0021-remove-vibevoice-backend.md), which dropped the VibeVoice backend and the `--asr-engine` flag entirely in v0.23.0. The decision below — *add* Whisper *alongside* VibeVoice as a routable second engine — is therefore no longer the current design. This ADR is preserved as the historical record of *how* Whisper entered the project and the empirical comparison that justified making it the default.
 
 ## Context
 

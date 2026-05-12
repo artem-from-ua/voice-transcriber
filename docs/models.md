@@ -12,6 +12,8 @@ OpenAI Whisper large-v3 converted to MLX. Driven by `mlx-whisper` (in-process, n
 
 **Operating settings.** `whisper_asr.transcribe` calls `mlx_whisper.transcribe(audio, path_or_hf_repo=..., language=..., condition_on_previous_text=False)`. The other knobs (`temperature` schedule, `compression_ratio_threshold`, `logprob_threshold`, `no_speech_threshold`, 30-second windowing) are handled internally by `mlx-whisper` — we accept its defaults rather than re-expose them as CLI flags. `condition_on_previous_text=False` is the one explicit override: it prevents the repetition-loop failure mode Whisper is known for on long mono inputs (method copied verbatim from the sibling `stone-scriber` project — see ADR 0017).
 
+**Language.** Since v0.24.0 `--language` defaults to `None`. A new stage `[4] lang_detect` runs between diarize and clearspeech, picks the longest pyannote turn, and calls `model.detect_language()` on Whisper-large-v3-MLX over that turn's mel-spectrogram. The detected ISO code becomes the `language` hint for `mlx_whisper.transcribe()` at stage `[6] speech2text` and flows through every downstream LLM / render stage. Passing `--language uk` (or any ISO code) explicitly skips lang_detect entirely. See [ADR 0022](adr/0022-asr-language-autodetect.md) for why the longest pyannote turn is a strictly better signal than Whisper's first-30 s internal classifier.
+
 **Speaker labels.** Whisper has no speaker-prediction head; every ASR segment carries no speaker hint. Speaker labels come entirely from pyannote turns at stage 6 (merge).
 
 ## Diarization — `pyannote/speaker-diarization-3.1`
