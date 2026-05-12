@@ -94,7 +94,7 @@ def fix_asr_errors(
     out: list[Segment] = []
 
     reporter = progress if progress is not None else NullProgress()
-    with reporter.task("[7/10] Proofread", total=len(segs)) as advance:
+    with reporter.task("[8/11] Proofread", total=len(segs)) as advance:
         for seg in segs:
             new_text = fix_segment(seg.content, llm=llm, language=language)
             if new_text != seg.content:

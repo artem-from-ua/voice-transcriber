@@ -120,9 +120,33 @@ def patched_pipeline(monkeypatch, tmp_path):
         fake_clearspeech,
     )
 
-    # Whisper backend: record the wav path; return one minimal segment.
+    # lang_detect stub: records the call and returns whatever the test
+    # configured beforehand. Tests that probe the auto-detect path set
+    # `rec.fake_detected_language = "..."` before calling `run()`; the
+    # default "uk" mirrors a successful detect on Ukrainian audio.
+    rec.fake_detected_language = "uk"
+    rec.lang_detect_called = False
+
+    def fake_lang_detect(wav_path, turns, *, log=None):
+        rec("lang_detect", {"wav_path": str(wav_path), "turn_count": len(turns)})
+        rec.lang_detect_called = True
+        return rec.fake_detected_language
+
+    monkeypatch.setattr(
+        pipeline_module.lang_detect_module,
+        "detect_language_on_longest_turn",
+        fake_lang_detect,
+    )
+
+    # Whisper backend: record the wav path + language hint; return one
+    # minimal segment. The language hint is captured separately from the
+    # payload so existing tests reading `rec.payload("asr")` as a path
+    # continue to work.
+    rec.asr_language_hint = "<unset>"
+
     def fake_whisper_transcribe(wav_path, **kwargs):
         rec("asr", str(wav_path))
+        rec.asr_language_hint = kwargs.get("language")
         return [AsrSegment(start=0.0, end=3.0, content="hi")]
 
     monkeypatch.setattr(
@@ -328,6 +352,135 @@ def test_reordered_chain_runs_in_given_order(patched_pipeline, tmp_path):
     cs = rec.payload("clearspeech")
     assert cs["chain"] == ["presence", "autogain"]
     assert rec.payload("asr").endswith(".presence.autogain.wav")
+
+
+# -------------------------------------------------------- [3b] lang_detect
+
+
+def test_lang_detect_runs_after_diarize_when_language_is_none(patched_pipeline, tmp_path):
+    """No `--language` → `[3b] lang_detect` fires between diarize and ASR,
+    on the raw WAV (not the clearspeech output), with all pyannote turns."""
+    rec, fake_audio = patched_pipeline
+    rec.fake_detected_language = "uk"
+
+    run(
+        PipelineOptions(
+            audio_path=str(fake_audio),
+            output_path=str(tmp_path / "out.md"),
+            run_proofread=False,
+            run_tldr=False,
+            run_structure=False,
+            names_override=["A", "B"],
+            unknown_speaker="keep",
+        )
+    )
+
+    names = rec.names()
+    assert "diarize" in names and "lang_detect" in names and "asr" in names
+    assert names.index("diarize") < names.index("lang_detect") < names.index("asr")
+    payload = rec.payload("lang_detect")
+    # lang_detect sees the raw WAV, not the post-clearspeech sibling.
+    assert payload["wav_path"].endswith("audio.wav")
+    assert ".autogain" not in payload["wav_path"]
+    assert payload["turn_count"] == 2  # fixture installs 2 turns
+    # Detected hint flows into ASR.
+    assert rec.asr_language_hint == "uk"
+
+
+def test_lang_detect_skipped_when_language_set(patched_pipeline, tmp_path):
+    """`--language uk` → lang_detect is NOT invoked; effective_language is
+    the CLI value verbatim and reaches ASR as the hint."""
+    rec, fake_audio = patched_pipeline
+    rec.fake_detected_language = "en"  # would have driven downstream to en
+
+    run(
+        PipelineOptions(
+            audio_path=str(fake_audio),
+            output_path=str(tmp_path / "out.md"),
+            language="uk",
+            run_proofread=False,
+            run_tldr=False,
+            run_structure=False,
+            names_override=["A", "B"],
+            unknown_speaker="keep",
+        )
+    )
+
+    assert rec.lang_detect_called is False
+    assert "lang_detect" not in rec.names()
+    assert rec.asr_language_hint == "uk"
+
+
+def test_lang_detect_result_flows_to_all_downstream_stages(patched_pipeline, tmp_path):
+    """Detected language is passed to every stage that takes `language=`."""
+    rec, fake_audio = patched_pipeline
+    rec.fake_detected_language = "en"
+
+    captured: dict[str, str] = {}
+
+    def fake_identify(*args, language=None, **kwargs):
+        captured["identify"] = language
+        return {"SPEAKER_00": "A", "SPEAKER_01": "B"}
+
+    import pytest as _pytest
+    from voice import pipeline as _pipe_mod
+    monkey = _pytest.MonkeyPatch()
+    monkey.setattr(_pipe_mod.identify_module, "identify_speakers", fake_identify)
+
+    try:
+        run(
+            PipelineOptions(
+                audio_path=str(fake_audio),
+                output_path=str(tmp_path / "out.md"),
+                # language left at default → None → auto-detect via lang_detect
+                run_proofread=False,
+                run_tldr=False,
+                run_structure=False,
+                unknown_speaker="keep",
+            )
+        )
+    finally:
+        monkey.undo()
+
+    assert rec.asr_language_hint == "en"      # ASR got the detect result
+    assert captured["identify"] == "en"       # so did identify
+
+
+def test_explicit_language_overrides_auto_detect(patched_pipeline, tmp_path):
+    """CLI hint wins even when lang_detect would have returned something
+    different — lang_detect is skipped entirely, no extra model load."""
+    rec, fake_audio = patched_pipeline
+    rec.fake_detected_language = "en"  # would be ignored
+
+    captured: dict[str, str] = {}
+
+    def fake_identify(*args, language=None, **kwargs):
+        captured["identify"] = language
+        return {"SPEAKER_00": "A", "SPEAKER_01": "B"}
+
+    import pytest as _pytest
+    from voice import pipeline as _pipe_mod
+    monkey = _pytest.MonkeyPatch()
+    monkey.setattr(_pipe_mod.identify_module, "identify_speakers", fake_identify)
+
+    try:
+        run(
+            PipelineOptions(
+                audio_path=str(fake_audio),
+                output_path=str(tmp_path / "out.md"),
+                language="uk",
+                run_proofread=False,
+                run_tldr=False,
+                run_structure=False,
+                unknown_speaker="keep",
+            )
+        )
+    finally:
+        monkey.undo()
+
+    assert rec.lang_detect_called is False
+    assert rec.asr_language_hint == "uk"
+    assert captured["identify"] == "uk"
 
 
 # ---------------------------------------------------------------- per-stage LLM

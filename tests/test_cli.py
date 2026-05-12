@@ -17,7 +17,7 @@ def test_minimal_invocation_defaults():
     ns = _parse(["transcribe", "/tmp/a.m4a"])
     opts = _opts_from_args(ns)
     assert opts.audio_path == "/tmp/a.m4a"
-    assert opts.language == "uk"
+    assert opts.language is None     # default: auto-detect via [3b] lang_detect
     assert opts.unknown_speaker == "ask"
     assert opts.names_override is None
     assert opts.datetime_override is None
@@ -38,6 +38,11 @@ def test_minimal_invocation_defaults():
     assert opts.clearspeech_dereverb_subtract_factor == 1.0
     assert opts.clearspeech_dereverb_crossfade_ms == 50.0
     assert opts.verbose is False
+
+
+def test_explicit_language_parsed():
+    ns = _parse(["transcribe", "/tmp/a.m4a", "--language", "en"])
+    assert _opts_from_args(ns).language == "en"
 
 
 def test_dump_stages_flag_parsed():

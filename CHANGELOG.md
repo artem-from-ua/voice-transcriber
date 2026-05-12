@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0] — 2026-05-12
+
+### Added
+
+- **New stage `[4] lang_detect` between diarize and clearspeech.** When `--language` is omitted, the pipeline picks the longest pyannote turn and calls Whisper-large-v3-MLX's `model.detect_language()` on its mel-spectrogram. The detected ISO language code becomes `effective_language` and flows through ASR, proofread, identify, structure, TL;DR and render. When `--language uk` (or any ISO code) is given explicitly, this stage is skipped entirely — no extra model load. See [ADR 0022](docs/adr/0022-asr-language-autodetect.md) for the design and the empirical reason (the first-30-second internal Whisper detect was unreliable on quiet or short opening segments and classified the project's Ukrainian reference recording as Russian, ruining the entire pipeline run).
+- New module `voice.lang_detect` with public `detect_language_on_longest_turn(wav_path, turns) -> str`. Built on top of the same `mlx-whisper` package and Whisper-large-v3-MLX weights that the ASR stage uses — no new dependencies.
+
+### Changed
+
+- **`--language` default is now auto-detect via `[4] lang_detect`** (was hard-coded `"uk"`). For Ukrainian recordings the user-visible behaviour is unchanged in practice — Whisper-large-v3 reliably reports `uk` from a typical longest pyannote turn (~0.74 confidence on the reference recording, 3× margin over `ru`). For non-Ukrainian recordings the detected language now flows correctly through every stage instead of being silently overridden by `"uk"`. Explicit `--language uk` (or any other ISO code) still works as before and skips detection.
+- **Pipeline stage numbering shifted by one** starting at clearspeech: clearspeech `[4]` → `[5]`, speech2text `[5]` → `[6]`, merge `[6]` → `[7]`, proofread `[7]` → `[8]`, identify `[8]` → `[9]`, structure `[9]` → `[10]`, tldr `[10]` → `[11]`, render `[11]` → `[12]`. Progress-label denominator changes from `[N/10]` to `[N/11]`. Markdown `AI-стадії:` header chips now include a new `langid=Xs` entry when the stage ran.
+- `whisper_asr.transcribe()` signature: `language: str | None = None` (was `language: str = "uk"`). `pipeline.run()` always passes a concrete string from `effective_language`, so the behaviour is invisible from there; direct callers that omitted the kwarg now get mlx-whisper's auto-detect instead of a forced `"uk"` hint.
+- ADR 0017 frontmatter updated to `status: superseded` (superseded by ADR 0021's full VibeVoice removal, which dropped the `--asr-engine` flag the original decision depended on). The body is preserved as the historical record. ADR index (`docs/adr/README.md`) shows the entry with strikethrough on both the number and title.
+
+### Internal
+
+- `PipelineOptions.language` type changed from `str` to `str | None`.
+- `pipeline.run()` introduces a local `effective_language` variable computed between diarize and clearspeech, then forwards it to every downstream stage that previously read `options.language` directly (proofread, identify, structure ×2, TL;DR, render).
+- New stage label in verbose log: `[4/11] Визначення мови` plus `lang_detect: top1 <lang> (p=…, ru p=…)` when running.
+
+### Failure mode and recovery
+
+- If pyannote returns no turns at all, or the longest turn is shorter than `MIN_TURN_DURATION_S = 2.0`, `lang_detect` returns the fallback `"uk"` and logs a hint to pass `--language` explicitly. The fallback prevents crashes on degenerate inputs at the cost of being wrong by default on very short non-Ukrainian recordings — those are exactly the cases where an explicit `--language` is required anyway.
+- If `model.detect_language()` returns an empty probability list (defensive, never observed in practice), same fallback.
+
 ## [0.23.0] — 2026-05-12
 
 ### Removed (BREAKING)

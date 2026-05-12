@@ -41,6 +41,19 @@ Whisper's decoder occasionally loops on near-silent or very repetitive audio. Th
 - Check whether the clearspeech chain is dropping signal: try `--clearspeech-chain ""` to bypass preprocessing and see if the loop disappears.
 - For investigation only: run `mlx_whisper.transcribe(...)` directly on the WAV with `verbose=True` to see the per-window log.
 
+## Auto-detect picks the wrong language
+
+Symptom: the transcript header shows `🌐 Мова: ru` (or `pl`, `de`, …) on what you know is a Ukrainian recording, the ASR text reads like transliterated Russian (`Подошёл` instead of `Подойшов`), and the LLM stages produce a TL;DR in the wrong language.
+
+Cause: `[4] lang_detect` runs Whisper's `model.detect_language()` over the longest pyannote turn, which is normally a 5+ second stretch of one speaker with enough lexical content to disambiguate Slavic languages. When the longest turn is unusually short (sub-2-second sound effects, a single "ага", a clap), Whisper's classifier has too little signal and picks the wrong language. See [ADR 0022](adr/0022-asr-language-autodetect.md) for why the longest pyannote turn is normally the best signal we have.
+
+Fix:
+
+- Re-run with `--language uk` (or whichever ISO code matches the audio). This skips `[4] lang_detect` entirely and pins the language hint for ASR and all LLM/render stages.
+- If the recording itself is short and you expect to use only one language, just always pass `--language` — it costs nothing and removes the 3-5 s detect step.
+
+The pipeline never errors on a wrong detect — it produces an incorrect transcript instead. Re-run with `--language` is the only recovery; there is no smart fallback.
+
 ## JSON-constrained LLM call (`identify` / `structure`) still failed
 
 Since v0.7.0 (ADR 0006) `MlxLLM.chat_json()` uses `lm-format-enforcer` as a logits processor against a JSON schema — output is guaranteed to be parseable on the first try, there is no retry loop. If a call still fails it means generation itself blew up (the model crashed mid-stream, hit an OOM, or the schema is unsatisfiable), not that the model returned text instead of JSON.

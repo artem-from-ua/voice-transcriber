@@ -351,7 +351,7 @@ def structure_dialog(
     if len(speech) < STRUCTURE_CHUNK_THRESHOLD:
         # Fast path: one call for the whole dialogue.
         try:
-            with reporter.token_counter("[9/10] Структурування на секції") as advance:
+            with reporter.token_counter("[10/11] Структурування на секції") as advance:
                 sections = _structure_single_pass(
                     speech,
                     llm=llm,
@@ -386,7 +386,7 @@ def structure_dialog(
     chunk_results: list[list[Section]] = []
     try:
         with reporter.task(
-            "[9/10] Структурування на секції", total=len(chunks)
+            "[10/11] Структурування на секції", total=len(chunks)
         ) as advance:
             for idx, chunk in enumerate(chunks, start=1):
                 try:

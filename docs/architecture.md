@@ -16,7 +16,7 @@ The only on-disk artefacts the pipeline writes itself are the final Markdown fil
 
 ## Pipeline stages
 
-> Numbering convention: this document and the component diagram below count **eleven** boxes (render = `[11]`). The runtime log lines in `pipeline.py` and the stage table in [`pipeline.md`](pipeline.md) count **ten** stages because `render` is pure Python without a `_timed` context — its wall-clock rolls into the total. Both views describe the same pipeline; see [#83](https://github.com/artem-from-ua/voice-transcriber/issues/83) for the tracking issue on unifying the count.
+> Numbering convention: this document and the component diagram below count **twelve** boxes (render = `[12]`). The runtime log lines in `pipeline.py` and the stage table in [`pipeline.md`](pipeline.md) count **eleven** stages because `render` is pure Python without a `_timed` context — its wall-clock rolls into the total. Stage `[4] lang_detect` is conditional: it runs only when `--language` is omitted; the progress label `[4/11]` is the same whether the stage runs or is skipped. Both views describe the same pipeline; see [#83](https://github.com/artem-from-ua/voice-transcriber/issues/83) for the tracking issue on unifying the count.
 
 `pipeline.run()` runs eleven steps in order. transcode (ffmpeg → 16 kHz mono WAV) and audiometa (ffprobe) both start from the user's input file; diarize then reads the temp WAV first to produce per-turn boundaries, the **clearspeech** stage uses those boundaries as guard-rails for a chain of DSP effects (autogain, optional bandpass), and speech2text finally consumes the output of the last applied effect. Everything from merge onwards passes structured Python dataclasses around. Only the final two edges (TL;DR string → render → file) are Markdown. The clearspeech chain currently absorbs autogain, bandpass, presence, denoise, and dereverb effects (added incrementally in v0.10–v0.17); the chain is open-ended and new effects can be appended without growing the stage count.
 
@@ -42,35 +42,39 @@ actor " " as User
 component "<b>[1] transcode</b>\n<i><ffmpeg></i>" as WAV #E8E8E8
 component "<b>[2] audiometa</b>\n<i><ffprobe></i>" as FF #E8E8E8
 component "<b>[3] diarize</b>\n<i><pyannote-audio> speaker-diarization-3.1</i>" as Diar #87CEFA
-component "<b>[4] clearspeech</b>\n<i><soundfile> autogain</i>\n<i><scipy> <s>bandpass</s></i>\n<i><scipy> <s>presence</s></i>\n<i><ffmpeg> <s>denoise</s></i>\n<i><scipy> <s>dereverb</s></i>" as CS #E8E8E8
-component "<b>[5] speech2text</b>\n<i><mlx-whisper> Whisper-large-v3</i>" as ASR #90EE90
-component "<b>[6] merge</b>" as Merge #E8E8E8
-component "<b>[7] proofread</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as Post #FFCC66
-component "<b>[8] identify</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as Ident #FFCC66
-component "<b>[9] structure</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as Struct #FFCC66
-component "<b>[10] tldr</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as TLDR #FFCC66
-component "<b>[11] render</b>" as Render #E8E8E8
+component "<b>[4] lang_detect</b>\n<i><mlx-whisper> Whisper-large-v3</i>" as LangDet #90EE90
+component "<b>[5] clearspeech</b>\n<i><soundfile> autogain</i>\n<i><scipy> <s>bandpass</s></i>\n<i><scipy> <s>presence</s></i>\n<i><ffmpeg> <s>denoise</s></i>\n<i><scipy> <s>dereverb</s></i>" as CS #E8E8E8
+component "<b>[6] speech2text</b>\n<i><mlx-whisper> Whisper-large-v3</i>" as ASR #90EE90
+component "<b>[7] merge</b>" as Merge #E8E8E8
+component "<b>[8] proofread</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as Post #FFCC66
+component "<b>[9] identify</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as Ident #FFCC66
+component "<b>[10] structure</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as Struct #FFCC66
+component "<b>[11] tldr</b>\n<i><mlx-lm> Qwen2.5-7B</i>" as TLDR #FFCC66
+component "<b>[12] render</b>" as Render #E8E8E8
 
 User -[#FF6B35]-> FF : <color:#404040>  audio file</color>\n<color:#404040>  (wav, m4a, mp3 ...)</color>
 User -[#FF6B35]-> WAV : <color:#404040>  audio file</color>\n<color:#404040>  (wav, m4a, mp3 ...)</color>
-User -[#3B82F6,dashed]-> ASR : <color:#404040>  speech language</color>\n<color:#404040>  (optional)</color>
-User -[#3B82F6,dashed]-> Ident : <color:#404040>  unknown speaker ids</color>\n<color:#404040>  (optional)</color>
+User -[#3B82F6,dashed]-> LangDet : <color:#404040>  speech language</color>\n<color:#404040>  (optional override)</color>
+User -[#3B82F6,dashed]-> Ident : <color:#404040>  speaker names</color>\n<color:#404040>  (optional)</color>
 
-WAV -[#FF6B35]-> Diar : <color:#404040>  16 kHz mono WAV</color>
-WAV -[#FF6B35]-> CS : <color:#404040>  16 kHz mono WAV</color>
-Diar -[#3B82F6]-> CS : <color:#404040>  speaker timecodes</color>
-CS -[#FF6B35]-> ASR : <color:#404040>  cleaned audio</color>
+WAV -[#FF6B35]-> Diar : <color:#404040>  16 kHz</color>\n<color:#404040>  mono WAV</color>
+WAV -[#FF6B35]-> LangDet : <color:#404040>  16 kHz</color>\n<color:#404040>  mono WAV</color>
+WAV -[#FF6B35]-> CS : <color:#404040>  16 kHz</color>\n<color:#404040>  mono WAV</color>
+Diar -[#3B82F6]-> LangDet : <color:#404040>  speaker</color>\n<color:#404040>  timecodes</color>
+Diar -[#3B82F6]-> CS : <color:#404040>  speaker</color>\n<color:#404040>  timecodes</color>
+LangDet -[#3B82F6]-> ASR : <color:#404040>  detected</color>\n<color:#404040>  language</color>
+CS -[#FF6B35]-> ASR : <color:#404040>  cleaned</color>\n<color:#404040>  audio</color>
 
-ASR -[#6E9E1F]-> Merge : <color:#404040>  recognized text</color>
-Diar -[#3B82F6]-> Merge : <color:#404040>  speaker timecodes</color>
+ASR -[#6E9E1F]-> Merge : <color:#404040>  recognized</color>\n<color:#404040>  text</color>
+Diar -[#3B82F6]-> Merge : <color:#404040>  speaker</color>\n<color:#404040>  timecodes</color>
 
 Merge -[#6E9E1F]-> Post : <color:#404040>  text with speaker labels</color>
 Post -[#6E9E1F]-> Ident : <color:#404040>  proof-read text</color>
 Ident -[#6E9E1F]-> Struct : <color:#404040>  text + speaker names</color>
 Struct -[#6E9E1F]-> TLDR : <color:#404040>  split by topic sections</color>
 
-FF -[#3B82F6]-> Render : <color:#404040>  recording date + duration</color>
-TLDR -[#6E9E1F]-> Render : <color:#404040>  summary</color>
+FF -[#3B82F6]-> Render : <color:#404040>  recording date,</color>\n<color:#404040>  duration</color>
+TLDR -[#6E9E1F]-> Render : <color:#404040>  + summary</color>
 Render -[#6E9E1F]-> User : <color:#404040>  transcript.md</color>
 
 legend top center
@@ -84,7 +88,7 @@ end legend
 @enduml
 ```
 
-![Pipeline stages](https://www.plantuml.com/plantuml/svg/jPRDRjj6483lV8f1T6dHKBOaM_u1GKHM93I03RHssXnI7PRaY5g8t2LsLrQKea3x3a4Vfe-J9-aiLw94cIoKGqrRCBKpt_pipEo-qOOfiyeppt2J8JnB7gDl51CwLZn21L___085Bp3Z0e6aKzIUNd9HCCLoY6LUI872F9aDgIkC3HDfXWSY8wNa-ls2nqk1MaF_O2d354Lo9rM2QYmpgQ2qJ8j4V2d7ucMgv4eaJhOpANyyBz3MUEW1939UvQGBlzCBm0DJAHVGlwItF-YFnORqtDeznRFtwgAK2Cws9Cz9lgA7QVX5e_AyAbHu5KJXnzxCEHlB18EpAFnD13mCvlEym3GCpdXOgduO_Kf-Njld6D2V0LibNEPes26WK3B2FM4wRGCCPf1mflZd0_l5XWaX3VebEWHT85kYyfqWCrmAVz3jLVItz3rqhg_6a-dec7ynWpX3feY1yM9lGzijc7FA4mLWPCguiBpjOioBJGY13YCcae9fJKaDczOBXHf5ZFNrRGAjG892Serj-bGp-8mgsgsNyOoVsh9rEGCNID_W9xEF9iy--Ui5fpKLmWVtZvzHuQ3_FAYuewT7wDoSJoOtvyVWuGno976BB6KVx5kR6rSpe0sMSuKigJkHvI7yl4RHxrxwLtULvP-aDj2PJiVZuV0OTZq3JbaoVBuvYVNE2hV1RYX1HgrYir9u4ksfb6x3zSwfGR94dOHwV__siHL4dKRpWBQxol1Z-LgbsBCD2lv70Wpl1fSpFxHTSmj1REV4RUVYt3uXk7u3Mxh1MRbcFJiM-cxDdbz3Vi7eenX0jzlzVYVTOCWs-FzfQN1ttPyENoTCBp2n1cqbDXXqjGqPJTyLI__JgYpi663P2SPSmJIOMucba6kncozKXlhRJ7esSRLCbgEemLHl2CiVFqCkXRJPhWWl0DJxtw1UcgjYRjVVHMXuZdRMLt5w95-ptx8pTeOAJ5n9xEEtqgG-dDnCUbEhxiP60u0ELPaA6lC9kD7L6a4heZq8p-dKF2b7JWF5MeSrDukAbx48ipsiLAoXMWke78A-dOBre9n2ZR6TCsqE_L1v8rX-4DbMhOOgvqnZVZ9k8Dg0aGMFGTCrXkhr84iqJsgPtawWbjrI2HSf9CmWUPUiL7dkLh3IYPfRxJIzodEcDfNkLhAcNNPlKtQsjxZ2TFDa7ugxJDb88QPSqzK688ZeRdMxlGUGAj2efM_edAMvNUUEtb4l9PZTmi6TOaUt0tsFS-VbgRZQwTo4SyV3gRZx-uTZp5RKTMpuzSjVzlVlVtPY3JWtngEDsTVL4SoLn4amUz6Zcc0j9BUX9v7sEmilqcNtrcsnzuO-w6h_Bm00)
+![Pipeline stages](https://www.plantuml.com/plantuml/svg/jPVlRjis4C2_woaEpPSDYvp4Jfm_48GwYOqLI80jwTOFdJ7GqjaX8f42IITrXm7REnHxc3rEdsH7qfOiH_AyeeiJ8pBlVdUyEzxHhxLXoippB33SP0XFaYSO6iM4JXIVe8BFVto2WXUOSO50qZFKWNxaec2AvP38l902XRat2r9Nc1WcPXckYGoKaizl7tZoA51hwAujPJX3aLvAbQAwafbKu2pJ8X5Voh7aSQRaNAHUTc_eVe8WqjPu702aCfddf0k_qGF0BLCpBg1xGa-_qnzB3EdvjHlQJ-NLiPE83fQam4k-eXVJy9D65GJbLk5LD8dV7usziubCCJgOnB-8YCVHT9eNE8kZ0nuxrNU3dydFC_lQ17J7mEOfbpaQjWueb9nWHHYDsW2zCQISAVvnpNwnO498Ww53nw0BP8-eGY_839SYx7MEIlerVGvxPwTNmz5WatyyXeoI-MkAXj9QsSYp3-7p0oUqYk6T_oVCADGOFlLAyWsfNgE1lVF3uV3yS1D-CeOaGwP86PE72gvjVgUSaa3HCNB6kB38vMB2YqKCaOudJAG5qveo5ZUj5merYWJhwyliM84KXUGQs_If8F49rMIrxhPqTT-MYluO_4Qw1Z_yvr0Dxk_QmdGwXXn9t2ATxArzQdFZR0nKFNAgaALr9x8yXX-VKNGx9-7fPMdv1wafGwFHrLM_lmax7mEdA1a-NUp4UcE5ss17XnGXe-Q9cIlS2NVlf5jvzlXbgTe9zVRc-guLHCUGkWtbkmpndNiiOnpOum_XUmBqBtidup2sP_82eiHseOkzuqFxYi6VPh2r6nsuDUlPfj0tp-nf7_9ZHcz53pgTphShwGP3jdtydvPwbsVTKNy_PVe1KsjmTMeRZFe2TorXpcPRBSl2DXgMWQGpfAYATh3iowVPhcrX85YEUXUhbR70ngyMKDVl6emSzU7n-uzRwBaKqgQZPBz0RmdTLw1Jx_agO1U0Clx_dd8R-YrymtEq4r1lCT3i-fUmLwxMyBPxDl3zrC9qYu7DKWx8qrhGMz1sS8cjP7T0gpAq70BtX-V3ev45-oxUWAOBb9m96kdRw7x6jCQx5Vub8GyyhUQzcneDVEiNF7FpK9xPZ4qmgs1EiOPgFVLkZeLsaDMtwnLgZEMaQ7Fek-OE4YpLQYWtAHeZbt43amKOMV04D5KMjPgrAD54gELWEKDQCgnIBcQGCeFxMvAHpfMxi9LMd7SrVzlDqAxdUSxKejHUojRqNJTk2jpo2q1XEdbQxTBVmsqG8A4qqAqO89hGjVnYUOKaLQ0vIf_GBOg6SfqxU4FzACNi0jQkeokwdTOLpj-6TiNLxbvDE3_xTyNTtDnkOfQYlZN4dp_zQN__-dibre3pCtgoC5N9RS1yjUm4izyHg5nO2yadT2TIbLbu4IwRMv_Yu3MzqRV2Vm00)
 
 ## Module layout
 
@@ -98,6 +102,7 @@ src/voice/
 ├── diarize.py       # diarize(): pyannote 3.1, MPS+CPU fallback, exclusive turns
 ├── clearspeech.py   # clearspeech(): chain-of-DSP-effects (autogain + bandpass + presence + denoise + dereverb)
 ├── whisper_asr.py   # transcribe(): mlx-whisper wrapper, the ASR backend (see ADR 0017, 0021)
+├── lang_detect.py   # detect_language_on_longest_turn(): Whisper-based pre-ASR LID (see ADR 0022)
 ├── download_whisper.py # `voice download-whisper` subcommand: prefetch Whisper model into HF cache
 ├── merge.py         # merge(): per-segment max-overlap mapping ASR↔pyannote
 ├── proofread.py     # fix_asr_errors(): per-segment LLM proof-reader with safety net
@@ -116,13 +121,14 @@ The pipeline passes increasingly enriched `Segment` lists from stage to stage. N
 1. **transcode** — `transcode.transcode(audio, wav)` runs `ffmpeg` and writes a 16 kHz mono PCM WAV to a temp dir.
 2. **audiometa** — `audiometa.extract_metadata(audio)` → `AudioMeta` (start/end/duration). Goes straight to render.
 3. **Diarize** — `diarize.diarize(wav)` → `DiarTurn[]` (pyannote timeline). Runs on the raw WAV so its boundaries are not influenced by autogain.
-4. **Clearspeech** — `clearspeech.clearspeech(wav, chain, autogain_turns=turns, ...)` runs an ordered chain of DSP effects. Available effects: `autogain`, `bandpass`, `presence`. Chain is configured by the single `--clearspeech-chain` CLI flag (default `"autogain"`). Each enabled effect writes a sibling WAV (`<stem>.autogain.wav`, `<stem>.autogain.bandpass.wav`, `<stem>.autogain.bandpass.presence.wav`, …) and the next effect reads it; speech2text consumes the last applied effect's output. With `--clearspeech-chain ""` the chain is empty and speech2text receives the raw WAV. See [ADR 0010](adr/0010-clearspeech-chain.md) for the chain-of-effects design, [ADR 0012](adr/0012-clearspeech-chain-string-cli.md) for the single-string CLI, and [ADR 0016](adr/0016-rename-agc-to-autogain.md) for the `agc` → `autogain` rename.
-5. **speech2text** — `whisper_asr.transcribe(cleaned_wav)` → `AsrSegment[]` via `mlx-whisper` against `mlx-community/whisper-large-v3-mlx`. Whisper produces no speaker hint; speaker labels come entirely from pyannote turns at stage 6. See [ADR 0017](adr/0017-whisper-asr-backend.md) for how this backend was chosen and [ADR 0021](adr/0021-remove-vibevoice-backend.md) for why it is now the only backend.
-6. **Merge** — joins (3) and (5) into `Segment[]` (text + pyannote speaker label).
-7. **Proofread** — LLM proof-reads `content` per segment in-place.
-8. **Identify** — LLM returns `{label → name}`; pipeline assigns `.name` on each segment.
-9. **Structure** — LLM produces `StructuredDialog` (segments + section titles). Short dialogues (≤60 segments) go through one LLM call; longer dialogues are split into overlapping ~35-segment chunks, the LLM is called per chunk, and `_reconcile_chunks()` stitches the per-chunk section lists into a single contiguous layout (see [ADR 0018](adr/0018-chunked-structure-dialog.md)).
-10. **TL;DR** — LLM emits a Markdown summary string.
-11. **Render** — combines `AudioMeta`, `StructuredDialog`, and the TL;DR into the final Markdown file.
+4. **lang_detect** (conditional — runs only when `--language` was not given) — `lang_detect.detect_language_on_longest_turn(wav, turns)` picks the longest pyannote turn from (3), slices it from the raw WAV, computes its log-mel spectrogram, and calls `model.detect_language()` on Whisper-large-v3-MLX. The top-1 ISO code becomes `effective_language` and flows through every downstream stage that reads `language=`. When `--language` is given explicitly, this stage is skipped entirely. See [ADR 0022](adr/0022-asr-language-autodetect.md).
+5. **Clearspeech** — `clearspeech.clearspeech(wav, chain, autogain_turns=turns, ...)` runs an ordered chain of DSP effects. Available effects: `autogain`, `bandpass`, `presence`. Chain is configured by the single `--clearspeech-chain` CLI flag (default `"autogain"`). Each enabled effect writes a sibling WAV (`<stem>.autogain.wav`, `<stem>.autogain.bandpass.wav`, `<stem>.autogain.bandpass.presence.wav`, …) and the next effect reads it; speech2text consumes the last applied effect's output. With `--clearspeech-chain ""` the chain is empty and speech2text receives the raw WAV. See [ADR 0010](adr/0010-clearspeech-chain.md) for the chain-of-effects design, [ADR 0012](adr/0012-clearspeech-chain-string-cli.md) for the single-string CLI, and [ADR 0016](adr/0016-rename-agc-to-autogain.md) for the `agc` → `autogain` rename.
+6. **speech2text** — `whisper_asr.transcribe(cleaned_wav, language=effective_language)` → `AsrSegment[]` via `mlx-whisper` against `mlx-community/whisper-large-v3-mlx`. The `effective_language` value is either the CLI `--language` override or the ISO code computed by `[4] lang_detect`. Whisper produces no speaker hint; speaker labels come entirely from pyannote turns at stage 7 (merge). See [ADR 0017](adr/0017-whisper-asr-backend.md) for how this backend was chosen and [ADR 0021](adr/0021-remove-vibevoice-backend.md) for why it is now the only backend.
+7. **Merge** — joins (3) and (6) into `Segment[]` (text + pyannote speaker label).
+8. **Proofread** — LLM proof-reads `content` per segment in-place.
+9. **Identify** — LLM returns `{label → name}`; pipeline assigns `.name` on each segment.
+10. **Structure** — LLM produces `StructuredDialog` (segments + section titles). Short dialogues (≤60 segments) go through one LLM call; longer dialogues are split into overlapping ~35-segment chunks, the LLM is called per chunk, and `_reconcile_chunks()` stitches the per-chunk section lists into a single contiguous layout (see [ADR 0018](adr/0018-chunked-structure-dialog.md)).
+11. **TL;DR** — LLM emits a Markdown summary string.
+12. **Render** — combines `AudioMeta`, `StructuredDialog`, and the TL;DR into the final Markdown file.
 
-See [`pipeline.md`](pipeline.md) for the step-by-step sequence with timing details, [`prompts.md`](prompts.md) for the LLM call contracts powering stages 7–10, and [`adr/README.md`](adr/README.md) for the index of architectural decisions behind these boundaries.
+See [`pipeline.md`](pipeline.md) for the step-by-step sequence with timing details, [`prompts.md`](prompts.md) for the LLM call contracts powering stages 8–11, and [`adr/README.md`](adr/README.md) for the index of architectural decisions behind these boundaries.

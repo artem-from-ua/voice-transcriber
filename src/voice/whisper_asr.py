@@ -82,10 +82,17 @@ def _parse_segments(result: dict) -> list[AsrSegment]:
 def transcribe(
     wav_path: str | Path,
     *,
-    language: str = "uk",
+    language: str | None = None,
     log: Callable[[str], None] = _noop_log,
 ) -> list[AsrSegment]:
-    """Run Whisper-large-v3-MLX on a WAV. Returns a list of AsrSegment."""
+    """Run Whisper-large-v3-MLX on a WAV. Returns a list of AsrSegment.
+
+    `language=None` lets mlx-whisper auto-detect on the first 30 s window.
+    The pipeline normally precedes this with [4] lang_detect (ADR 0022),
+    which provides a stronger detection signal from the longest pyannote
+    turn, but direct callers that skip the diarize step can still get a
+    best-effort transcript by passing None.
+    """
     _verify_model_cached()
     log(f"Whisper-large-v3-MLX from HF cache ({WHISPER_REPO_ID})")
 
