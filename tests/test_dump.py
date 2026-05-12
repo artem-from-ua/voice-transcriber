@@ -75,16 +75,16 @@ def test_dump_nested_structured_dialog(tmp_path: Path):
 
 def test_dump_plain_text_for_non_json_extension(tmp_path: Path):
     d = StageDumper(target=tmp_path)
-    d.write("09-speech_tldr.txt", "## Summary\n- one\n- two")
-    text = (tmp_path / "09-speech_tldr.txt").read_text(encoding="utf-8")
+    d.write("09-speech_summary.txt", "## Summary\n- one\n- two")
+    text = (tmp_path / "09-speech_summary.txt").read_text(encoding="utf-8")
     assert text.startswith("## Summary")
 
 
 @pytest.mark.parametrize("text", ["", "  \n  "])
 def test_dump_empty_string_still_writes(tmp_path: Path, text: str):
     d = StageDumper(target=tmp_path)
-    d.write("09-speech_tldr.txt", text)
-    assert (tmp_path / "09-speech_tldr.txt").exists()
+    d.write("09-speech_summary.txt", text)
+    assert (tmp_path / "09-speech_summary.txt").exists()
 
 
 def test_dump_binary_copies_file(tmp_path: Path):

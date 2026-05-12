@@ -199,7 +199,7 @@ def patched_pipeline(monkeypatch, tmp_path):
         ),
     )
     monkeypatch.setattr(
-        pipeline_module.speech_tldr_module,
+        pipeline_module.speech_summary_module,
         "generate_tldr",
         lambda *a, **k: "",
     )

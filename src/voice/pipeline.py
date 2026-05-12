@@ -27,7 +27,7 @@ from . import whisper_asr as whisper_asr_module
 from ._dump import StageDumper
 from ._memory import free_mlx
 from . import speech_structure as speech_structure_module
-from . import speech_tldr as speech_tldr_module
+from . import speech_summary as speech_summary_module
 from . import transcode as transcode_module
 from ._progress import ProgressReporter
 from .llm import DEFAULT_MODEL as LLM_DEFAULT_MODEL, LLMError, MlxLLM, _resolve_model_path
@@ -118,7 +118,7 @@ def _llm_summary(options: PipelineOptions) -> str:
     if options.run_structure:
         enabled.append(("speech_structure", _resolve_stage_model(options, "speech_structure")))
     if options.run_tldr:
-        enabled.append(("speech_tldr", _resolve_stage_model(options, "speech_tldr")))
+        enabled.append(("speech_summary", _resolve_stage_model(options, "speech_summary")))
 
     if not enabled:
         return ""
@@ -158,7 +158,7 @@ def _resolve_stage_model(options: PipelineOptions, stage: str) -> str:
         "proofread": options.llm_proofread_model,
         "identify_speakers": options.llm_identify_model,
         "speech_structure": options.llm_structure_model,
-        "speech_tldr": options.llm_tldr_model,
+        "speech_summary": options.llm_tldr_model,
     }
     return per_stage[stage] or options.llm_model or LLM_DEFAULT_MODEL
 
@@ -408,12 +408,12 @@ def run(options: PipelineOptions) -> str:
 
                 if options.run_tldr:
                     llm = _ensure_llm(
-                        llm, _resolve_stage_model(options, "speech_tldr"),
+                        llm, _resolve_stage_model(options, "speech_summary"),
                         log=log, log_memory=options.verbose, progress=progress,
                         sampling_overrides=sampling_overrides,
                     )
-                    with _timed("speech_tldr"):
-                        tldr_text = speech_tldr_module.generate_tldr(
+                    with _timed("speech_summary"):
+                        tldr_text = speech_summary_module.generate_tldr(
                             segments, llm=llm, language=effective_language,
                             log=log, progress=progress,
                         )
@@ -421,7 +421,7 @@ def run(options: PipelineOptions) -> str:
                 else:
                     tldr_text = ""
                     log(f"[11/11] TL;DR пропущено")
-                dumper.write("09-speech_tldr.txt", tldr_text)
+                dumper.write("09-speech_summary.txt", tldr_text)
             finally:
                 if llm is not None:
                     with progress.spinner("Unloading LLM"):

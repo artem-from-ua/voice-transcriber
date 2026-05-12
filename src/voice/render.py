@@ -172,7 +172,7 @@ def render_markdown(
             )
         breakdown_order = (
             "diarize_speakers", "lang_detect", "asr", "proofread",
-            "identify_speakers", "speech_structure", "speech_tldr",
+            "identify_speakers", "speech_structure", "speech_summary",
         )
         chips = [
             f"{stage}={_format_compact_duration(timings[stage])}"

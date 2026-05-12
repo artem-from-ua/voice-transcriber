@@ -18,7 +18,7 @@ File layout:
     06-identify_speakers.json          {pyannote label → human name}
     07-segments-named.json             list[Segment] with .name filled in
     08-speech_structure.json           StructuredDialog (sections + segments)
-    09-speech_tldr.txt                 raw Markdown TL;DR string
+    09-speech_summary.txt                 raw Markdown TL;DR string
 """
 
 from __future__ import annotations
