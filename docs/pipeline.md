@@ -62,26 +62,26 @@ end legend
 
 ## Stages
 
-Approximate wall-clock figures are for a 6-minute Ukrainian conversation on an M-series Mac with the default 6-bit ASR and `mlx-community/gemma-3-12b-it-qat-4bit` already loaded.
+Approximate wall-clock figures are for a 6-minute Ukrainian conversation on an M-series Mac with the default Whisper ASR backend and the v0.21 default LLM `mlx-community/gemma-3-12b-it-qat-4bit` already loaded. The v0.22 default `mlx-community/Qwen2.5-7B-Instruct-4bit` (see [ADR 0020](adr/0020-default-llm-qwen25-7b.md)) is ~2× smaller and typically faster on LLM stages; treat the numbers below as an upper bound for the new default. Re-measurement on Qwen is tracked in [#82](https://github.com/artem-from-ua/voice-transcriber/issues/82).
 
 | # | Stage | Library | Input | Output | Typical time |
 |---|-------|---------|-------|--------|--------------|
 | 1 | WAV conversion | `transcode` (`ffmpeg` subprocess) | original audio | 16 kHz mono PCM WAV | < 1 s |
 | 2 | Metadata | `audiometa` (`ffprobe` subprocess) | original audio | `AudioMeta` (start/end/duration) | < 1 s |
-| 3 | ASR | `speech2text` (`mlx-audio`, `mlx_audio.stt.generate_transcription`) | WAV | `AsrSegment[]` | ~2–4 min |
-| 4 | Diarization | `pyannote.audio` 3.1 | WAV | `DiarTurn[]` (exclusive) | ~30 s |
-| 5 | Merge | pure Python | ASR + diar | `Segment[]` | < 1 s |
-| 6 | ASR proof-read | LLM via in-process `mlx-lm` | `Segment[]` | `Segment[]` | ~30–60 s |
-| 7 | Identify | LLM via in-process `mlx-lm` | `Segment[]` | `{label: name}` | ~5–10 s |
-| 8 | Structure | LLM via in-process `mlx-lm` | `Segment[]` | `StructuredDialog` | ~10–20 s |
-| 9 | TL;DR | LLM via in-process `mlx-lm` | `Segment[]` | Markdown string | ~10–20 s |
-| 10 | Render | pure Python | everything | Markdown file | < 1 s |
+| 3 | Diarization | `pyannote.audio` 3.1 | WAV | `DiarTurn[]` (exclusive) | ~30 s |
+| 4 | Clearspeech | `clearspeech` (`soundfile` + `scipy` + `ffmpeg`) | WAV + turns | cleaned WAV | < 5 s (autogain only; longer chains add per-effect overhead) |
+| 5 | ASR | `whisper_asr` (`mlx-whisper`, default) or `speech2text` (`mlx-audio`, legacy) | cleaned WAV | `AsrSegment[]` | ~2–4 min |
+| 6 | Merge | pure Python | ASR + diar | `Segment[]` | < 1 s |
+| 7 | ASR proof-read | LLM via in-process `mlx-lm` | `Segment[]` | `Segment[]` | ~30–60 s |
+| 8 | Identify | LLM via in-process `mlx-lm` | `Segment[]` | `{label: name}` | ~5–10 s |
+| 9 | Structure | LLM via in-process `mlx-lm` | `Segment[]` | `StructuredDialog` | ~10–20 s |
+| 10 | TL;DR | LLM via in-process `mlx-lm` | `Segment[]` | Markdown string | ~10–20 s |
 
 ## Errors and recovery
 
 | Failure | Stage | Behaviour |
 |---------|-------|-----------|
-| LLM model directory missing or invalid | health check | `MlxLLM.health_check()` raises with the actionable message *"LLM model not found at …"* pointing at LM Studio's Models tab; pipeline exits before any LLM stage runs. See [`troubleshooting.md`](troubleshooting.md) |
+| LLM model directory missing or invalid | health check | `MlxLLM.health_check()` raises `LLMError` with the actionable message *"… is not in the HuggingFace cache. Fetch it once with `huggingface-cli download <repo>`"* (or the equivalent for a filesystem path); pipeline exits before any LLM stage runs. See [`troubleshooting.md`](troubleshooting.md) and [ADR 0020](adr/0020-default-llm-qwen25-7b.md) |
 | Hugging Face token missing | diarize | `DiarizationError` with path/`chmod` instructions |
 | Gated repo not accepted on HF | diarize | `GatedRepoError` from pyannote; see [`troubleshooting.md`](troubleshooting.md) |
 | ASR repetition loop | asr | model usually escapes within seconds thanks to `repetition_penalty=1.3`; if it persists, retry with `--asr-bits 8` |
