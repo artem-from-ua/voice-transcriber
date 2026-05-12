@@ -208,11 +208,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dump-stages", dest="dump_stages_dir", default=None, metavar="DIR",
         help=(
             "Write each stage's output to DIR for troubleshooting "
-            "(01-meta.json, 02-diarize.json, 02b-clearspeech-config.json, "
-            "02b-clearspeech-N-<effect>.wav per applied effect — autogain, "
+            "(01-meta.json, 02-diarize_speakers.json, 02b-clear_speech-config.json, "
+            "02b-clear_speech-N-<effect>.wav per applied effect — autogain, "
             "bandpass, presence — 03-asr.json, 04-merge.json, "
-            "05-proofread.json, 06-identify.json, 07-segments-named.json, "
-            "08-structure.json, 09-tldr.txt). Disabled when omitted."
+            "05-proofread.json, 06-identify_speakers.json, 07-segments-named.json, "
+            "08-speech_structure.json, 09-speech_summary.txt). Disabled when omitted."
         ),
     )
     t.add_argument("-v", "--verbose", action="store_true", help="Verbose progress logs to stderr.")

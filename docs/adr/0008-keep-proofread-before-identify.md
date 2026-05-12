@@ -3,6 +3,8 @@ status: accepted
 date: 2026-05-11
 ---
 
+> **Note (v0.25.0):** the module formerly called `identify` is now `identify_speakers`. Body of this ADR preserves the historical name.
+
 # ADR 0008 — Keep proofread before identify; do not reorder
 
 ## Context

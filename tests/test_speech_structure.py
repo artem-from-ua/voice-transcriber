@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from voice.llm import LLMError
-from voice.structure import (
+from voice.speech_structure import (
     STRUCTURE_CHUNK_OVERLAP,
     STRUCTURE_CHUNK_SIZE,
     STRUCTURE_CHUNK_THRESHOLD,

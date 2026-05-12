@@ -3,6 +3,8 @@ status: accepted
 date: 2026-05-12
 ---
 
+> **Note (v0.25.0):** modules formerly called `identify`, `structure`, `tldr` are now `identify_speakers`, `speech_structure`, `speech_summary`. Body of this ADR preserves the historical names.
+
 # ADR 0019 — Allow a different LLM model per pipeline stage
 
 ## Context

@@ -1,8 +1,8 @@
 # Models
 
-Three model families drive the pipeline: speaker diarization (pyannote), ASR (Whisper-large-v3-MLX), and a general-purpose LLM (`Qwen2.5-7B-Instruct-4bit` by default since v0.22.0; see [ADR 0020](adr/0020-default-llm-qwen25-7b.md)) covering identify / proofread / structure / TL;DR.
+Three model families drive the pipeline: speaker diarization (pyannote), ASR (Whisper-large-v3-MLX), and a general-purpose LLM (`Qwen2.5-7B-Instruct-4bit` by default since v0.22.0; see [ADR 0020](adr/0020-default-llm-qwen25-7b.md)) covering identify_speakers / proofread / speech_structure / speech_summary.
 
-Every transcript's Markdown header lists the exact models that produced it (`Діаризація`, `ASR`, `LLM` lines) plus wall-clock timings (`Обробка: 5m43s`, `AI-стадії: diarize=… · asr=… · proofread=… · …`) — saved transcripts double as benchmark records.
+Every transcript's Markdown header lists the exact models that produced it (`Діаризація`, `ASR`, `LLM` lines) plus wall-clock timings (`Обробка: 5m43s`, `AI-стадії: diarize_speakers=… · asr=… · proofread=… · …`) — saved transcripts double as benchmark records.
 
 ## ASR — `mlx-community/whisper-large-v3-mlx`
 
@@ -12,7 +12,7 @@ OpenAI Whisper large-v3 converted to MLX. Driven by `mlx-whisper` (in-process, n
 
 **Operating settings.** `whisper_asr.transcribe` calls `mlx_whisper.transcribe(audio, path_or_hf_repo=..., language=..., condition_on_previous_text=False)`. The other knobs (`temperature` schedule, `compression_ratio_threshold`, `logprob_threshold`, `no_speech_threshold`, 30-second windowing) are handled internally by `mlx-whisper` — we accept its defaults rather than re-expose them as CLI flags. `condition_on_previous_text=False` is the one explicit override: it prevents the repetition-loop failure mode Whisper is known for on long mono inputs (method copied verbatim from the sibling `stone-scriber` project — see ADR 0017).
 
-**Language.** Since v0.24.0 `--language` defaults to `None`. A new stage `[4] lang_detect` runs between diarize and clearspeech, picks the longest pyannote turn, and calls `model.detect_language()` on Whisper-large-v3-MLX over that turn's mel-spectrogram. The detected ISO code becomes the `language` hint for `mlx_whisper.transcribe()` at stage `[6] speech2text` and flows through every downstream LLM / render stage. Passing `--language uk` (or any ISO code) explicitly skips lang_detect entirely. See [ADR 0022](adr/0022-asr-language-autodetect.md) for why the longest pyannote turn is a strictly better signal than Whisper's first-30 s internal classifier.
+**Language.** Since v0.24.0 `--language` defaults to `None`. A new stage `[4] lang_detect` runs between diarize_speakers and clear_speech, picks the longest pyannote turn, and calls `model.detect_language()` on Whisper-large-v3-MLX over that turn's mel-spectrogram. The detected ISO code becomes the `language` hint for `mlx_whisper.transcribe()` at stage `[6] speech2text` and flows through every downstream LLM / render stage. Passing `--language uk` (or any ISO code) explicitly skips lang_detect entirely. See [ADR 0022](adr/0022-asr-language-autodetect.md) for why the longest pyannote turn is a strictly better signal than Whisper's first-30 s internal classifier.
 
 **Speaker labels.** Whisper has no speaker-prediction head; every ASR segment carries no speaker hint. Speaker labels come entirely from pyannote turns at stage 6 (merge).
 
@@ -30,11 +30,11 @@ Three Hugging Face repositories must be accepted with the user's account before 
 
 The token sits in `~/.cache/huggingface/token` (mode `600`). The pipeline never reads it from environment variables or settings files — see [ADR 0004](adr/0004-pyannote-for-diarization.md).
 
-Inference runs on `mps` when available and falls back to `cpu` if the move fails. The `diarize` log line tells you which device was used.
+Inference runs on `mps` when available and falls back to `cpu` if the move fails. The `diarize_speakers` log line tells you which device was used.
 
 ## LLM — `mlx-community/Qwen2.5-7B-Instruct-4bit`
 
-Default for every language task: identify, proofread, structure, TL;DR. The model is loaded in-process via `mlx-lm` against an MLX-quantised checkpoint in the HuggingFace cache.
+Default for every language task: identify_speakers, proofread, speech_structure, speech_summary. The model is loaded in-process via `mlx-lm` against an MLX-quantised checkpoint in the HuggingFace cache.
 
 **Resolution.** `MlxLLM.model_path` accepts either:
 

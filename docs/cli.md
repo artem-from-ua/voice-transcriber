@@ -16,7 +16,7 @@ voice transcribe <audio> [options]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--language` | str (ISO) | auto-detect | Conversation language hint. Default: detected at stage `[4] lang_detect` on the longest pyannote turn via Whisper's `model.detect_language()` ([ADR 0022](adr/0022-asr-language-autodetect.md)). Pass an explicit value (e.g. `--language uk`) to skip detection — useful when the diarized recording has only very short turns or when you already know the language and want to save the 3-5 s detect step. The override flows through to ASR, proofread, identify, structure, TL;DR and render. |
+| `--language` | str (ISO) | auto-detect | Conversation language hint. Default: detected at stage `[4] lang_detect` on the longest pyannote turn via Whisper's `model.detect_language()` ([ADR 0022](adr/0022-asr-language-autodetect.md)). Pass an explicit value (e.g. `--language uk`) to skip detection — useful when the diarized recording has only very short turns or when you already know the language and want to save the 3-5 s detect step. The override flows through to ASR, proofread, identify_speakers, speech_structure, speech_summary and render. |
 | `--unknown-speaker` | `{ask,keep}` | `ask` | What to do when self-intro is missing. `ask` prompts on stdin; `keep` leaves `SPEAKER_XX`. |
 | `--names` | `"A,B,..."` | – | Override automatic naming. Mapped to clusters in order of first appearance. Skips the LLM identify step. |
 | `--datetime` | ISO 8601 | – | Override recording start time. Defaults to `ffprobe creation_time`, then `stat birthtime`, then `stat mtime`. |
@@ -24,7 +24,7 @@ voice transcribe <audio> [options]
 | `--llm-temperature` | float | `0.7` (Qwen2.5 rec) | Sampling temperature applied to all LLM stages. Overrides the per-prompt frontmatter value. When switching `--llm-model`, also pass this and the other sampling flags to match that model's recommendation — see `docs/models.md`. |
 | `--llm-top-p` | float | `0.8` (Qwen2.5 rec) | Nucleus-sampling cutoff applied globally. |
 | `--llm-top-k` | int | `20` (Qwen2.5 rec) | Top-K sampling cutoff (0 disables). |
-| `--llm-repetition-penalty` | float | `1.05` (Qwen2.5 rec) | Repetition penalty for plain-text stages (proofread, tldr). |
+| `--llm-repetition-penalty` | float | `1.05` (Qwen2.5 rec) | Repetition penalty for plain-text stages (proofread, speech_summary). |
 | `--llm-proofread-model` | path | inherits `--llm-model` | Per-stage override: model used for proofread only. The pipeline cold-reloads weights between stages whose paths differ; identical paths share one resident instance. See [ADR 0019](adr/0019-per-stage-llm-models.md). |
 | `--llm-identify-model` | path | inherits `--llm-model` | Per-stage override for the speaker-identify stage. |
 | `--llm-structure-model` | path | inherits `--llm-model` | Per-stage override for the section-structuring stage. |

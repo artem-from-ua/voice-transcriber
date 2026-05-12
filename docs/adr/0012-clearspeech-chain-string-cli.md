@@ -3,6 +3,8 @@ status: accepted
 date: 2026-05-11
 ---
 
+> **Note (v0.25.0):** the module formerly called `clearspeech` is now `clear_speech`. Body of this ADR preserves the historical name.
+
 # ADR 0012 — Single `--clearspeech-chain` string replaces per-effect toggles
 
 ## Context

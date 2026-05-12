@@ -3,6 +3,8 @@ status: accepted
 date: 2026-05-12
 ---
 
+> **Note (v0.25.0):** the module formerly called `clearspeech` is now `clear_speech`. Body of this ADR preserves the historical name.
+
 # ADR 0013 — Defaults for the clearspeech presence effect (3000 Hz / +6 dB / Q=1)
 
 ## Context

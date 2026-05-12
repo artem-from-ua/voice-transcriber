@@ -5,7 +5,7 @@ Uses a stub LLM that returns canned chat_json responses keyed by snippet.
 
 from __future__ import annotations
 
-from voice.identify import identify_speakers
+from voice.identify_speakers import identify_speakers
 from voice.types import Segment
 
 

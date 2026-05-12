@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from voice.audiometa import extract_metadata
+from voice.audio_meta import extract_metadata
 
 
 SAMPLE = Path("~/Downloads/two-speakers-diar-test-ukr.m4a").expanduser()

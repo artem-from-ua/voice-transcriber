@@ -3,6 +3,8 @@ status: accepted
 date: 2026-05-12
 ---
 
+> **Note (v0.25.0):** the module formerly called `structure` is now `speech_structure`. Body of this ADR preserves the historical name.
+
 # ADR 0018 — Chunk the structure_dialog prompt for hour-long recordings
 
 ## Context

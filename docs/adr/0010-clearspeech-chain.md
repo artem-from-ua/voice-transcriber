@@ -3,6 +3,8 @@ status: accepted
 date: 2026-05-11
 ---
 
+> **Note (v0.25.0):** the module formerly called `clearspeech` is now `clear_speech`. Body of this ADR preserves the historical name.
+
 # ADR 0010 — Audio cleanup as a chain-of-effects stage, not a series of pipeline stages
 
 ## Context
