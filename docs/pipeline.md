@@ -14,9 +14,9 @@ skinparam LifeLineBorderColor #C0C0C0
 actor User
 participant cli
 participant pipeline
-participant ffmpeg as "ffmpeg"
-participant ffprobe
-participant asr
+participant transcode
+participant audiometa
+participant speech2text
 participant diarize
 participant merge
 participant llm as "mlx-lm\n(in-process)"
@@ -28,11 +28,11 @@ participant render
 
 User -> cli : voice transcribe foo.m4a
 cli -> pipeline : run(options)
-pipeline -> ffmpeg : foo.m4a → 16 kHz mono WAV
-pipeline -> ffprobe : extract_metadata(foo.m4a)
-ffprobe --> pipeline : AudioMeta
-pipeline -> asr : transcribe(wav, bits, language)
-asr --> pipeline : AsrSegment[]
+pipeline -> transcode : foo.m4a → 16 kHz mono WAV
+pipeline -> audiometa : extract_metadata(foo.m4a)
+audiometa --> pipeline : AudioMeta
+pipeline -> speech2text : transcribe(wav, bits, language)
+speech2text --> pipeline : AsrSegment[]
 pipeline -> diarize : diarize(wav)
 diarize --> pipeline : DiarTurn[]
 pipeline -> merge : merge(asr, turns)
@@ -58,7 +58,7 @@ end legend
 @enduml
 ```
 
-![Pipeline sequence](https://www.plantuml.com/plantuml/svg/XLJDRjGm4BxxAKRbG2AwAPM0mnvGb_Q0nAw4H843eCYRJ19h_HDifrr0I9nu0CGJzaaOPvDq7O5GfCIU-VpDP6O-NpZFhU-KP5vuYV1Qj2Y5HhZxyHkgJagmdORA6WMyAuK1Rs33xQuqjvereaIeZF5RisTk9tJBBLVWy7E7ki2LjURskX75JgDpS9uzFGAjHOLh2lJ2s1BjfP76meFBn-5XZ1UUjcyTMaPeBmhHSksXa2BQjqEoaR6gL8irS0SdX-N9pDrQiusFS1V7AGMtuckCKMZhs2AbwgCekLz8zL4dGY-8kw1_JUEOL2RjHVKbJjuQKrdaPMHrtdQ5xsmSoiiopj2Yfgen5ae4Y-UXCh246oCA16-vTeKLsxutcNh2MN0JQgmNGQchYMczCDgbRB8JPYZVSZmBTpz_mVapsBty2ife0-zNxsO7-eBI2TnJwCBd2ZqlkUV9G96o4RE8arY5YTeGEYAaRf3l_Y-IMtvp2blXtIb8hkkErvYoW9hJEVi6QqMr_l0fOXpwIP1X5IXJDffdD5Talkwidf7q0q3k_fjG-5EWFeNo7Jmpbhzd4cPc2HkvNwytcJIyJ59u10rowPkyQB3O9IaBe1cRsKKqq-o4FebzJjdaI6gpBd67kA6h4-XVgK7IOnO154_1EB647fUvQv7lC0enmMOHlac-HRa4pHL-ZuYd-IRKjCwf4zBKHyJti7dkewEywiz4v44cXAbHe-KUyx0_8ktTCpurtcN7F0Tr1PNqYtm49LcMfMpm_fzeqcNBVNFcpLclX_AWHdBsuXs4LZ8caH8lmOgwyGnWTVcAuhkM58eEN4FS_QMCl6YeT2I2XmvCvzkEBYmhRWZa6mHDAeI2Ivcnm7OWPHVqeal-3m00)
+![Pipeline sequence](https://www.plantuml.com/plantuml/svg/XLJ1RjGm4BtxAqRbG2AwMug0Gm-eItj0ObT2ei01KEHDPZVMEdOOE-rIXCI93q1yOR-4SJP9umY4LihQCyzlnczcVEwy9DzKMdZbDS8RLQDM1k7kns_OD5e3DGOsP2kGJQ4iU0ihIRl2tXXHgW9XOwrVsxrmEsLgIR82XryQD3akYEpDLQdodK7du7J-R0HQgWqkET1BImNIXTMMuC75u_0JGkQUj-ySac2qLxcgfV6GQnNjwoxPoEX96fVR8hQsoLVePMHrDM9UFl6uzv6zK9BKRSnG8MrZYzOiYeEZIkzdklfa4cLcDTcSBviUHKZMoNYr-HfdJzPk26KHf-IfoNr3aqlf8fQ2qB1iGWIDOFOYI0DdS6rLZfq2fDPjSURLKoc2cr6zO0pbiYQszieQbuh1pfX1FmPrn-7kvoyuVGwxLxTGMMFXm-9zT6PGby-mbiJroyAsa5uc7Kagxb6pE9T5SApQuen8HyLXpFsbaXjvVGnhvTqnQ6csZTnYAiReARsZjxYjk0GVFqSHkZ8pf5i5wbJqvWdD9Pkl6Z8JahOlsDt-9zBHCN3vWge7puJbxvc4LZg3bTulbwkvjh98KdW49KhjoomlCTybgGYW2PlTHJH3IuNQgNt6sMJ8KqWkSOUueTW3w5-fGT9YPW4KDqVVo8pkbnahBtSOXHXWamZVj5oZFWCZA_mU5xjlUqODwumheUrsH7mFc-RUEuhBzapSqZmzZDcYGP8Uix0VaRRk2L_Llt5ZdiFGXU5f5raFIkRpUIewx_-9Xd6jfIzFl3rf9wGu32axsvdkXgyGGYCdNW2fRUa5mEBYDSTtDGykEd0bSxUFDSgyPEbu61uwi8sl6tx7I5qpo9S89Wn6BhMUYy1s81Nd_E77_my0)
 
 ## Stages
 
@@ -66,9 +66,9 @@ Approximate wall-clock figures are for a 6-minute Ukrainian conversation on an M
 
 | # | Stage | Library | Input | Output | Typical time |
 |---|-------|---------|-------|--------|--------------|
-| 1 | WAV conversion | `ffmpeg` (subprocess) | original audio | 16 kHz mono PCM WAV | < 1 s |
-| 2 | Metadata | `ffprobe` (subprocess) | original audio | `AudioMeta` (start/end/duration) | < 1 s |
-| 3 | ASR | `mlx-audio` (`mlx_audio.stt.generate_transcription`) | WAV | `AsrSegment[]` | ~2–4 min |
+| 1 | WAV conversion | `transcode` (`ffmpeg` subprocess) | original audio | 16 kHz mono PCM WAV | < 1 s |
+| 2 | Metadata | `audiometa` (`ffprobe` subprocess) | original audio | `AudioMeta` (start/end/duration) | < 1 s |
+| 3 | ASR | `speech2text` (`mlx-audio`, `mlx_audio.stt.generate_transcription`) | WAV | `AsrSegment[]` | ~2–4 min |
 | 4 | Diarization | `pyannote.audio` 3.1 | WAV | `DiarTurn[]` (exclusive) | ~30 s |
 | 5 | Merge | pure Python | ASR + diar | `Segment[]` | < 1 s |
 | 6 | ASR proof-read | LLM via in-process `mlx-lm` | `Segment[]` | `Segment[]` | ~30–60 s |

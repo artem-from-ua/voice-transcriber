@@ -1,11 +1,11 @@
-"""Offline test for ffprobe metadata extractor — uses a real audio sample."""
+"""Offline test for audiometa metadata extractor — uses a real audio sample."""
 
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
-from voice.ffprobe import extract_metadata
+from voice.audiometa import extract_metadata
 
 
 SAMPLE = Path("~/Downloads/two-speakers-diar-test-ukr.m4a").expanduser()

@@ -6,9 +6,7 @@ on-disk artefact apart from the input audio is the final Markdown file.
 
 from __future__ import annotations
 
-import os
 import shutil
-import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -16,15 +14,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from . import asr as asr_module
+from . import audiometa as audiometa_module
 from . import clearspeech as clearspeech_module
 from . import diarize as diarize_module
-from . import ffprobe as ffprobe_module
 from . import identify as identify_module
 from . import proofread as proofread_module
+from . import speech2text as speech2text_module
 from ._dump import StageDumper
 from . import structure as structure_module
 from . import tldr as tldr_module
+from . import transcode as transcode_module
 from ._progress import ProgressReporter
 from .llm import MlxLLM
 from .merge import merge
@@ -71,24 +70,6 @@ def _log(verbose: bool) -> Callable[[str], None]:
     return emit
 
 
-def _to_wav_16k_mono(src: Path, dst: Path, log: Callable[[str], None]) -> None:
-    """Convert any audio to 16 kHz mono PCM WAV via ffmpeg."""
-    cmd = [
-        "ffmpeg", "-y", "-v", "error",
-        "-i", str(src),
-        "-ac", "1", "-ar", "16000",
-        "-c:a", "pcm_s16le",
-        str(dst),
-    ]
-    log(f"[1/10] audiotranscode → WAV 16 kHz mono")
-    try:
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
-    except FileNotFoundError as exc:
-        raise RuntimeError("ffmpeg not found in PATH. Install ffmpeg.") from exc
-    except subprocess.CalledProcessError as exc:
-        raise RuntimeError(f"ffmpeg failed: {exc.stderr.strip()}") from exc
-
-
 def _default_output_path(audio_path: str) -> str:
     p = Path(audio_path)
     return str(p.with_suffix(".md"))
@@ -121,11 +102,11 @@ def run(options: PipelineOptions) -> str:
     try:
         with progress:
             wav_path = tmpdir / "audio.wav"
-            with progress.spinner("[1/10] audiotranscode → WAV 16 kHz mono"):
-                _to_wav_16k_mono(audio, wav_path, log)
+            with progress.spinner("[1/10] transcode → WAV 16 kHz mono"):
+                transcode_module.transcode(audio, wav_path, log)
 
             with progress.spinner("[2/10] audiometa"):
-                audio_meta = ffprobe_module.extract_metadata(
+                audio_meta = audiometa_module.extract_metadata(
                     audio, override_started_at=options.datetime_override
                 )
             log(f"      Початок: {audio_meta.started_at} ({audio_meta.source})")
@@ -175,9 +156,9 @@ def run(options: PipelineOptions) -> str:
             dumper.write("02b-clearspeech-config.json", clearspeech_config)
 
             with progress.spinner(
-                f"[5/10] ASR (VibeVoice-{options.asr_bits}bit)"
+                f"[5/10] speech2text (VibeVoice-{options.asr_bits}bit)"
             ):
-                asr_segments = asr_module.transcribe(
+                asr_segments = speech2text_module.transcribe(
                     processed_wav_path,
                     bitness=options.asr_bits,
                     language=options.language,
