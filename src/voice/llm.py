@@ -172,6 +172,7 @@ class MlxLLM:
     _tokenizer: Any = None
     _tokenizer_data: TokenEnforcerTokenizerData | None = None
     _resolved_path: str | None = None
+    _last_load_s: float = 0.0
 
     # ------------------------------------------------------------------ lifecycle
 
@@ -199,9 +200,12 @@ class MlxLLM:
         """Load weights + tokenizer. Idempotent."""
         if self._model is not None:
             return
+        import time
         path = self.health_check()
         self.log(f"Loading LLM: {path}")
+        t0 = time.perf_counter()
         self._model, self._tokenizer = mlx_lm.load(path)
+        self._last_load_s = time.perf_counter() - t0
         self._tokenizer_data = _build_tokenizer_data(self._tokenizer)
         # Remember the resolved directory so the pipeline can compare two
         # MlxLLM instances by what they actually loaded — not by what the

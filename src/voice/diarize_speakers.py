@@ -36,12 +36,12 @@ def diarize(
     *,
     num_speakers: int | None = None,
     log: Callable[[str], None] = print,
-) -> list[DiarTurn]:
-    """Run pyannote diarization. Returns the exclusive (no-overlap) timeline."""
+) -> tuple[list[DiarTurn], float]:
+    """Run pyannote diarization. Returns (turns, model_load_elapsed_s)."""
     token = _read_hf_token()
 
     log("Loading pyannote pipeline...")
-    t0 = time.time()
+    t0 = time.perf_counter()
     pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", token=token)
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     try:
@@ -49,14 +49,15 @@ def diarize(
     except Exception as exc:  # noqa: BLE001 — defensive fallback
         log(f"Could not move pipeline to {device}: {exc}; falling back to CPU")
         pipeline.to(torch.device("cpu"))
-    log(f"Pipeline loaded in {time.time() - t0:.1f}s on {device}.")
+    load_elapsed = time.perf_counter() - t0
+    log(f"Pipeline loaded in {load_elapsed:.1f}s on {device}.")
 
-    t1 = time.time()
+    t1 = time.perf_counter()
     kwargs = {}
     if num_speakers is not None:
         kwargs["num_speakers"] = num_speakers
     result = pipeline(str(wav_path), **kwargs)
-    log(f"Diarization done in {time.time() - t1:.1f}s.")
+    log(f"Diarization done in {time.perf_counter() - t1:.1f}s.")
 
     payload = result.serialize()
     turns = [
@@ -68,4 +69,4 @@ def diarize(
     # alternative is LM Studio crashing on long prompts on a 16 GB Mac.
     del pipeline, result, payload
     free_torch_mps(log)
-    return turns
+    return turns, load_elapsed

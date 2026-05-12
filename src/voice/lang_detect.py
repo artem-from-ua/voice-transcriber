@@ -26,12 +26,19 @@ the same Whisper-large-v3 backend that the ASR stage will later use.
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
 from ._memory import free_mlx
 from .types import DiarTurn
 from .whisper_asr import WHISPER_REPO_ID, _verify_model_cached
+
+
+@dataclass(frozen=True)
+class LangDetectResult:
+    language: str
+    probabilities: dict[str, float] | None
 
 
 # Pyannote turns shorter than this are too brief for Whisper to classify
@@ -60,21 +67,21 @@ def detect_language_on_longest_turn(
     turns: list[DiarTurn],
     *,
     log: Callable[[str], None] = _noop_log,
-) -> str:
-    """Return the ISO language code Whisper-large-v3 detects on the longest
-    pyannote turn from `turns`.
+) -> LangDetectResult:
+    """Return a LangDetectResult with the ISO language code and probability dict.
 
     Falls back to FALLBACK_LANGUAGE (`"uk"`) when there are no turns or the
     longest turn is shorter than MIN_TURN_DURATION_S — both are pathological
     states for a successful pipeline run, but the function never raises on
     them so the caller can keep going with a best-effort default.
+    The `probabilities` field is None for all fallback paths.
     """
     if not turns:
         log(
             f"lang_detect: pyannote returned no turns — fallback "
             f"{FALLBACK_LANGUAGE!r}. Pass --language explicitly to silence."
         )
-        return FALLBACK_LANGUAGE
+        return LangDetectResult(FALLBACK_LANGUAGE, None)
 
     longest = max(turns, key=lambda t: t.end - t.start)
     duration = longest.end - longest.start
@@ -84,7 +91,7 @@ def detect_language_on_longest_turn(
             f"(< {MIN_TURN_DURATION_S}s) — fallback {FALLBACK_LANGUAGE!r}. "
             f"Pass --language explicitly to silence."
         )
-        return FALLBACK_LANGUAGE
+        return LangDetectResult(FALLBACK_LANGUAGE, None)
 
     _verify_model_cached()
 
@@ -134,7 +141,7 @@ def detect_language_on_longest_turn(
         )
         del model
         free_mlx(log)
-        return FALLBACK_LANGUAGE
+        return LangDetectResult(FALLBACK_LANGUAGE, None)
 
     top1_lang = max(probs, key=probs.get)
     top1_prob = float(probs[top1_lang])
@@ -148,4 +155,4 @@ def detect_language_on_longest_turn(
     # complicate the per-stage `free_mlx` contract for very little win.
     del model
     free_mlx(log)
-    return top1_lang
+    return LangDetectResult(top1_lang, dict(probs))

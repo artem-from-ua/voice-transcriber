@@ -22,8 +22,9 @@ Ukrainian recordings — see ADR 0017.
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from ._memory import free_mlx
 from .types import AsrSegment
@@ -79,10 +80,31 @@ def _parse_segments(result: dict) -> list[AsrSegment]:
     return segments
 
 
+def load_model(
+    log: Callable[[str], None] = _noop_log,
+) -> tuple[Any, float]:
+    """Load Whisper-large-v3-MLX weights and return (model, load_elapsed_s).
+
+    Separated from transcribe() so the pipeline can measure model load time
+    independently from inference time and report both in the Markdown header.
+    """
+    _verify_model_cached()
+    log(f"Whisper-large-v3-MLX from HF cache ({WHISPER_REPO_ID})")
+
+    from mlx_whisper.load_models import load_model as _mlx_load_model
+
+    t0 = time.perf_counter()
+    model = _mlx_load_model(WHISPER_REPO_ID)
+    load_elapsed = time.perf_counter() - t0
+    log(f"Whisper loaded in {load_elapsed:.1f}s.")
+    return model, load_elapsed
+
+
 def transcribe(
     wav_path: str | Path,
     *,
     language: str | None = None,
+    model: Any = None,
     log: Callable[[str], None] = _noop_log,
 ) -> list[AsrSegment]:
     """Run Whisper-large-v3-MLX on a WAV. Returns a list of AsrSegment.
@@ -92,24 +114,32 @@ def transcribe(
     which provides a stronger detection signal from the longest pyannote
     turn, but direct callers that skip the diarize step can still get a
     best-effort transcript by passing None.
-    """
-    _verify_model_cached()
-    log(f"Whisper-large-v3-MLX from HF cache ({WHISPER_REPO_ID})")
 
+    When `model` is provided (pre-loaded via `load_model()`), weights are
+    reused — mlx_whisper.transcribe accepts a model object directly.
+    When `model` is None, mlx_whisper loads weights internally (backwards-
+    compatible path for callers that skip the separate load step).
+    """
     # Lazy import: mlx_whisper pulls in numba/tiktoken/llvmlite, ~1 s warmup
     # we do not want to pay on every import of this module (e.g. in tests
     # that don't exercise the Whisper branch).
     import mlx_whisper
 
-    import time
-    t0 = time.time()
+    if model is None:
+        _verify_model_cached()
+        log(f"Whisper-large-v3-MLX from HF cache ({WHISPER_REPO_ID})")
+        path_or_model: Any = WHISPER_REPO_ID
+    else:
+        path_or_model = model
+
+    t0 = time.perf_counter()
     result = mlx_whisper.transcribe(
         str(wav_path),
-        path_or_hf_repo=WHISPER_REPO_ID,
+        path_or_hf_repo=path_or_model,
         language=language,
         condition_on_previous_text=False,
     )
-    log(f"ASR finished in {time.time() - t0:.1f}s.")
+    log(f"ASR finished in {time.perf_counter() - t0:.1f}s.")
 
     segments = _parse_segments(result)
     # Drop the Whisper weights and KV cache before downstream LLM stages —

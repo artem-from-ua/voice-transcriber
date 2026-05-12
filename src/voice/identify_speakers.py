@@ -12,12 +12,22 @@ from __future__ import annotations
 
 import sys
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Callable, Iterable, Literal
 
 from ._progress import NullProgress, ProgressReporter
 from ._prompts import call_kwargs, render as render_prompt
 from .llm import LLMError, MlxLLM
 from .types import Segment
+
+
+NameSource = Literal["user-specified", "self-introduced", "interactive"]
+
+
+@dataclass(frozen=True)
+class NamedAssignment:
+    name: str
+    source: NameSource
 
 
 INTRO_WINDOW_S = 60.0
@@ -83,7 +93,7 @@ def _ask_llm_for_name(
 def _resolve_conflicts(
     candidates: dict[str, tuple[str, str]],
     first_seen: dict[str, float],
-) -> dict[str, str]:
+) -> dict[str, NamedAssignment]:
     """If two clusters claim the same name, keep the higher-confidence one
     (earlier appearance breaks ties); the other becomes unidentified.
     """
@@ -91,17 +101,17 @@ def _resolve_conflicts(
     for cluster, (name, _conf) in candidates.items():
         by_name[name].append(cluster)
 
-    out: dict[str, str] = {}
+    out: dict[str, NamedAssignment] = {}
     for name, clusters in by_name.items():
         if len(clusters) == 1:
-            out[clusters[0]] = name
+            out[clusters[0]] = NamedAssignment(name=name, source="self-introduced")
             continue
         order = {"high": 0, "medium": 1, "low": 2}
         winner = min(
             clusters,
             key=lambda c: (order[candidates[c][1]], first_seen.get(c, 0.0)),
         )
-        out[winner] = name
+        out[winner] = NamedAssignment(name=name, source="self-introduced")
     return out
 
 
@@ -132,17 +142,22 @@ def identify_speakers(
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
     read_input: Callable[[str], str] = input,
     progress: "ProgressReporter | None" = None,
-) -> dict[str, str]:
-    """Return mapping `pyannote_label → human_name`.
+) -> dict[str, NamedAssignment]:
+    """Return mapping `pyannote_label → NamedAssignment`.
 
-    Clusters with no name in the result map are left as their pyannote label.
+    Clusters with no name in the result map are left as their pyannote label
+    by the pipeline — they do not appear in this dict at all.
     """
     segs = list(segments)
     first_seen = _first_appearance(segs)
     clusters = sorted(first_seen, key=first_seen.get)
 
     if names_override:
-        return {c: names_override[i] for i, c in enumerate(clusters) if i < len(names_override)}
+        return {
+            c: NamedAssignment(name=names_override[i], source="user-specified")
+            for i, c in enumerate(clusters)
+            if i < len(names_override)
+        }
 
     if llm is None:
         log("identify: no LLM provided; falling back to unknown_policy.")
@@ -164,7 +179,7 @@ def identify_speakers(
                     log(f"identify: {cluster} → {name} ({confidence})")
                 advance(1, suffix=f"{len(candidates)} named")
 
-    mapping = _resolve_conflicts(candidates, first_seen)
+    mapping: dict[str, NamedAssignment] = _resolve_conflicts(candidates, first_seen)
 
     if unknown_policy == "ask":
         for cluster in clusters:
@@ -172,6 +187,6 @@ def identify_speakers(
                 continue
             guess = _ask_user_interactively(cluster, segs, log, read_input)
             if guess:
-                mapping[cluster] = guess
+                mapping[cluster] = NamedAssignment(name=guess, source="interactive")
 
     return mapping

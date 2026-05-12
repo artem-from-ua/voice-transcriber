@@ -5,7 +5,7 @@ Uses a stub LLM that returns canned chat_json responses keyed by snippet.
 
 from __future__ import annotations
 
-from voice.identify_speakers import identify_speakers
+from voice.identify_speakers import NamedAssignment, identify_speakers
 from voice.types import Segment
 
 
@@ -42,7 +42,10 @@ def test_names_override_skips_llm():
         log=lambda _s: None,
     )
     # Order is first-appearance in time, not label order: SPEAKER_01 first (start=0).
-    assert mapping == {"SPEAKER_01": "Artem", "SPEAKER_00": "Ostap"}
+    assert mapping == {
+        "SPEAKER_01": NamedAssignment(name="Artem", source="user-specified"),
+        "SPEAKER_00": NamedAssignment(name="Ostap", source="user-specified"),
+    }
     assert llm.calls == []
 
 
@@ -59,7 +62,10 @@ def test_extracts_name_from_self_intro():
         segs, llm=llm, unknown_policy="keep",
         log=lambda _s: None,
     )
-    assert mapping == {"SPEAKER_00": "Артем", "SPEAKER_01": "Остап"}
+    assert mapping == {
+        "SPEAKER_00": NamedAssignment(name="Артем", source="self-introduced"),
+        "SPEAKER_01": NamedAssignment(name="Остап", source="self-introduced"),
+    }
 
 
 def test_no_intro_keeps_cluster_unmapped():
@@ -95,7 +101,7 @@ def test_conflict_resolution_prefers_higher_confidence():
         segs, llm=llm, unknown_policy="keep",
         log=lambda _s: None,
     )
-    assert mapping == {"SPEAKER_01": "Артем"}
+    assert mapping == {"SPEAKER_01": NamedAssignment(name="Артем", source="self-introduced")}
 
 
 def test_ask_policy_uses_provided_input():
@@ -106,7 +112,7 @@ def test_ask_policy_uses_provided_input():
         log=lambda _s: None,
         read_input=lambda _prompt: "Артем",
     )
-    assert mapping == {"SPEAKER_00": "Артем"}
+    assert mapping == {"SPEAKER_00": NamedAssignment(name="Артем", source="interactive")}
 
 
 def test_validates_name_rejects_lowercase():
