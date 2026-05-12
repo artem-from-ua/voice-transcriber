@@ -128,14 +128,14 @@ def transcribe(
     if model is None:
         _verify_model_cached()
         log(f"Whisper-large-v3-MLX from HF cache ({WHISPER_REPO_ID})")
-        path_or_model: Any = WHISPER_REPO_ID
-    else:
-        path_or_model = model
 
+    # mlx_whisper.transcribe only accepts a str repo id, not a model object.
+    # When model was pre-loaded via load_model(), weights are already in the
+    # MLX cache — passing the repo id again reuses them without re-fetching.
     t0 = time.perf_counter()
     result = mlx_whisper.transcribe(
         str(wav_path),
-        path_or_hf_repo=path_or_model,
+        path_or_hf_repo=WHISPER_REPO_ID,
         language=language,
         condition_on_previous_text=False,
     )
