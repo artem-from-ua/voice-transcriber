@@ -219,14 +219,14 @@ def test_render_ai_models_table_grouping_single_llm():
     qwen = "mlx-community/Qwen2.5-7B-Instruct-4bit"
     stage_models = {
         "diarize_speakers": "pyannote/speaker-diarization-3.1",
-        "asr": "Whisper-large-v3-MLX",
+        "speech2text": "Whisper-large-v3-MLX",
         "proofread": qwen,
         "speech_structure": qwen,
     }
     stage_timings = {
         "total": 321.0,
         "diarize_speakers": 28.0,
-        "asr": 55.0,
+        "speech2text": 55.0,
         "proofread": 138.0,
         "speech_structure": 49.0,
     }
@@ -259,8 +259,8 @@ def test_render_ai_models_skips_disabled_stages():
     )
     out = render_markdown(
         audio_meta=_meta(), dialog=dialog, language="uk",
-        stage_models={"asr": "Whisper-large-v3-MLX"},
-        stage_timings={"total": 60.0, "asr": 55.0},
+        stage_models={"speech2text": "Whisper-large-v3-MLX"},
+        stage_timings={"total": 60.0, "speech2text": 55.0},
         model_load_elapsed={"Whisper-large-v3-MLX": 30.0},
     )
     assert "speech_tldr" not in out

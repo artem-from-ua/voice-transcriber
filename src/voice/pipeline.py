@@ -353,8 +353,8 @@ def run(options: PipelineOptions) -> str:
             with progress.spinner(f"[6/11] Завантаження Whisper"):
                 whisper_model, whisper_load_s = whisper_asr_module.load_model(log=log)
             model_load_elapsed[_WHISPER] = model_load_elapsed.get(_WHISPER, 0.0) + whisper_load_s
-            stage_models["asr"] = _WHISPER
-            with progress.spinner(f"[6/11] speech2text ({_WHISPER})"), _timed("asr"):
+            stage_models["speech2text"] = _WHISPER
+            with progress.spinner(f"[6/11] speech2text ({_WHISPER})"), _timed("speech2text"):
                 asr_segments = whisper_asr_module.transcribe(
                     processed_wav_path,
                     language=effective_language,
