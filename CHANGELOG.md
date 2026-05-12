@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] — 2026-05-12
+
+### Changed (internal)
+- Aligned four pipeline stage labels with their module filenames so `find src/voice -name "<stage>.py"` works for any stage you see in the diagram or the progress log:
+  - `src/voice/ffprobe.py` → `src/voice/audiometa.py` (public `extract_metadata()` unchanged).
+  - `src/voice/asr.py` → `src/voice/speech2text.py` (public `transcribe()` unchanged).
+  - Inline `_to_wav_16k_mono()` in `pipeline.py` extracted into a new `src/voice/transcode.py` module exporting `transcode()`.
+  - Stage `[1]` progress label `audiotranscode` → `transcode`; stage `[5]` progress label `ASR (...)` → `speech2text (...)`.
+- Architecture and pipeline docs (`docs/architecture.md`, `docs/pipeline.md`) updated to match the new module names; the high-level architecture diagram was retired in favour of the more informative pipeline-stages diagram.
+- Public surface unchanged: CLI flags (`--asr-bits`, `--asr-temperature`, `--asr-chunk-duration`), dump artefact filename `03-asr.json`, `AsrSegment` type, `proofread.fix_asr_errors()` all keep their existing names — they are engineering identifiers, not stage presentation.
+
 ## [0.17.0] — 2026-05-12
 
 ### Added

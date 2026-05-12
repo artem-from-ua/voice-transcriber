@@ -15,9 +15,9 @@ Pipeline supports four bitness variants chosen via `--asr-bits`:
 | **6 (default)** | `mlx-community/VibeVoice-ASR-6bit` | ~7 GB | the best speed/quality knee-point | moderate |
 | 8 | `mlx-community/VibeVoice-ASR-8bit` | ~9 GB | most accurate, hardware-bound | slowest |
 
-The tuning constants in `asr.DEFAULT_GEN_KWARGS` (`repetition_penalty=1.3`, `repetition_context_size=64`, `temperature=0.0`) keep VibeVoice from looping on Ukrainian fragments like "шо я… шо я… шо я…" while giving deterministic, run-to-run reproducible output. `chunk_duration=45 s` is the matching default: VibeVoice was trained on up to 60-minute single-pass inputs and explicitly benefits from long context — short chunks were the dominant cause of language drift (Ukrainian → Russian / nonsense). Both can be overridden per run with `--asr-temperature` and `--asr-chunk-duration`.
+The tuning constants in `speech2text.DEFAULT_GEN_KWARGS` (`repetition_penalty=1.3`, `repetition_context_size=64`, `temperature=0.0`) keep VibeVoice from looping on Ukrainian fragments like "шо я… шо я… шо я…" while giving deterministic, run-to-run reproducible output. `chunk_duration=45 s` is the matching default: VibeVoice was trained on up to 60-minute single-pass inputs and explicitly benefits from long context — short chunks were the dominant cause of language drift (Ukrainian → Russian / nonsense). Both can be overridden per run with `--asr-temperature` and `--asr-chunk-duration`.
 
-`asr.py` looks up the model under `~/.cache/lm-studio/models/<repo>`. There is no implicit download — if a bitness is missing, the pipeline tells you to install it via LM Studio.
+`speech2text.py` looks up the model under `~/.cache/lm-studio/models/<repo>`. There is no implicit download — if a bitness is missing, the pipeline tells you to install it via LM Studio.
 
 ## Diarization — `pyannote/speaker-diarization-3.1`
 

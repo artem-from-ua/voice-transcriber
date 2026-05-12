@@ -74,7 +74,7 @@ We've also gone version skipping in past PRs (0.4.0 was reserved for a PR that l
 Before changing an edge, grep the code:
 
 ```bash
-grep -nE "^\s*(asr_module|diarize_module|merge|proofread|identify|structure|tldr|render)" src/voice/pipeline.py
+grep -nE "^\s*(speech2text_module|diarize_module|merge|proofread|identify|structure|tldr|render)" src/voice/pipeline.py
 ```
 
 The stage that *appears* to feed the next one in the file order isn't always the truth — for example, ASR and diarize both read the same `wav_path` written by ffmpeg, so their incoming edge is from `[2] WAV`, not from `pipeline`. Match the diagram to the code, not to intuition.

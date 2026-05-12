@@ -1,10 +1,10 @@
 """Verify the diarize→clearspeech→ASR order and the AGC/bandpass toggles
 plumbing without loading real models.
 
-Strategy: monkey-patch the pipeline's module-level references for ASR,
-diarize, clearspeech, MlxLLM, ffprobe, and the LLM-dependent stages.
-Each stub records what it was called with, and the test inspects the call
-log after `pipeline.run()` returns.
+Strategy: monkey-patch the pipeline's module-level references for
+speech2text, diarize, clearspeech, MlxLLM, audiometa, and the
+LLM-dependent stages. Each stub records what it was called with, and the
+test inspects the call log after `pipeline.run()` returns.
 """
 
 from __future__ import annotations
@@ -50,9 +50,11 @@ def patched_pipeline(monkeypatch, tmp_path):
         dst.write_bytes(b"RIFF\x00\x00\x00\x00fake")
         rec("ffmpeg", str(dst))
 
-    monkeypatch.setattr(pipeline_module, "_to_wav_16k_mono", fake_ffmpeg)
+    monkeypatch.setattr(
+        pipeline_module.transcode_module, "transcode", fake_ffmpeg
+    )
 
-    # ffprobe: return a minimal AudioMeta.
+    # audiometa: return a minimal AudioMeta.
     fake_meta = AudioMeta(
         path=str(fake_audio),
         started_at="2026-05-10T15:44:02+00:00",
@@ -61,7 +63,7 @@ def patched_pipeline(monkeypatch, tmp_path):
         source="cli override",
     )
     monkeypatch.setattr(
-        pipeline_module.ffprobe_module,
+        pipeline_module.audiometa_module,
         "extract_metadata",
         lambda *a, **k: fake_meta,
     )
@@ -123,7 +125,9 @@ def patched_pipeline(monkeypatch, tmp_path):
         rec("asr", str(wav_path))
         return [AsrSegment(start=0.0, end=3.0, content="hi", speaker_asr=0)]
 
-    monkeypatch.setattr(pipeline_module.asr_module, "transcribe", fake_transcribe)
+    monkeypatch.setattr(
+        pipeline_module.speech2text_module, "transcribe", fake_transcribe
+    )
 
     # LLM: never actually instantiate one. The pipeline only uses LLM if
     # run_proofread / run_tldr / run_structure are true; we'll disable
