@@ -37,7 +37,7 @@ Each pyannote repo needs the license to be accepted with your Hugging Face accou
 
 ## Repetition loops in ASR output ("шо я… шо я… шо я…")
 
-The model's greedy decoder got stuck. The pipeline already enables `repetition_penalty=1.2` and a small chunk size, which mostly fixes it. If it still happens:
+The model's greedy decoder got stuck. The pipeline already enables `repetition_penalty=1.3` and a small chunk size, which mostly fixes it. If it still happens:
 
 - Try `--asr-bits 8` (less aggressive quantisation → fewer pathological logits).
 - Re-encode the input to clean WAV first if it's a heavily compressed file (e.g. low-bitrate MP3).

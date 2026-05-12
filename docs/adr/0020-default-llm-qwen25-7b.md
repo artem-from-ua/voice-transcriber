@@ -10,7 +10,7 @@ supersedes: 0001
 
 [ADR 0001](0001-local-llm-via-lm-studio.md) (superseded) and [ADR 0006](0006-mlx-lm-over-lm-studio.md) established the in-process MLX runtime. From v0.1 through v0.21 the default LLM was `mlx-community/gemma-3-12b-it-qat-4bit` (~8 GB resident), resolved by a hardcoded absolute path inside the LM Studio cache layout (`~/.cache/lm-studio/models/...`).
 
-Two findings from the v0.21 benchmark (`docs/llm-stage-benchmark.md`, and `/tmp/bench/COMPARISON.md` from the dev-time runs) made that default untenable:
+Two findings from the v0.21 benchmark (one-off dev-time runs comparing six MLX models; raw artefacts not committed) made that default untenable:
 
 1. **gemma-3-12b does not fit on a 16 GB Mac end-to-end.** Even with chunked `structure_dialog` (ADR 0018), per-stage `free_mlx()` (v0.21), and a hybrid swap to a smaller proofread model, the third chunked structure call hits a Metal OOM. The 16 GB target is the primary developer machine, and shipping a default that crashes on it is a regression no flag can hide.
 2. **Sampling defaults from prompt frontmatter (temp 0.1–0.3, no top_p/top_k) were chosen for gemma-3-12b's behaviour on structured output.** They produce different, often worse, results on other models — most starkly on Llama-3.2-3B, whose JSON parser fails entirely at temp 0.2 (trailing commas) but produces valid 4-section layouts at the model's own recommended temp 0.6. Defaults that hard-code one model's tuning are a footgun for users who swap models via `--llm-model`.

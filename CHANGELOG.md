@@ -180,7 +180,7 @@ Default chain stays `"agc"`. See [`docs/adr/0015-clearspeech-dereverb.md`](docs/
 
 ### Added
 - New pipeline stage **loudness normalization** between WAV conversion and ASR (issue #47). The pipeline now runs **diarize before ASR**: pyannote turns serve as per-segment guard-rails for RMS-based AGC, applied with 100 ms linear crossfades on segment boundaries (silent gaps left at unity gain). New module `voice.audio_preprocess.loudness_normalize(wav, turns, target_dbfs, max_gain_db, crossfade_ms)` returns a sibling `<stem>.normalized.wav` consumed by ASR. The motivating bug: VibeVoice-ASR drifts to Russian on quiet turns; equalising per-speaker levels measurably reduces the drift on the test recording.
-- CLI flags: `--no-loudness-normalize` (stage is default-on), `--loudness-target-dbfs FLOAT` (default `-20.0`), `--loudness-max-gain-db FLOAT` (default `16.0` — tuned by listening test, see [`docs/adr/0006-loudness-normalize-defaults.md`](docs/adr/0006-loudness-normalize-defaults.md)), grouped under "loudness normalization" in `--help`.
+- CLI flags: `--no-loudness-normalize` (stage is default-on), `--loudness-target-dbfs FLOAT` (default `-20.0`), `--loudness-max-gain-db FLOAT` (default `16.0` — tuned by listening test, see [`docs/adr/0007-loudness-normalize-defaults.md`](docs/adr/0007-loudness-normalize-defaults.md)), grouped under "loudness normalization" in `--help`.
 - New runtime dependency: `soundfile>=0.12` for libsndfile-backed WAV I/O.
 - `voice._dump.StageDumper.write_binary(name, src)` copies a binary artefact (file path or raw bytes) into the dump dir; used to dump `02b-normalized.wav`.
 
