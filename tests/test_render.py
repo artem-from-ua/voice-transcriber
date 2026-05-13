@@ -120,7 +120,8 @@ def test_render_merges_same_speaker_short_gap_into_one_paragraph():
     assert "перше речення. друге речення." in out
 
 
-def test_render_explicit_pause_marker_on_long_gap():
+def test_render_short_pause_below_default_threshold_hidden():
+    """Gap of 8s is below MIN_SILENCE_S=10.0 — no pause marker emitted."""
     segs = [
         Segment(start=0.0, end=2.0, content="перше.", speaker="A", name="Артем"),
         Segment(start=10.0, end=12.0, content="друге.", speaker="A", name="Артем"),
@@ -128,8 +129,64 @@ def test_render_explicit_pause_marker_on_long_gap():
     sections = [Section(title="Test", start_ms=0, end_ms=12000)]
     dialog = StructuredDialog(sections=sections, segments=segs)
     out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
-    assert "пауза 8с" in out
+    assert "пауза" not in out
+    assert "muted" not in out
+
+
+def test_render_long_pause_shows_timestamp_range():
+    """Gap >= MIN_SILENCE_S renders as [пауза HH:MM:SS–HH:MM:SS]."""
+    segs = [
+        Segment(start=0.0, end=2.0, content="перше.", speaker="A", name="Артем"),
+        Segment(start=17.0, end=19.0, content="друге.", speaker="A", name="Артем"),
+    ]
+    sections = [Section(title="Test", start_ms=0, end_ms=19000)]
+    dialog = StructuredDialog(sections=sections, segments=segs)
+    out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
+    assert "пауза 00:00:02–00:00:17" in out
     assert out.count("**Артем:**") == 2
+
+
+def test_render_pause_custom_threshold():
+    """With min_silence_s=3.0 the 8s gap from the first test becomes visible."""
+    segs = [
+        Segment(start=0.0, end=2.0, content="перше.", speaker="A", name="Артем"),
+        Segment(start=10.0, end=12.0, content="друге.", speaker="A", name="Артем"),
+    ]
+    sections = [Section(title="Test", start_ms=0, end_ms=12000)]
+    dialog = StructuredDialog(sections=sections, segments=segs)
+    out = render_markdown(
+        audio_meta=_meta(), dialog=dialog, tldr="", language="uk",
+        min_silence_s=3.0,
+    )
+    assert "пауза 00:00:02–00:00:10" in out
+
+
+def test_render_muted_shows_timestamp_range():
+    """[muted, X.Xs] placeholder renders as [muted HH:MM:SS–HH:MM:SS]."""
+    segs = [
+        Segment(start=0.0, end=2.0, content="перше.", speaker="A", name="Артем"),
+        Segment(start=2.0, end=16.0, content="[muted, 14.0s]", speaker=None),
+        Segment(start=16.0, end=18.0, content="друге.", speaker="A", name="Артем"),
+    ]
+    sections = [Section(title="Test", start_ms=0, end_ms=18000)]
+    dialog = StructuredDialog(sections=sections, segments=segs)
+    out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk", min_silence_s=10.0)
+    assert "muted 00:00:02–00:00:16" in out
+    assert "[muted, 14.0s]" not in out
+
+
+def test_render_muted_below_threshold_hidden():
+    """Short muted placeholder (< min_silence_s) is silently dropped."""
+    segs = [
+        Segment(start=0.0, end=2.0, content="перше.", speaker="A", name="Артем"),
+        Segment(start=2.0, end=5.0, content="[muted, 3.0s]", speaker=None),
+        Segment(start=5.0, end=7.0, content="друге.", speaker="A", name="Артем"),
+    ]
+    sections = [Section(title="Test", start_ms=0, end_ms=7000)]
+    dialog = StructuredDialog(sections=sections, segments=segs)
+    out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk", min_silence_s=10.0)
+    assert "muted" not in out
+    assert "пауза" not in out
 
 
 def test_render_skips_speakerless_segments():

@@ -119,6 +119,23 @@ def _build_parser() -> argparse.ArgumentParser:
     t.add_argument("--no-tldr", action="store_true", help="Skip TL;DR generation.")
     t.add_argument("--no-structure", action="store_true", help="Skip section structuring.")
     t.add_argument("--no-safe-speech", action="store_true", help="Skip sensitive-content redaction.")
+    t.add_argument(
+        "--render-min-silence-s", type=float, default=10.0, metavar="SECONDS",
+        help=(
+            "Minimum silence duration (seconds) to show as a pause or muted marker "
+            "in the transcript. Shorter silences are hidden. Default: 10.0. "
+            "Adjacent muted/gap chains are merged before the threshold is applied."
+        ),
+    )
+    t.add_argument(
+        "--tldr-include-silence", action="store_true",
+        help=(
+            "Feed silence events into the TL;DR prompt (experimental). "
+            "By default the TL;DR only sees speaker utterances. Enable this flag "
+            "to include [пауза ...] / [muted ...] markers so the model is aware of "
+            "long pauses. Use --dump-stages to compare output with and without."
+        ),
+    )
 
     ss = t.add_argument_group("safe-speech (sensitive-content redaction)")
     ss.add_argument(
@@ -312,6 +329,8 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         clearspeech_dereverb_crossfade_ms=args.clearspeech_dereverb_crossfade_ms,
         dump_stages_dir=args.dump_stages_dir,
         verbose=args.verbose,
+        render_min_silence_s=args.render_min_silence_s,
+        tldr_include_silence=args.tldr_include_silence,
     )
 
 

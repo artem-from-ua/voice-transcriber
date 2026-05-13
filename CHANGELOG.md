@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.0] — 2026-05-13
+
+### Changed
+
+- **Silence events: unified pause/muted rendering with timestamp ranges** ([ADR 0025](docs/adr/0025-render-silence-events.md), closes [#88](https://github.com/artem-from-ua/voice-transcriber/issues/88)).
+
+  The render stage now aggregates all "quiet time" into silence events before emitting them:
+
+  - ASR gaps and `[muted, ...]` redacted regions are extracted by a new `silence.py` module.
+  - Adjacent muted/gap/muted chains are merged into a single event.
+  - Events shorter than `MIN_SILENCE_S = 10.0 s` (configurable via `--render-min-silence-s`) are silently dropped — no more noise from 3-second breathing pauses.
+  - Long pauses render as `> _[пауза 00:01:23–00:01:38]_` (timestamp range, not seconds count).
+  - Muted regions render as `> _[muted 00:03:45–00:04:12]_` (timestamp range, superseding the old `[muted, X.Xs]` display; the in-memory `Segment.content` format is unchanged).
+
+  Issue #88's original proposal (synthetic segments in `merge.py` for LLM stages) was rejected — the render-layer approach fully addresses the readability goal without touching the pipeline data model.
+
+### Added
+
+- New CLI flags:
+  - `--render-min-silence-s SECONDS` — threshold for showing a silence event in the transcript (default: `10.0`). Tune with `--dump-stages` side-by-side comparisons.
+  - `--tldr-include-silence` — experimental: injects silence events into the TL;DR LLM prompt (default OFF). Use with `--dump-stages` to compare TL;DR quality with and without the signal.
+
 ## [0.27.0] — 2026-05-12
 
 ### Added

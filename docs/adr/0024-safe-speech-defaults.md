@@ -4,6 +4,11 @@ date: 2026-05-12
 see_also: [0011, 0013, 0014, 0015, 0023]
 ---
 
+> **Note (ADR 0025):** The render-time *display* of `[muted, X.Xs]` placeholders has been
+> superseded by ADR 0025 — they now render as `[muted HH:MM:SS–HH:MM:SS]` blockquotes and
+> are merged with adjacent gaps.  The in-memory `Segment.content` format described in this
+> ADR (`[muted, {dur:.1f}s]`) is **unchanged**.
+
 # 0024 — Defaults for the `safe_speech` stage
 
 ## Context

@@ -10,8 +10,10 @@ A paragraph break inside a section happens when:
 - the speaker changes, OR
 - the gap between consecutive same-speaker utterances exceeds `PARAGRAPH_GAP_S`.
 
-Silent gaps with no speaker are dropped unless they are long enough to
-warrant an explicit `> _[пауза Nс]_` quote between paragraphs.
+Silence events (ASR gaps and [muted] placeholders) are shown as
+`> _[пауза HH:MM:SS–HH:MM:SS]_` or `> _[muted HH:MM:SS–HH:MM:SS]_` only
+when they are at least `MIN_SILENCE_S` seconds long. Adjacent muted/gap chains
+are merged into a single event. Shorter silences are dropped silently.
 """
 
 from __future__ import annotations
@@ -19,12 +21,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .silence import SilenceEvent, extract_silence_events
 from .speaker_emojis import assign_emojis
 from .types import AudioMeta, Section, Segment, StructuredDialog
 
 
 PARAGRAPH_GAP_S = 2.0
-EXPLICIT_PAUSE_S = 3.0
+MIN_SILENCE_S = 10.0
 
 
 def _format_duration(seconds: float) -> str:
@@ -80,18 +83,49 @@ def _segments_in_section(segments: list[Segment], section: Section) -> list[Segm
     return out
 
 
+def _build_silence_anchor_map(
+    seg_in_section: list[Segment],
+    min_silence_s: float,
+) -> dict[int, SilenceEvent]:
+    """Map each speaker-segment index to the silence event that precedes it.
+
+    Returns a dict {seg_index: SilenceEvent} so the render loop can emit the
+    event block just before the speaker paragraph that follows the silence.
+    Events that trail the last speaker segment (or a section with only
+    speakerless content) are stored under key `len(seg_in_section)`.
+    """
+    events = extract_silence_events(seg_in_section, min_silence_s)
+    if not events:
+        return {}
+
+    # For each event, find the first speaker-segment whose start >= event.end.
+    anchor: dict[int, SilenceEvent] = {}
+    for ev in events:
+        found = False
+        for idx, seg in enumerate(seg_in_section):
+            if seg.speaker is not None and seg.start >= ev.end:
+                anchor[idx] = ev
+                found = True
+                break
+        if not found:
+            anchor[len(seg_in_section)] = ev
+    return anchor
+
+
 def _render_section_body(
     seg_in_section: list[Segment],
     emoji_for: dict[str, str],
+    min_silence_s: float = MIN_SILENCE_S,
 ) -> list[str]:
     """Return Markdown paragraphs for one section."""
     if not seg_in_section:
         return []
 
+    silence_anchor = _build_silence_anchor_map(seg_in_section, min_silence_s)
+
     blocks: list[str] = []
     cur_speaker: str | None = None
     cur_lines: list[str] = []
-    prev_end: float | None = None
 
     def flush() -> None:
         if cur_lines and cur_speaker is not None:
@@ -99,15 +133,18 @@ def _render_section_body(
             label = f"{emoji} **{cur_speaker}:**".strip()
             blocks.append(f"{label} " + " ".join(cur_lines).strip())
 
-    for seg in seg_in_section:
+    prev_end: float | None = None
+
+    for i, seg in enumerate(seg_in_section):
+        if i in silence_anchor:
+            flush()
+            cur_lines = []
+            cur_speaker = None
+            blocks.append(silence_anchor[i].format_md())
+
         if seg.speaker is None:
-            # Speakerless segments: emit [muted, Xs] placeholders, skip ASR noise tags
-            if seg.content.startswith("[muted"):
-                flush()
-                cur_lines = []
-                cur_speaker = None
-                blocks.append(seg.content.strip())
-                prev_end = seg.end
+            # Speakerless segments (muted, noise tags) are handled via silence
+            # events — skip them here to avoid double-emission.
             continue
 
         label = seg.name or seg.speaker
@@ -117,12 +154,17 @@ def _render_section_body(
         if not same_speaker or gap >= PARAGRAPH_GAP_S:
             flush()
             cur_lines = []
-            if gap >= EXPLICIT_PAUSE_S:
-                blocks.append(f"> _[пауза {int(round(gap))}с]_")
             cur_speaker = label
 
         cur_lines.append(seg.content.strip())
         prev_end = seg.end
+
+    # Emit any trailing silence (anchored past last segment).
+    if len(seg_in_section) in silence_anchor:
+        flush()
+        cur_lines = []
+        cur_speaker = None
+        blocks.append(silence_anchor[len(seg_in_section)].format_md())
 
     flush()
     return blocks
@@ -240,6 +282,7 @@ def render_markdown(
     model_load_elapsed: dict[str, float] | None = None,
     name_sources: dict[str, str] | None = None,
     lang_detect_info: dict | None = None,
+    min_silence_s: float = MIN_SILENCE_S,
 ) -> str:
     """Compose the full Markdown output."""
     basename = Path(audio_meta.path).name
@@ -292,7 +335,7 @@ def render_markdown(
             continue
         lines.append(f"## {section.title}")
         lines.append("")
-        for block in _render_section_body(in_section, emoji_for):
+        for block in _render_section_body(in_section, emoji_for, min_silence_s):
             lines.append(block)
             lines.append("")
 

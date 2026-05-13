@@ -15,6 +15,7 @@ from typing import Callable, Iterable
 from ._progress import NullProgress, ProgressReporter
 from ._prompts import call_kwargs, render as render_prompt
 from .llm import LLMError, MlxLLM
+from .silence import extract_silence_events
 from .types import Segment
 
 
@@ -36,9 +37,24 @@ def _strip_leading_tldr_heading(text: str) -> str:
     return _LEADING_TLDR_RE.sub("", text, count=1).lstrip("\n")
 
 
-def _format_dialogue(segments: list[Segment]) -> str:
+def _format_dialogue(segments: list[Segment], include_silence: bool = False) -> str:
     lines: list[str] = []
-    for seg in segments:
+
+    if include_silence:
+        # Build silence events once (use same threshold as render default).
+        from .render import MIN_SILENCE_S
+        silence_events = extract_silence_events(segments, MIN_SILENCE_S)
+        # Map: silence event -> index of the first speaker-seg after it.
+        silence_before: dict[int, str] = {}
+        for ev in silence_events:
+            for idx, seg in enumerate(segments):
+                if seg.speaker is not None and seg.start >= ev.end:
+                    silence_before[idx] = ev.format_md().lstrip("> _").rstrip("_")
+                    break
+
+    for i, seg in enumerate(segments):
+        if include_silence and i in silence_before:
+            lines.append(silence_before[i])
         if seg.speaker is None:
             continue
         text = seg.content.strip()
@@ -54,11 +70,12 @@ def generate_tldr(
     *,
     llm: MlxLLM,
     language: str = "uk",
+    include_silence: bool = False,
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
     progress: "ProgressReporter | None" = None,
 ) -> str:
     """Return a Markdown TL;DR string, or empty string on failure."""
-    transcript = _format_dialogue(list(segments))
+    transcript = _format_dialogue(list(segments), include_silence=include_silence)
     if not transcript:
         return ""
 

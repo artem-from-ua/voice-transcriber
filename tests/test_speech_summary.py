@@ -124,3 +124,30 @@ def test_keeps_tldr_inside_body():
         llm=llm, language="uk", log=lambda _s: None,
     )
     assert "## TL;DR" in out
+
+
+# ---------------------------------------------------------------------------
+# include_silence flag
+# ---------------------------------------------------------------------------
+
+def test_include_silence_injects_pause_into_prompt():
+    """With include_silence=True, a long gap appears in the LLM user message."""
+    llm = StubLLM(reply="ok")
+    segs = [
+        _seg(0, 1, "перше.", name="Артем"),
+        _seg(15, 16, "друге.", name="Артем"),
+    ]
+    generate_tldr(segs, llm=llm, language="uk", include_silence=True, log=lambda _s: None)
+    assert "пауза" in llm.last_user
+
+
+def test_include_silence_false_no_pause_in_prompt():
+    """Default behaviour: silence events are NOT injected into the TL;DR prompt."""
+    llm = StubLLM(reply="ok")
+    segs = [
+        _seg(0, 1, "перше.", name="Артем"),
+        _seg(15, 16, "друге.", name="Артем"),
+    ]
+    generate_tldr(segs, llm=llm, language="uk", include_silence=False, log=lambda _s: None)
+    assert "пауза" not in llm.last_user
+    assert "muted" not in llm.last_user
