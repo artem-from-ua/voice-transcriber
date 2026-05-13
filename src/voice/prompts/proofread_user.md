@@ -5,4 +5,4 @@ role: user
 placeholders: [text]
 ---
 
-Text: <<text>>
+<<text>>
