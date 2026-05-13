@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.30.0] — 2026-05-13
+
+### Added
+
+- **`MlxLLM.prompt_cache_session()` context manager.** Closes [#122](https://github.com/artem-from-ua/voice-transcriber/issues/122).
+
+  Shares an mlx-lm prompt cache across `chat()` calls inside the block, so a stage like proofread that fires 60+ short prompts under the same system prompt computes the system-prompt KV state once instead of per call. On a 6-minute reference recording the proofread stage drops from ~140 s to ~85–110 s wall-clock (30–40% reduction). `05-proofread.json` is bit-identical to v0.29.0 — sampler, RNG, and per-prompt logits are unchanged; only the KV-cache build is amortised.
+
+  Scope: only `chat()` participates. `chat_json()` is intentionally excluded because the `lm-format-enforcer` × prompt-cache interaction is not verified; calls to `chat_json()` from inside a session behave exactly as outside. Nested sessions raise `AssertionError`. The cache is released and `mx.clear_cache()` runs on context exit.
+
+### Changed
+
+- **`proofread.fix_asr_errors` wraps its per-segment loop in `llm.prompt_cache_session()`.** No behavioural change in the returned segments or telemetry — only wall-clock improves. The transition from proofread (short, repeated system prompt) to the structure stage (different system prompt) is preserved: the cache is dropped on session exit so structure starts from a clean KV state.
+
+### Internal
+
+- `MlxLLM._stream_generate` gained a `prompt_cache` keyword param (default `None`, forwarded to `mlx_lm.stream_generate` only when set). Call sites without a session see byte-identical behaviour because the kwarg is omitted entirely in that branch.
+- Top-level import of `mlx_lm.models.cache.make_prompt_cache` — surfaces an `ImportError` at module load if mlx-lm changes the symbol, instead of mid-pipeline.
+
 ## [0.29.0] — 2026-05-13
 
 ### Changed

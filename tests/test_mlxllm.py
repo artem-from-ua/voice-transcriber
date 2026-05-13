@@ -87,6 +87,10 @@ def _install_fake_runtime(monkeypatch, *, generate_reply: str):
     )
     monkeypatch.setattr(llm_module.mlx_lm, "load", fake_load)
     monkeypatch.setattr(llm_module.mlx_lm, "stream_generate", fake_stream_generate)
+    monkeypatch.setattr(
+        llm_module, "make_prompt_cache",
+        lambda _model: ["FAKE_CACHE_ENTRY"],
+    )
     return captured
 
 
@@ -148,3 +152,48 @@ def test_context_manager_closes(tmp_path, monkeypatch):
         llm.load()
         assert llm._model is not None
     assert llm._model is None
+
+
+def test_prompt_cache_session_shares_cache_across_chat_calls(tmp_path, monkeypatch):
+    captured = _install_fake_runtime(monkeypatch, generate_reply="ok")
+    llm = _ready_llm(tmp_path)
+    llm.load()
+
+    # Outside the session: chat() does NOT pass prompt_cache.
+    llm.chat([{"role": "user", "content": "outside"}], max_tokens=4)
+    assert "prompt_cache" not in captured["kwargs"]
+    assert llm._prompt_cache is None
+
+    with llm.prompt_cache_session():
+        # First call inside: cache exists and is forwarded.
+        llm.chat([{"role": "user", "content": "in-1"}], max_tokens=4)
+        cache_first = captured["kwargs"].get("prompt_cache")
+        assert cache_first is not None
+        assert cache_first is llm._prompt_cache  # the session's own object
+
+        # Second call inside: same cache object (shared, not rebuilt).
+        llm.chat([{"role": "user", "content": "in-2"}], max_tokens=4)
+        assert captured["kwargs"].get("prompt_cache") is cache_first
+
+        # chat_json() inside the session: NEVER receives prompt_cache.
+        # The fake reply "ok" is not valid JSON, but that's irrelevant —
+        # captured["kwargs"] is updated by stream_generate before chat_json
+        # tries to json.loads(), so the kwarg check is valid either way.
+        with pytest.raises(LLMError):
+            llm.chat_json([{"role": "user", "content": "j"}])
+        assert "prompt_cache" not in captured["kwargs"]
+
+    # After exit: session closed, future chat() goes back to no-cache.
+    assert llm._prompt_cache is None
+    llm.chat([{"role": "user", "content": "after"}], max_tokens=4)
+    assert "prompt_cache" not in captured["kwargs"]
+
+
+def test_prompt_cache_session_is_not_reentrant(tmp_path, monkeypatch):
+    _install_fake_runtime(monkeypatch, generate_reply="x")
+    llm = _ready_llm(tmp_path)
+    llm.load()
+    with llm.prompt_cache_session():
+        with pytest.raises(AssertionError, match="not re-entrant"):
+            with llm.prompt_cache_session():
+                pass

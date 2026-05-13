@@ -9,6 +9,7 @@ test inspects the call log after `pipeline.run()` returns.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -187,6 +188,10 @@ def patched_pipeline(monkeypatch, tmp_path):
         def close(self):
             self.closed = True
             self._resolved_path = None
+
+        @contextmanager
+        def prompt_cache_session(self):
+            yield
 
     # Reset per-test so `instances` reflects only this run.
     _StubLLM.instances = []
