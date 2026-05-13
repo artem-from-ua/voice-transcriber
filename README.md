@@ -1,12 +1,15 @@
 # voice-transcriber
 
-End-to-end local pipeline that turns an audio recording into a diarized Markdown transcript with a TL;DR — no cloud calls, no Anthropic API, no OpenAI. Speech recognition runs on Whisper-large-v3-MLX, speaker diarization on pyannote 3.1, and all language tasks (speaker identification, ASR proof-reading, section structuring, TL;DR) run in-process via `mlx-lm` against a local MLX-quantised model.
+End-to-end local pipeline that turns an audio recording into a diarized Markdown transcript with a TL;DR — no cloud calls, no Anthropic API, no OpenAI. Speech recognition runs on Whisper-large-v3-MLX, speaker diarization on pyannote 3.1, and all language tasks (speaker identification, ASR proofreading, section structuring, TL;DR) run in-process via `mlx-lm` against a local MLX-quantised model.
 
 ```bash
 uv run voice transcribe ~/recordings/meeting.m4a
 ```
 
 The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR, and the dialogue split into thematic sections with emoji-tagged speakers.
+
+> [!NOTE]
+> Jump to: [Prerequisites](#prerequisites) · [Setup](#setup) · [Run](#run) · [Onboarding](#onboarding) · [Development](#development)
 
 ## Prerequisites
 
@@ -40,7 +43,7 @@ The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR
    huggingface-cli download mlx-community/Qwen2.5-7B-Instruct-4bit        # ~4 GB
    ```
 
-   - `Whisper-large-v3-MLX` is the only ASR backend (see [ADR 0017](docs/adr/0017-whisper-asr-backend.md) for how it was chosen, [ADR 0021](docs/adr/0021-remove-vibevoice-backend.md) for why it is now the sole backend).
+   - `Whisper-large-v3-MLX` is the only ASR backend (see [ADR 0017](docs/adr/0017-whisper-asr-backend.md) (superseded) for how it was chosen, [ADR 0021](docs/adr/0021-remove-vibevoice-backend.md) for why it is now the sole backend).
    - `Qwen2.5-7B-Instruct-4bit` is the default LLM since v0.22.0 (see [ADR 0020](docs/adr/0020-default-llm-qwen25-7b.md)). It is the smallest model that produces multi-section structure reliably on a 16 GB Mac. Use `--llm-model <other-repo-or-path>` to swap in another MLX-format LLM.
 
 ## Run
