@@ -44,10 +44,13 @@ def _looks_safe(original: str, fixed: str) -> bool:
     return True
 
 
-def _strip_quotes(s: str) -> str:
+def _strip_artifacts(s: str) -> str:
     s = s.strip()
     if len(s) >= 2 and s[0] == s[-1] and s[0] in '"\'`':
-        return s[1:-1].strip()
+        s = s[1:-1].strip()
+    # Some models echo the "Text:" label from the user-turn template back.
+    if s.startswith("Text: "):
+        s = s[len("Text: "):]
     return s
 
 
@@ -69,7 +72,7 @@ def fix_segment(
         reply = llm.chat(messages, **call_kwargs("proofread_system"))
     except LLMError:
         return text
-    candidate = _strip_quotes(reply)
+    candidate = _strip_artifacts(reply)
     if not _looks_safe(text, candidate):
         return text
     return candidate
