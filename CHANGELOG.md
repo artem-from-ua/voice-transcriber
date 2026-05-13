@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [0.28.0] — 2026-05-13
 
+### Fixed
+
+- Proofreader no longer adds spurious `Text:` prefix to corrected segments. The `proofread_user.md` template used `Text: <<text>>` as the user turn, causing Qwen2.5 to mirror the label in its reply (~15% of segments affected).
+
 ### Changed
 
 - **Silence events: unified pause/muted rendering with timestamp ranges** ([ADR 0025](docs/adr/0025-render-silence-events.md), closes [#88](https://github.com/artem-from-ua/voice-transcriber/issues/88)).
