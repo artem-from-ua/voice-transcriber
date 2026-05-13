@@ -13,8 +13,7 @@ All notable changes to this project will be documented in this file. The format 
   - ASR gaps and `[muted, ...]` redacted regions are extracted by a new `silence.py` module.
   - Adjacent muted/gap/muted chains are merged into a single event.
   - Events shorter than `MIN_SILENCE_S = 10.0 s` (configurable via `--render-min-silence-s`) are silently dropped — no more noise from 3-second breathing pauses.
-  - Long pauses render as `> _[пауза 00:01:23–00:01:38]_` (timestamp range, not seconds count).
-  - Muted regions render as `> _[muted 00:03:45–00:04:12]_` (timestamp range, superseding the old `[muted, X.Xs]` display; the in-memory `Segment.content` format is unchanged).
+  - Long pauses and muted regions render as `---` (horizontal rule) — only when between two speaker paragraphs; leading and trailing silences in a section are suppressed.
 
   Issue #88's original proposal (synthetic segments in `merge.py` for LLM stages) was rejected — the render-layer approach fully addresses the readability goal without touching the pipeline data model.
 

@@ -10,10 +10,11 @@ A paragraph break inside a section happens when:
 - the speaker changes, OR
 - the gap between consecutive same-speaker utterances exceeds `PARAGRAPH_GAP_S`.
 
-Silence events (ASR gaps and [muted] placeholders) are shown as
-`> _[пауза HH:MM:SS–HH:MM:SS]_` or `> _[muted HH:MM:SS–HH:MM:SS]_` only
-when they are at least `MIN_SILENCE_S` seconds long. Adjacent muted/gap chains
-are merged into a single event. Shorter silences are dropped silently.
+Silence events (ASR gaps and [muted] placeholders) are shown as `---`
+(horizontal rule) only when they appear between two speaker paragraphs.
+Leading and trailing silences in a section are suppressed. Events shorter
+than `MIN_SILENCE_S` seconds are dropped silently. Adjacent muted/gap chains
+are merged into a single event.
 """
 
 from __future__ import annotations
@@ -136,11 +137,13 @@ def _render_section_body(
     prev_end: float | None = None
 
     for i, seg in enumerate(seg_in_section):
-        if i in silence_anchor:
+        if i in silence_anchor and (blocks or cur_lines):
+            # Only emit silence when speaker content has already been seen —
+            # suppresses leading silences before the first speaker paragraph.
             flush()
             cur_lines = []
             cur_speaker = None
-            blocks.append(silence_anchor[i].format_md())
+            blocks.append("---")
 
         if seg.speaker is None:
             # Speakerless segments (muted, noise tags) are handled via silence
@@ -159,12 +162,8 @@ def _render_section_body(
         cur_lines.append(seg.content.strip())
         prev_end = seg.end
 
-    # Emit any trailing silence (anchored past last segment).
-    if len(seg_in_section) in silence_anchor:
-        flush()
-        cur_lines = []
-        cur_speaker = None
-        blocks.append(silence_anchor[len(seg_in_section)].format_md())
+    # Trailing silence (anchored past last segment) is suppressed — we only
+    # show silences that are sandwiched between two speaker paragraphs.
 
     flush()
     return blocks
