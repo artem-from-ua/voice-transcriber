@@ -79,6 +79,8 @@ class PipelineOptions:
     clearspeech_dereverb_crossfade_ms: float = 50.0
     dump_stages_dir: str | None = None
     verbose: bool = False
+    render_min_silence_s: float | None = None
+    tldr_include_silence: bool = False
 
 
 def _log(verbose: bool) -> Callable[[str], None]:
@@ -511,6 +513,7 @@ def run(options: PipelineOptions) -> str:
                     with _timed("speech_summary"):
                         tldr_text = speech_summary_module.generate_tldr(
                             dialog.segments, llm=llm, language=effective_language,
+                            include_silence=options.tldr_include_silence,
                             log=log, progress=progress,
                         )
                     free_mlx(log)
@@ -534,6 +537,7 @@ def run(options: PipelineOptions) -> str:
             model_load_elapsed=model_load_elapsed,
             name_sources=name_sources,
             lang_detect_info=lang_detect_info,
+            min_silence_s=options.render_min_silence_s,
         )
         out_path.write_text(markdown, encoding="utf-8")
         log(f"      → {out_path}")
