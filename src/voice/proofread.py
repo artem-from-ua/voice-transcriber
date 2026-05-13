@@ -59,11 +59,16 @@ def fix_segment(
     *,
     llm: MlxLLM,
     language: str,
-) -> str:
-    """Return a corrected segment text, or the original if the LLM reply
-    is unavailable / unsafe."""
+) -> tuple[str, bool]:
+    """Return ``(corrected_text, called)``.
+
+    ``called`` is True when the LLM was actually invoked (regardless of
+    whether the reply was accepted or rejected on safety grounds). It is
+    False for skipped-too-short segments. Used by ``fix_asr_errors`` to
+    report telemetry to the pipeline (see #57 / 01-meta.json stages).
+    """
     if len(text.strip()) < MIN_LEN_FOR_FIX:
-        return text
+        return text, False
     messages = [
         {"role": "system", "content": render_prompt("proofread_system", language=language)},
         {"role": "user", "content": render_prompt("proofread_user", text=text)},
@@ -71,11 +76,11 @@ def fix_segment(
     try:
         reply = llm.chat(messages, **call_kwargs("proofread_system"))
     except LLMError:
-        return text
+        return text, True
     candidate = _strip_artifacts(reply)
     if not _looks_safe(text, candidate):
-        return text
-    return candidate
+        return text, True
+    return candidate, True
 
 
 def fix_asr_errors(
@@ -85,24 +90,34 @@ def fix_asr_errors(
     language: str = "uk",
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
     progress: "ProgressReporter | None" = None,
-) -> list[Segment]:
-    """Return new segments with each `content` proof-read.
+) -> tuple[list[Segment], dict]:
+    """Return ``(new_segments, telemetry)``.
 
-    Segments are returned in the same order. Marker / short segments are
-    passed through unchanged. The function never aborts on an LLM error —
-    a failed segment falls back to its original text.
+    ``new_segments`` is a list with each ``content`` proof-read; segments
+    are returned in the same order. Marker / short segments are passed
+    through unchanged. The function never aborts on an LLM error — a
+    failed segment falls back to its original text.
+
+    ``telemetry`` is a dict carrying per-stage stats for ``01-meta.json``
+    (see #57):
+        - ``llm_calls`` — number of segments that triggered an actual
+          ``llm.chat()`` call (short / blank segments are skipped and
+          do not count).
     """
     segs = list(segments)
     fixed_count = 0
+    llm_calls = 0
     out: list[Segment] = []
 
     reporter = progress if progress is not None else NullProgress()
     with reporter.task("[8/13] Proofread", total=len(segs)) as advance:
         for seg in segs:
-            new_text = fix_segment(seg.content, llm=llm, language=language)
+            new_text, called = fix_segment(seg.content, llm=llm, language=language)
+            if called:
+                llm_calls += 1
             if new_text != seg.content:
                 fixed_count += 1
             out.append(replace(seg, content=new_text))
             advance(1, suffix=f"{fixed_count} fixed")
-    log(f"proofread: {fixed_count}/{len(out)} segments adjusted")
-    return out
+    log(f"proofread: {fixed_count}/{len(out)} segments adjusted ({llm_calls} LLM calls)")
+    return out, {"llm_calls": llm_calls}

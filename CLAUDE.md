@@ -2,6 +2,18 @@
 
 This file collects project-specific conventions that are not obvious from the code alone. Keep it short; if a note grows long enough to need a heading of its own, move it into `docs/` and link to it from here.
 
+## Project goal
+
+Every technical decision in this repo should serve the user's goal stated here. When two design options exist, the one that better satisfies these targets wins.
+
+- **Audience and content.** A command-line tool that transcribes lively, friendly Ukrainian conversations — debates, arguments, dialogues — with English technical terms mixed in (`Hugging Face`, `Gradio`, `Claude Code`, etc.). The transcript must preserve speaker turns, the conversational tone, and code-switched English verbatim.
+- **Quality over speed (within the hardware budget).** Given the hardware constraint below, quality is the primary lever. We pick the strongest model that fits and tune for fidelity, not throughput. Proofreading, structuring, and rendering all exist to make the final document trustworthy — never trade them away for a faster default.
+- **Hardware floor.** Apple Silicon Mac (M1, 16 GB unified memory). Both CPU and the integrated Apple Silicon GPU share that 16 GB pool — MLX leans on the GPU heavily (peak MLX memory in logs == GPU-resident memory), so "GPU-first" is the default for any model that runs through MLX. What we do **not** assume is a discrete GPU, more than 16 GB unified memory, or workloads that need to push beyond what fits alongside ASR + LLM on this machine. MLX-first ([ADR 0002](docs/adr/0002-mlx-format-preference.md)), in-process ([ADR 0006](docs/adr/0006-mlx-lm-over-lm-studio.md)). All defaults must run on this machine without swap thrashing or OOM.
+- **Speed floor: faster than real-time.** End-to-end transcription must finish faster than the audio's own duration on the reference hardware. A 6-minute recording finishes in under 6 minutes. This floor is set with future live / streaming audio processing in mind — when streaming lands, anything slower than real-time would back up forever. Stage-level wall-clock budgets (`docs/pipeline.md`) follow from this.
+- **Output shape.** The result is a structured Markdown document, readable both by humans and by downstream LLMs: clear speaker labels, time-stamped sections, clean proper-noun handling, and a TL;DR. "Just the raw ASR" is not the product — the proofread + structure + summary stages are part of the deliverable.
+
+When introducing a feature or changing a default, sanity-check it against this list. If it's a clear win on one axis at the cost of another (e.g. +10 % quality for +50 % wall-clock that breaks the real-time floor on M1/16 GB) — that's a regression, not an improvement.
+
 ## Running the pipeline interactively
 
 `voice transcribe` is slow (3–10 minutes for a typical recording) and its on-purpose progress UI — `rich.Progress` bars on a TTY, a 15-second heartbeat otherwise — is the user's only signal that the run is still alive. **Never** silence it.

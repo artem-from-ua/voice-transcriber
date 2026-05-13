@@ -21,7 +21,10 @@ def test_minimal_invocation_defaults():
     assert opts.unknown_speaker == "ask"
     assert opts.names_override is None
     assert opts.datetime_override is None
-    assert opts.run_proofread is True
+    # Proofread is OFF by default since v0.29.0 — see ADR 0026 and
+    # docs/postprocess-hit-rate.md for the measurement that drove the
+    # default flip.
+    assert opts.run_proofread is False
     assert opts.run_tldr is True
     assert opts.run_structure is True
     assert opts.clearspeech_chain == "autogain"
@@ -68,12 +71,22 @@ def test_datetime_override_parsed():
 def test_no_flags_disable_stages():
     ns = _parse([
         "transcribe", "/tmp/a.m4a",
-        "--no-proofread", "--no-tldr", "--no-structure",
+        "--no-tldr", "--no-structure",
     ])
     opts = _opts_from_args(ns)
+    # Proofread is OFF by default; --no-tldr / --no-structure flip those off
+    # explicitly. The --proofread on-switch (added in v0.29.0) is tested
+    # separately below.
     assert opts.run_proofread is False
     assert opts.run_tldr is False
     assert opts.run_structure is False
+
+
+def test_proofread_flag_opts_in():
+    # The off-switch --no-proofread was removed in v0.29.0 along with the
+    # default flip; opt-in via --proofread is the new path.
+    ns = _parse(["transcribe", "/tmp/a.m4a", "--proofread"])
+    assert _opts_from_args(ns).run_proofread is True
 
 
 def test_unknown_speaker_choices():

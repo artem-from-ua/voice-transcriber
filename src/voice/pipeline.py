@@ -12,10 +12,10 @@ import sys
 import tempfile
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from . import audio_meta as audio_meta_module
 from . import clear_speech as clear_speech_module
@@ -58,7 +58,7 @@ class PipelineOptions:
     llm_top_p: float | None = 0.8
     llm_top_k: int | None = 20
     llm_repetition_penalty: float | None = 1.05
-    run_proofread: bool = True
+    run_proofread: bool = False
     run_safe_speech: bool = True
     run_tldr: bool = True
     run_structure: bool = True
@@ -251,6 +251,10 @@ def run(options: PipelineOptions) -> str:
     # Stage timings used for the rendered Markdown header. Recorded in
     # insertion order so the rendered list mirrors execution order.
     stage_timings: dict[str, float] = {}
+    # Per-stage telemetry written into 01-meta.json `stages` field at the
+    # end of the run. Currently only the proofread stage participates
+    # (see #57); full coverage of all LLM stages is tracked in #118.
+    stage_meta: dict[str, dict[str, Any]] = {}
 
     @contextmanager
     def _timed(stage: str):
@@ -397,13 +401,18 @@ def run(options: PipelineOptions) -> str:
                     )
                     stage_models["proofread"] = proofread_model
                     with _timed("proofread"):
-                        segments = proofread_module.fix_asr_errors(
+                        segments, proofread_telemetry = proofread_module.fix_asr_errors(
                             segments,
                             llm=llm,
                             language=effective_language,
                             log=log,
                             progress=progress,
                         )
+                    stage_meta["proofread"] = {
+                        "wall_clock_s": round(stage_timings["proofread"], 2),
+                        "llm_calls": proofread_telemetry["llm_calls"],
+                        "model": proofread_model,
+                    }
                     dumper.write("05-proofread.json", segments)
                     free_mlx(log)
                 else:
@@ -525,6 +534,13 @@ def run(options: PipelineOptions) -> str:
                 if llm is not None:
                     with progress.spinner("Unloading LLM"):
                         llm.close()
+
+        # Re-write 01-meta.json with collected per-stage telemetry (see #57).
+        # The initial write at the start of the run produces a meta without
+        # stages; here we add them once all stages have finished.
+        if stage_meta:
+            audio_meta = replace(audio_meta, stages=stage_meta)
+            dumper.write("01-meta.json", audio_meta)
 
         total_elapsed = time.perf_counter() - pipeline_t0
         log("[13/13] render → Markdown")

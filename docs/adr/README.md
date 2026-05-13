@@ -29,5 +29,6 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | 23  | [`safe_speech` stage for sensitive-content redaction](0023-safe-speech-stage.md)       | accepted                     |
 | ~~24~~  | ~~[Defaults for the `safe_speech` stage](0024-safe-speech-defaults.md)~~               | accepted (render display superseded by 0025) |
 | 25  | [Silence events: unified pause/muted rendering with timestamp ranges](0025-render-silence-events.md) | accepted (supersedes 0024 render display) |
+| 26  | [Proofread stage: default off, opt-in via `--proofread`](0026-proofread-default-off.md) | accepted                     |
 
 New decisions land here as `NNNN-kebab-case-title.md` with the same frontmatter (`status`, `date`, optional `supersedes` / `superseded_by`).

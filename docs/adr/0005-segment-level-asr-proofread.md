@@ -1,11 +1,14 @@
 ---
 status: accepted
 date: 2026-05-11
+see_also: [0026]
 ---
 
 # ADR 0005 — Proof-read ASR per segment, not over the whole transcript
 
 > **Note (v0.13.0):** the stage was originally called `postprocess` in code; the module, CLI flag, dump filename, and prompt files were renamed to `proofread` to match the terminology this ADR has always used in prose. Behaviour is unchanged. See [CHANGELOG `[0.13.0]`](../../CHANGELOG.md) and ADR 0008 for the order decision that affects this stage.
+
+> **Note (v0.29.0):** this ADR's *segment-level* scope decision is unchanged and still in force. The motivating context — patching VibeVoice russisms — is historical: VibeVoice was removed in v0.23.0 ([ADR 0021](0021-remove-vibevoice-backend.md)), and on Whisper output proofread was measured to do net-negative work, so it is now **default off** ([ADR 0026](0026-proofread-default-off.md)). If you reach for this stage, opt in via `--proofread`.
 
 ## Context
 
