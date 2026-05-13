@@ -20,12 +20,14 @@ from __future__ import annotations
 import functools
 import json
 import os
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Iterator, Sequence
 
 import mlx.core as mx
 import mlx_lm
+from mlx_lm.models.cache import make_prompt_cache, trim_prompt_cache
 from lmformatenforcer import JsonSchemaParser, TokenEnforcer
 from lmformatenforcer.tokenenforcer import TokenEnforcerTokenizerData
 
@@ -173,6 +175,9 @@ class MlxLLM:
     _tokenizer_data: TokenEnforcerTokenizerData | None = None
     _resolved_path: str | None = None
     _last_load_s: float = 0.0
+    _prompt_cache: list[Any] | None = None
+    _prompt_cache_prefix_len: int = 0
+    _prompt_cache_prefix_ids: list[int] = field(default_factory=list)
 
     # ------------------------------------------------------------------ lifecycle
 
@@ -221,6 +226,9 @@ class MlxLLM:
         self._tokenizer = None
         self._tokenizer_data = None
         self._resolved_path = None
+        self._prompt_cache = None
+        self._prompt_cache_prefix_len = 0
+        self._prompt_cache_prefix_ids = []
         free_mlx(self.log)
 
     def __enter__(self) -> "MlxLLM":
@@ -244,18 +252,26 @@ class MlxLLM:
     def _stream_generate(
         self,
         *,
-        prompt: str,
+        prompt: str | list[int],
         max_tokens: int,
         sampler: Callable,
         logits_processors: list,
         on_token: Callable[[int], None] | None,
+        prompt_cache: list[Any] | None = None,
     ) -> tuple[str, int]:
         """Run mlx_lm.stream_generate, accumulate text, ping on_token.
 
-        Returns (text, output_token_count).
+        Returns (text, output_token_count). When `prompt_cache` is set, the
+        kwarg is forwarded to mlx_lm; otherwise the call site stays
+        byte-identical to the no-cache path (no kwarg passed at all).
+        `prompt` may be a rendered string or a pre-tokenised list of ids —
+        mlx_lm accepts both.
         """
         parts: list[str] = []
         tokens = 0
+        extra: dict[str, Any] = {}
+        if prompt_cache is not None:
+            extra["prompt_cache"] = prompt_cache
         for response in mlx_lm.stream_generate(
             self._model,
             self._tokenizer,
@@ -263,6 +279,7 @@ class MlxLLM:
             max_tokens=max_tokens,
             sampler=sampler,
             logits_processors=logits_processors,
+            **extra,
         ):
             parts.append(response.text)
             tokens += 1
@@ -299,6 +316,50 @@ class MlxLLM:
             f"prompt {prompt_tokens} tok, out {output_tokens} tok"
         )
 
+    def _apply_prompt_cache_slice(self, prompt_text: str) -> str | list[int]:
+        """Pass full prompt on the first call, only delta tokens after that.
+
+        Inside `prompt_cache_session()`, the cache holds the shared prefix
+        (length == `_prompt_cache_prefix_len`) after `chat()` / `chat_json()`
+        trims the per-call user+asst tokens back. The next call must pass
+        ONLY the new tokens to `mlx_lm.stream_generate` — passing the full
+        prompt on top of the cached state would re-encode positions and
+        collide. On the very first call inside the session (cache offset
+        == 0), the full prompt is passed so the cache fills with the
+        prefix's KV state.
+        """
+        if (
+            self._prompt_cache is None
+            or self._prompt_cache_prefix_len <= 0
+            or self._prompt_cache[0].offset != self._prompt_cache_prefix_len
+        ):
+            return prompt_text
+        assert self._tokenizer is not None
+        full_ids = list(self._tokenizer.encode(prompt_text))
+        prefix_len = self._prompt_cache_prefix_len
+        if (
+            len(full_ids) >= prefix_len
+            and full_ids[:prefix_len] == self._prompt_cache_prefix_ids
+        ):
+            return full_ids[prefix_len:]
+        return prompt_text
+
+    def _trim_or_clear_cache(self) -> None:
+        """Either trim the session cache back to the prefix, or clear MLX cache.
+
+        Outside a `prompt_cache_session()`: `mx.clear_cache()` matches the
+        long-standing behaviour (frees KV between calls so proofread's 60+
+        short prompts don't poison the structure prompt that follows).
+        Inside a session: trim back to the prefix's token length so the
+        next call resumes attention from the end of the system prompt.
+        """
+        if self._prompt_cache is None:
+            mx.clear_cache()
+            return
+        to_trim = self._prompt_cache[0].offset - self._prompt_cache_prefix_len
+        if to_trim > 0:
+            trim_prompt_cache(self._prompt_cache, to_trim)
+
     # ------------------------------------------------------------------ chat
 
     def chat(
@@ -314,7 +375,7 @@ class MlxLLM:
     ) -> str:
         """Plain-text generation. `on_token(1)` is called for each emitted token."""
         self._ensure_loaded()
-        prompt = self._build_prompt(messages)
+        prompt_text = self._build_prompt(messages)
         temperature = self.sampling_overrides.get("temperature", temperature)
         top_p = self.sampling_overrides.get("top_p", top_p)
         top_k = self.sampling_overrides.get("top_k", top_k)
@@ -327,22 +388,22 @@ class MlxLLM:
         logits_processors = mlx_lm.sample_utils.make_logits_processors(
             repetition_penalty=repetition_penalty,
         )
+        prompt = self._apply_prompt_cache_slice(prompt_text)
         if self.log_memory:
             _reset_peak_memory()
             pre = read_memory_snapshot()
-            prompt_tok = self._prompt_token_count(prompt)
+            prompt_tok = self._prompt_token_count(prompt_text)
         text, out_tokens = self._stream_generate(
             prompt=prompt,
             max_tokens=max_tokens,
             sampler=sampler,
             logits_processors=logits_processors,
             on_token=on_token,
+            prompt_cache=self._prompt_cache,
         )
-        # Free KV cache between calls so proofread's 60+ short prompts
-        # don't poison the long structure prompt that follows.
         if self.log_memory:
             peak = read_memory_snapshot()
-        mx.clear_cache()
+        self._trim_or_clear_cache()
         if self.log_memory:
             post = read_memory_snapshot()
             self._log_memory_line(
@@ -374,7 +435,7 @@ class MlxLLM:
         """
         self._ensure_loaded()
         assert self._tokenizer_data is not None
-        prompt = self._build_prompt(messages)
+        prompt_text = self._build_prompt(messages)
         temperature = self.sampling_overrides.get("temperature", temperature)
         top_p = self.sampling_overrides.get("top_p", top_p)
         top_k = self.sampling_overrides.get("top_k", top_k)
@@ -385,20 +446,22 @@ class MlxLLM:
             self._tokenizer_data,
             schema or {"type": "object"},
         )
+        prompt = self._apply_prompt_cache_slice(prompt_text)
         if self.log_memory:
             _reset_peak_memory()
             pre = read_memory_snapshot()
-            prompt_tok = self._prompt_token_count(prompt)
+            prompt_tok = self._prompt_token_count(prompt_text)
         text, out_tokens = self._stream_generate(
             prompt=prompt,
             max_tokens=max_tokens,
             sampler=sampler,
             logits_processors=[json_processor],
             on_token=on_token,
+            prompt_cache=self._prompt_cache,
         )
         if self.log_memory:
             peak = read_memory_snapshot()
-        mx.clear_cache()
+        self._trim_or_clear_cache()
         if self.log_memory:
             post = read_memory_snapshot()
             self._log_memory_line(
@@ -416,3 +479,57 @@ class MlxLLM:
             raise LLMError(
                 f"Constrained generation produced unparseable JSON: {text!r}"
             ) from exc
+
+    # ------------------------------------------------------------------ prompt-cache session
+
+    @contextmanager
+    def prompt_cache_session(
+        self,
+        prefix_messages: Sequence[dict[str, str]],
+    ) -> Iterator[None]:
+        """Reuse the KV state of a fixed prefix across `chat()` / `chat_json()` calls.
+
+        `prefix_messages` is the leading slice of messages that every call
+        inside the block will share (typically the single system message).
+        After each call returns, the cache is trimmed back to the prefix's
+        token length, so the next call resumes the attention computation
+        from the end of the system prompt — passing only the delta tokens
+        to mlx_lm. The next call does NOT carry over the previous user /
+        asst turn (which would silently corrupt output, as mlx-lm's
+        prompt-cache API assumes continuation, not independent
+        same-prefix queries).
+
+        Args:
+            prefix_messages: Messages whose rendered chat-template tokens
+                form the shared prefix. Must match the leading slice of
+                every call inside the block. Pass the system message for
+                stages like proofread / safe_speech / speech_structure.
+
+        Scope: both `chat()` and `chat_json()` participate. The cache only
+        kicks in when the actual rendered prompt starts with the exact
+        `prefix_messages` token sequence — if a caller passes a prompt
+        whose head differs (e.g. they pass `chat_json` with a different
+        system message), the helper silently falls back to the full
+        prompt and the cache is rebuilt on next match.
+
+        Re-entrancy: nested sessions are forbidden (asserted). On exit
+        the cache is dropped and `mx.clear_cache()` runs once, matching
+        the per-call clear behaviour callers outside the session see.
+        """
+        self._ensure_loaded()
+        assert self._prompt_cache is None, "prompt_cache_session is not re-entrant"
+        assert self._tokenizer is not None
+        prefix_text = self._tokenizer.apply_chat_template(
+            list(prefix_messages), add_generation_prompt=False, tokenize=False,
+        )
+        prefix_ids = list(self._tokenizer.encode(prefix_text)) if prefix_text else []
+        self._prompt_cache_prefix_ids = prefix_ids
+        self._prompt_cache_prefix_len = len(prefix_ids)
+        self._prompt_cache = make_prompt_cache(self._model)
+        try:
+            yield
+        finally:
+            self._prompt_cache = None
+            self._prompt_cache_prefix_len = 0
+            self._prompt_cache_prefix_ids = []
+            mx.clear_cache()

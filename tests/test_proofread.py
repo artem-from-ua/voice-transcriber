@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 import pytest
 
 from voice.llm import LLMError
 from voice.proofread import fix_asr_errors, fix_segment
 from voice.types import Segment
+
+
+@contextmanager
+def _noop_session(*_args, **_kwargs):
+    """Stand-in for `MlxLLM.prompt_cache_session()` on test stubs."""
+    yield
 
 
 class StubLLM:
@@ -20,6 +28,8 @@ class StubLLM:
         if self.error is not None:
             raise self.error
         return self.reply or ""
+
+    prompt_cache_session = staticmethod(_noop_session)
 
 
 def _seg(content, start=0.0, end=1.0, speaker="SPEAKER_00"):
@@ -111,6 +121,8 @@ def test_fix_asr_errors_preserves_order_and_counts():
         def chat(self, *_a, **_k):
             return next(replies)
 
+        prompt_cache_session = staticmethod(_noop_session)
+
     out, telemetry = fix_asr_errors(segs, llm=SeqLLM(), language="uk", log=lambda _s: None)
     assert [s.content for s in out] == [
         "ОК.",  # too short for MIN_LEN_FOR_FIX, passed through
@@ -128,6 +140,8 @@ def test_fix_asr_errors_telemetry_skips_count_zero_when_all_too_short():
     class NeverCalledLLM:
         def chat(self, *_a, **_k):
             raise AssertionError("should not be called for too-short segments")
+
+        prompt_cache_session = staticmethod(_noop_session)
 
     out, telemetry = fix_asr_errors(
         segs, llm=NeverCalledLLM(), language="uk", log=lambda _s: None,

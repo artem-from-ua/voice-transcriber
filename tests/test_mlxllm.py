@@ -87,6 +87,25 @@ def _install_fake_runtime(monkeypatch, *, generate_reply: str):
     )
     monkeypatch.setattr(llm_module.mlx_lm, "load", fake_load)
     monkeypatch.setattr(llm_module.mlx_lm, "stream_generate", fake_stream_generate)
+
+    # Fake cache element: exposes .offset like a real KVCache so the
+    # trim-after-chat path can read it without a real model.
+    class _FakeCacheEntry:
+        def __init__(self) -> None:
+            self.offset = 0
+
+    monkeypatch.setattr(
+        llm_module, "make_prompt_cache",
+        lambda _model: [_FakeCacheEntry()],
+    )
+    captured["trim_calls"] = []
+
+    def fake_trim(cache, n):
+        captured["trim_calls"].append(n)
+        cache[0].offset -= n
+        return n
+
+    monkeypatch.setattr(llm_module, "trim_prompt_cache", fake_trim)
     return captured
 
 
@@ -148,3 +167,66 @@ def test_context_manager_closes(tmp_path, monkeypatch):
         llm.load()
         assert llm._model is not None
     assert llm._model is None
+
+
+def test_prompt_cache_session_shares_cache_across_chat_calls(tmp_path, monkeypatch):
+    captured = _install_fake_runtime(monkeypatch, generate_reply="ok")
+    llm = _ready_llm(tmp_path)
+    llm.load()
+
+    sys_msg = {"role": "system", "content": "shared prefix"}
+
+    # Outside the session: chat() does NOT pass prompt_cache.
+    llm.chat([{"role": "user", "content": "outside"}], max_tokens=4)
+    assert "prompt_cache" not in captured["kwargs"]
+    assert llm._prompt_cache is None
+
+    with llm.prompt_cache_session(prefix_messages=[sys_msg]):
+        # Prefix token count is recorded for trim-back.
+        assert llm._prompt_cache_prefix_len > 0
+        prefix_len = llm._prompt_cache_prefix_len
+
+        # Simulate the cache filling up during a real chat() call —
+        # fake_stream_generate doesn't grow .offset on its own.
+        llm._prompt_cache[0].offset = prefix_len + 7
+        llm.chat([sys_msg, {"role": "user", "content": "in-1"}], max_tokens=4)
+        cache_first = captured["kwargs"].get("prompt_cache")
+        assert cache_first is not None
+        assert cache_first is llm._prompt_cache  # the session's own object
+        # chat() trimmed the 7 user+asst tokens, leaving exactly the prefix.
+        assert captured["trim_calls"][-1] == 7
+        assert llm._prompt_cache[0].offset == prefix_len
+
+        # Second call inside: same cache object, trim happens again.
+        llm._prompt_cache[0].offset = prefix_len + 12
+        llm.chat([sys_msg, {"role": "user", "content": "in-2"}], max_tokens=4)
+        assert captured["kwargs"].get("prompt_cache") is cache_first
+        assert captured["trim_calls"][-1] == 12
+
+        # chat_json() inside the session DOES participate now (used by
+        # speech_structure / safe_speech in real pipelines).
+        llm._prompt_cache[0].offset = prefix_len + 9
+        prior_trim_calls = len(captured["trim_calls"])
+        with pytest.raises(LLMError):
+            llm.chat_json([sys_msg, {"role": "user", "content": "j"}])
+        assert captured["kwargs"].get("prompt_cache") is cache_first
+        # chat_json trimmed back to the prefix too.
+        assert captured["trim_calls"][-1] == 9
+        assert len(captured["trim_calls"]) == prior_trim_calls + 1
+
+    # After exit: session closed, future chat() goes back to no-cache.
+    assert llm._prompt_cache is None
+    assert llm._prompt_cache_prefix_len == 0
+    llm.chat([{"role": "user", "content": "after"}], max_tokens=4)
+    assert "prompt_cache" not in captured["kwargs"]
+
+
+def test_prompt_cache_session_is_not_reentrant(tmp_path, monkeypatch):
+    _install_fake_runtime(monkeypatch, generate_reply="x")
+    llm = _ready_llm(tmp_path)
+    llm.load()
+    sys_msg = {"role": "system", "content": "shared prefix"}
+    with llm.prompt_cache_session(prefix_messages=[sys_msg]):
+        with pytest.raises(AssertionError, match="not re-entrant"):
+            with llm.prompt_cache_session(prefix_messages=[sys_msg]):
+                pass

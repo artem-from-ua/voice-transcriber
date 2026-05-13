@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 from voice.llm import LLMError
 from voice.speech_structure import (
     STRUCTURE_CHUNK_OVERLAP,
@@ -15,6 +17,11 @@ from voice.speech_structure import (
 from voice.types import Section, Segment
 
 
+@contextmanager
+def _noop_session(*_a, **_k):
+    yield
+
+
 class StubLLM:
     def __init__(self, payload=None, error=None):
         self.payload = payload
@@ -26,6 +33,8 @@ class StubLLM:
         if self.error is not None:
             raise self.error
         return self.payload
+
+    prompt_cache_session = staticmethod(_noop_session)
 
 
 class ChunkedStubLLM:
@@ -42,6 +51,8 @@ class ChunkedStubLLM:
         if isinstance(item, Exception):
             raise item
         return item
+
+    prompt_cache_session = staticmethod(_noop_session)
 
 
 def _seg(start, end, content, speaker="SPEAKER_00", name="Артем"):
