@@ -192,79 +192,81 @@ def redact_dialog(
     redacted_segs: int = 0
     topic_counts: dict[str, int] = {}
 
-    for section in sections:
-        section_segs = _section_segments(dialog, section)
-        if not section_segs:
-            continue
+    system_msg = {"role": "system", "content": system_prompt}
+    with llm.prompt_cache_session(prefix_messages=[system_msg]):
+        for section in sections:
+            section_segs = _section_segments(dialog, section)
+            if not section_segs:
+                continue
 
-        segments_text = _format_segments(section_segs)
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": render_prompt(
-                    "safe_speech_user",
+            segments_text = _format_segments(section_segs)
+            messages = [
+                system_msg,
+                {
+                    "role": "user",
+                    "content": render_prompt(
+                        "safe_speech_user",
+                        section_title=section.title,
+                        segments=segments_text,
+                    ),
+                },
+            ]
+
+            try:
+                with reporter.token_counter(f"safe_speech [{section.title}]") as advance:
+                    result = llm.chat_json(
+                        messages,
+                        schema=_REDACTION_SCHEMA,
+                        on_token=advance,
+                        **call_kwargs(prompt_name),
+                    )
+            except LLMError as exc:
+                log(f"safe_speech: LLM error in section {section.title!r} — {exc}; skipping section")
+                continue
+
+            raw_redactions = result.get("redactions", [])
+            # Sort descending by start_idx so in-place mutations don't shift indices
+            raw_redactions = sorted(raw_redactions, key=lambda r: r.get("start_idx", 0), reverse=True)
+
+            for red in raw_redactions:
+                start_idx = int(red.get("start_idx", 0))
+                end_idx = int(red.get("end_idx", start_idx))
+                topic = str(red.get("topic", ""))
+                rationale = str(red.get("rationale", ""))
+
+                # Clamp to valid range
+                n = len(section_segs)
+                start_idx = max(0, min(start_idx, n - 1))
+                end_idx = max(start_idx, min(end_idx, n - 1))
+
+                range_segs = section_segs[start_idx : end_idx + 1]
+                total_dur = sum(s.end - s.start for s in range_segs)
+                is_whole_section = (start_idx == 0 and end_idx == n - 1)
+
+                # Refresh section_segs after each mutation (previous iterations may have changed all_segments)
+                section_segs = _section_segments(dialog, section)
+
+                if policy == "placeholder":
+                    _apply_placeholder(dialog.segments, section_segs, start_idx, end_idx)
+                else:
+                    _apply_drop(dialog.segments, section_segs, start_idx, end_idx, section, is_whole_section)
+
+                # Refresh again for the next iteration
+                section_segs = _section_segments(dialog, section)
+
+                redacted_ranges += 1
+                seg_count = end_idx - start_idx + 1
+                redacted_segs += seg_count
+                topic_counts[topic] = topic_counts.get(topic, 0) + seg_count
+
+                all_decisions.append(Decision(
                     section_title=section.title,
-                    segments=segments_text,
-                ),
-            },
-        ]
-
-        try:
-            with reporter.token_counter(f"safe_speech [{section.title}]") as advance:
-                result = llm.chat_json(
-                    messages,
-                    schema=_REDACTION_SCHEMA,
-                    on_token=advance,
-                    **call_kwargs(prompt_name),
-                )
-        except LLMError as exc:
-            log(f"safe_speech: LLM error in section {section.title!r} — {exc}; skipping section")
-            continue
-
-        raw_redactions = result.get("redactions", [])
-        # Sort descending by start_idx so in-place mutations don't shift indices
-        raw_redactions = sorted(raw_redactions, key=lambda r: r.get("start_idx", 0), reverse=True)
-
-        for red in raw_redactions:
-            start_idx = int(red.get("start_idx", 0))
-            end_idx = int(red.get("end_idx", start_idx))
-            topic = str(red.get("topic", ""))
-            rationale = str(red.get("rationale", ""))
-
-            # Clamp to valid range
-            n = len(section_segs)
-            start_idx = max(0, min(start_idx, n - 1))
-            end_idx = max(start_idx, min(end_idx, n - 1))
-
-            range_segs = section_segs[start_idx : end_idx + 1]
-            total_dur = sum(s.end - s.start for s in range_segs)
-            is_whole_section = (start_idx == 0 and end_idx == n - 1)
-
-            # Refresh section_segs after each mutation (previous iterations may have changed all_segments)
-            section_segs = _section_segments(dialog, section)
-
-            if policy == "placeholder":
-                _apply_placeholder(dialog.segments, section_segs, start_idx, end_idx)
-            else:
-                _apply_drop(dialog.segments, section_segs, start_idx, end_idx, section, is_whole_section)
-
-            # Refresh again for the next iteration
-            section_segs = _section_segments(dialog, section)
-
-            redacted_ranges += 1
-            seg_count = end_idx - start_idx + 1
-            redacted_segs += seg_count
-            topic_counts[topic] = topic_counts.get(topic, 0) + seg_count
-
-            all_decisions.append(Decision(
-                section_title=section.title,
-                start_idx=start_idx,
-                end_idx=end_idx,
-                topic=topic,
-                rationale=rationale,
-                total_dur_s=round(total_dur, 1),
-            ))
+                    start_idx=start_idx,
+                    end_idx=end_idx,
+                    topic=topic,
+                    rationale=rationale,
+                    total_dur_s=round(total_dur, 1),
+                ))
 
     if all_decisions:
         topic_summary = ", ".join(f"{t}={c}" for t, c in sorted(topic_counts.items()))

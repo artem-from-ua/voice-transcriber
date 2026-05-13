@@ -384,8 +384,14 @@ def structure_dialog(
         f"splitting into {len(chunks)} chunks"
     )
     chunk_results: list[list[Section]] = []
+    structure_system_msg = {
+        "role": "system",
+        "content": render_prompt("structure_system", language=language),
+    }
     try:
-        with reporter.task(
+        with llm.prompt_cache_session(
+            prefix_messages=[structure_system_msg]
+        ), reporter.task(
             "[10/13] Структурування на секції", total=len(chunks)
         ) as advance:
             for idx, chunk in enumerate(chunks, start=1):

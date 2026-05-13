@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 
@@ -13,6 +14,11 @@ from voice.safe_speech import DEFAULT_TOPICS, Decision, redact_dialog
 from voice.types import Section, Segment, StructuredDialog
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@contextmanager
+def _noop_session(*_a, **_k):
+    yield
 
 
 class StubLLM:
@@ -29,6 +35,8 @@ class StubLLM:
         if self._error_on is not None and idx == self._error_on:
             raise LLMError("stub error")
         return self._responses[idx % len(self._responses)]
+
+    prompt_cache_session = staticmethod(_noop_session)
 
 
 def _seg(start, end, content, speaker="SPEAKER_00", name="Артем"):

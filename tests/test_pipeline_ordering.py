@@ -190,7 +190,7 @@ def patched_pipeline(monkeypatch, tmp_path):
             self._resolved_path = None
 
         @contextmanager
-        def prompt_cache_session(self):
+        def prompt_cache_session(self, *_args, **_kwargs):
             yield
 
     # Reset per-test so `instances` reflects only this run.

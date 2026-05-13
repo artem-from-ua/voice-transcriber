@@ -110,3 +110,35 @@ RuntimeError: ffmpeg not found in PATH. Install ffmpeg.
 ## Permission error writing the Markdown output
 
 The default output path is `<audio_basename>.md` next to the input file. If that directory is read-only (e.g. inside a cloud-mounted folder), pass `-o /absolute/writable/path.md`.
+
+## Running long LLM-stage benchmarks from an agent / unattended
+
+`voice transcribe` is a slow command (3–10 min for a 6-minute recording) whose only signal of life is the on-TTY `rich.Progress` bar and the per-call `llm.chat: …` log lines. When the run is kicked off **from an agent or wrapper that doesn't render the TTY** (Claude Code's Bash tool, a CI runner, a custom script that captures stdout), the user can't see the bar — there is no built-in heartbeat that surfaces "where am I in the pipeline" outside that bar.
+
+The fix is to run the transcribe in the background and pair it with a small monitor that polls the `tee`'d log file every ~10 s and prints the latest progress marker. Two concurrent shells, one writes, one reads:
+
+```bash
+# 1. Kick off the transcribe in the background, tee'ing to a log file.
+voice transcribe path/to/audio.m4a --proofread --dump-stages /tmp/run/ \
+    --verbose 2>&1 | tee /tmp/run.log &
+
+# 2. In a separate shell (or via the agent's parallel-process tool), poll
+#    the log file. Emit one line every ~10 s with the latest marker, exit
+#    when the foreground process is gone.
+while pgrep -f "voice transcribe.*path/to/audio.m4a" >/dev/null 2>&1; do
+  line=$(grep -E "Proofread:|✓ \[[0-9]+/13\]|Traceback|Error" /tmp/run.log \
+         | tail -1)
+  echo "[$(date +%H:%M:%S)] ${line:-(no marker yet)}"
+  sleep 10
+done
+```
+
+Rules of thumb for that monitor:
+
+- **Match the markers, not the raw log.** `grep -E "Proofread:|✓ \[[0-9]+/13\]|Traceback|Error"` covers the per-stage `· [N/13]` heartbeats, the `✓ [N/13] … in Xs` completions, and the failure paths. Don't `tail -f` the whole log — it floods the agent's chat with per-token memory lines that contain no actionable progress.
+- **Always cover failure signatures.** Silence is not success: a monitor that only matches `✓` lines stays mute through a Traceback. Include `Traceback|Error|AssertionError` so a crash surfaces immediately.
+- **Use 10 s as the default cadence.** Faster than that floods the chat; slower than that leaves the user wondering whether the run is alive (the in-process LLM bar refreshes at ≥1 Hz on a real TTY, so 10 s is already an order of magnitude slower than the native UX).
+- **Prefix the monitor description with `⌛️`** so the user can spot at a glance in the agent's chat which event lines come from a periodic timer vs. from real interactive work. Example: `⌛️ feature run progress 10s + completion`. The hourglass is reserved for these timer-driven monitors; don't use it for one-shot notifications.
+- **Stop the monitor when the foreground process exits.** Don't leave a `tail -f` armed — it never returns on its own. The `pgrep`-based `while` loop above exits cleanly when `voice transcribe` finishes.
+
+This same recipe applies to any other long-running LLM benchmark in the repo (`uv run python scripts/<...>` that loads a model and iterates over inputs). Anything that runs more than ~30 s without surface output should be paired with a monitor.

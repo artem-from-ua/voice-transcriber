@@ -12,7 +12,7 @@ from voice.types import Segment
 
 
 @contextmanager
-def _noop_session():
+def _noop_session(*_args, **_kwargs):
     """Stand-in for `MlxLLM.prompt_cache_session()` on test stubs."""
     yield
 

@@ -119,6 +119,11 @@ hint to add or sharpen a stage benchmark.
 - [`proofread-hit-rate.md`](proofread-hit-rate.md) — does the proofread
   stage earn its keep on Whisper output? Result: no — proofread is now
   default-off ([ADR 0026](../adr/0026-proofread-default-off.md)).
+- [`prompt-cache-proofread.md`](prompt-cache-proofread.md) — can the
+  system-prompt KV state be amortised across calls in a tight LLM loop?
+  Result: yes, with the right strategy (delta-tokens + trim-back) —
+  proofread dropped 35 %, safe_speech 42 %; output byte-identical
+  ([ADR 0027](../adr/0027-prompt-cache-llm-stages.md)).
 
 ## Storage of artefacts
 

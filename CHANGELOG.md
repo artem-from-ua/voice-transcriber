@@ -6,20 +6,36 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Added
 
-- **`MlxLLM.prompt_cache_session()` context manager.** Closes [#122](https://github.com/artem-from-ua/voice-transcriber/issues/122).
+- **`MlxLLM.prompt_cache_session(prefix_messages)` context manager.** Closes [#122](https://github.com/artem-from-ua/voice-transcriber/issues/122). See [ADR 0027](docs/adr/0027-prompt-cache-llm-stages.md) and [`docs/benchmarks/prompt-cache-proofread.md`](docs/benchmarks/prompt-cache-proofread.md) for the full design, the two intermediate wrong implementations we walked through, and the measurement numbers.
 
-  Shares an mlx-lm prompt cache across `chat()` calls inside the block, so a stage like proofread that fires 60+ short prompts under the same system prompt computes the system-prompt KV state once instead of per call. On a 6-minute reference recording the proofread stage drops from ~140 s to ~85–110 s wall-clock (30–40% reduction). `05-proofread.json` is bit-identical to v0.29.0 — sampler, RNG, and per-prompt logits are unchanged; only the KV-cache build is amortised.
+  Amortises the **system-prompt KV state** across calls in a tight LLM loop. The caller supplies the leading messages that every call inside the block shares (typically the single `system` message); the helper renders them through the tokenizer's chat template, encodes the resulting tokens, and tracks `prefix_len`. The first call inside the session passes the full rendered prompt (filling the cache); subsequent calls pass only the **delta tokens** (`full_ids[prefix_len:]`) — `mlx_lm.stream_generate` appends them on top of the cached prefix and skips prompt-eval for the prefix. After each call, the cache is trimmed back to `prefix_len` so the next call starts from the same offset.
 
-  Scope: only `chat()` participates. `chat_json()` is intentionally excluded because the `lm-format-enforcer` × prompt-cache interaction is not verified; calls to `chat_json()` from inside a session behave exactly as outside. Nested sessions raise `AssertionError`. The cache is released and `mx.clear_cache()` runs on context exit.
+  Both `chat()` and `chat_json()` participate. `lm-format-enforcer`'s schema enforcement is logits-side and is independent of the KV cache — verified empirically on the safe_speech path. Nested sessions raise `AssertionError`. On context exit the cache is dropped and `mx.clear_cache()` runs once, so the transition between stages (different system prompts) starts from a clean KV state.
+
+  Measured on the reference recording (6-min Ukrainian conversation, M1 16 GB, Qwen2.5-7B-Instruct-4bit, Safari + IDEs closed):
+
+  | Stage | calls | main (0.29.0) | feature | delta |
+  |---|---|---|---|---|
+  | `proofread` | 86 | 139.0 s | 90.3 s | **−35.0 %** |
+  | `safe_speech` | 5 sections | 31.7 s | 18.4 s | **−42.0 %** |
+  | `speech_structure` | 3 chunks | 43.0 s | 45.1 s | +4.9 % (single-run noise; kept wrapped because longer recordings fire 5–10+ chunks where the amortisation matters) |
+
+  Output quality: `05-proofread.json` and `09-safe_speech-decisions.json` are byte-identical between cache-on and cache-off runs. `08-speech_structure.json` differs only in section labels — the chunked path is non-deterministic across runs ([ADR 0018](docs/adr/0018-chunked-structure-dialog.md)) and this drift is pre-existing.
 
 ### Changed
 
-- **`proofread.fix_asr_errors` wraps its per-segment loop in `llm.prompt_cache_session()`.** No behavioural change in the returned segments or telemetry — only wall-clock improves. The transition from proofread (short, repeated system prompt) to the structure stage (different system prompt) is preserved: the cache is dropped on session exit so structure starts from a clean KV state.
+- **`proofread.fix_asr_errors`, `safe_speech.redact_dialog`, and `speech_structure.structure_dialog` (chunked path) wrap their per-call loops in `llm.prompt_cache_session()`.** No behavioural change in the returned segments / decisions / sections beyond the sampling noise already present between consecutive runs; only wall-clock improves.
 
 ### Internal
 
 - `MlxLLM._stream_generate` gained a `prompt_cache` keyword param (default `None`, forwarded to `mlx_lm.stream_generate` only when set). Call sites without a session see byte-identical behaviour because the kwarg is omitted entirely in that branch.
-- Top-level import of `mlx_lm.models.cache.make_prompt_cache` — surfaces an `ImportError` at module load if mlx-lm changes the symbol, instead of mid-pipeline.
+- New private helpers `MlxLLM._apply_prompt_cache_slice()` (full-prompt vs delta-tokens decision) and `MlxLLM._trim_or_clear_cache()` (trim-back vs `mx.clear_cache()`), shared between `chat()` and `chat_json()`.
+- Top-level imports of `mlx_lm.models.cache.{make_prompt_cache, trim_prompt_cache}` — surfaces an `ImportError` at module load if mlx-lm changes the symbol, instead of mid-pipeline.
+
+### Documentation
+
+- New project-CLAUDE.md sections **"Benchmarks and decision documents"** (every material measurement result must land as a benchmark doc + an ADR) and **"Before running an LLM benchmark — ask the user to quiet the laptop"** (close Safari / IDEs / calls before any timed mlx-lm run, otherwise the numbers are noise).
+- New `docs/troubleshooting.md` section **"Running long LLM-stage benchmarks from an agent / unattended"** (background `voice transcribe` + 10-second log-polling monitor with `⌛️` prefix in the description).
 
 ## [0.29.0] — 2026-05-13
 

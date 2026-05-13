@@ -55,6 +55,31 @@ These are **not from our code**. They come from a SWIG-generated C extension som
 
 So the right reaction is: ignore them. Don't try to `filterwarnings` these specific three away (won't work for the C-level emission path), don't silence DeprecationWarnings globally either (would hide legitimate ones). They will disappear on their own when our transitive deps rebuild against a newer SWIG — the underlying bug is [swig/swig#2881](https://github.com/swig/swig/issues/2881), fixed in the `swig-4.4` milestone (May 2025).
 
+## Benchmarks and decision documents
+
+Every time a measurement run produces a **material result** — a wall-clock change worth bragging or worrying about, a quality regression caught or ruled out, a "before / after" delta that informs a product decision — that result must land in a documented benchmark **plus** a decision record. The format is fixed by [`docs/benchmarks/README.md`](docs/benchmarks/README.md) (six-section contract: input → expected output → evaluation → fixtures → real input → result & decision).
+
+Concretely:
+
+- **A new benchmark doc** under `docs/benchmarks/<name>.md` whenever a fresh question is being measured. Reuses the six-section contract.
+- **An ADR** under `docs/adr/NNNN-<title>.md` when the measurement informs a product decision (default flipped, new API shipped, alternative rejected). The ADR links to the benchmark.
+- **Both** when you tried something, got numbers, made a call. Numbers without a recorded decision rot fast — six months later nobody remembers what we decided to do with the +37 % speedup on stage X.
+
+This applies whenever the result is significant enough that we'd want a future contributor (human or AI) to find it. Trivial micro-optimisations and one-off curiosity runs don't need a doc. If you're unsure, lean toward writing it — the cost is 15 min of writing, the cost of not writing is rediscovering the same lesson by repeating the same wrong attempt.
+
+## Before running an LLM benchmark — ask the user to quiet the laptop
+
+`voice transcribe` and any other benchmark that exercises mlx-lm on the M1/16 GB reference machine is sensitive to memory pressure and GPU contention from other apps. A few stale Safari tabs, a Slack call, or VSCode's Copilot Chat can easily push MLX into swap and add 30-50 % wall-clock — silently making the measurement worthless.
+
+**Before kicking off any timed LLM run** (the `voice transcribe …` reference command, an ad-hoc probe script that loads the LLM, a re-measurement of a benchmark) ask the user to:
+
+- Close Safari / Chrome (the biggest single offender — tabs eat unified memory).
+- Quit any open IDEs that have AI assistants loaded (VSCode + Copilot, Cursor, JetBrains AI).
+- Pause Slack/Zoom/Teams calls if any are running.
+- Confirm the laptop is plugged in (battery throttling skews wall-clock).
+
+Then wait for explicit confirmation ("закрив", "ready", "go") before invoking the run. Yes, this slows the loop down. The alternative is a benchmark number we can't trust, which is worse than no benchmark at all — see the false +27.9 % regression we recorded the first time around on issue #122 because the laptop wasn't quiet.
+
 ## Versioning
 
 SemVer. The version bumps every PR with code changes (see `pyproject.toml` + `CHANGELOG.md`). Docs-only PRs do not bump.

@@ -110,7 +110,11 @@ def fix_asr_errors(
     out: list[Segment] = []
 
     reporter = progress if progress is not None else NullProgress()
-    with llm.prompt_cache_session(), reporter.task(
+    system_msg = {
+        "role": "system",
+        "content": render_prompt("proofread_system", language=language),
+    }
+    with llm.prompt_cache_session(prefix_messages=[system_msg]), reporter.task(
         "[8/13] Proofread", total=len(segs)
     ) as advance:
         for seg in segs:
