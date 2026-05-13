@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.1] — 2026-05-13
+
+### Changed
+
+- **Unified pipeline stage count to 13** across all sources (closes [#83](https://github.com/artem-from-ua/voice-transcriber/issues/83)).
+
+  `render` is now numbered `[13/13]` in the runtime log. The stage-count inconsistency between `pipeline.py`, `docs/pipeline.md`, and `docs/architecture.md` is resolved: all three agree on 13. Stage labels in `transcode.py`, `clear_speech.py`, `proofread.py`, and `identify_speakers.py` updated from `/11` to `/13`. Stage table in `pipeline.md` gains row 13 (render).
+
+### Documentation
+
+- Marked LM Studio cache path (`~/.cache/lm-studio/models/`) as deprecated in `docs/architecture.md`, `docs/cli.md`, `docs/models.md`, `docs/troubleshooting.md`, and `README.md`. The LM Studio runtime was removed in [ADR 0006](docs/adr/0006-mlx-lm-over-lm-studio.md); a first-class managed-LLM CLI is tracked in [#116](https://github.com/artem-from-ua/voice-transcriber/issues/116).
+
 ## [0.28.0] — 2026-05-13
 
 ### Fixed

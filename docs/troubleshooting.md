@@ -5,7 +5,7 @@
 The pipeline expected either an MLX checkpoint directory or a cached Hugging Face repo and found nothing.
 
 - Fetch the default model once: `huggingface-cli download mlx-community/Qwen2.5-7B-Instruct-4bit` (~4 GB into `~/.cache/huggingface/hub/`). The pipeline resolves repo ids via that cache automatically.
-- To use a model already extracted on disk (e.g. via LM Studio's GUI), pass `--llm-model /path/to/mlx/checkpoint` — any directory containing `config.json` plus the MLX weights works.
+- To use a model already extracted on disk (e.g. via LM Studio's GUI), pass `--llm-model /path/to/mlx/checkpoint` — any directory containing `config.json` plus the MLX weights works. (LM Studio GUI path is deprecated — see [ADR 0006](adr/0006-mlx-lm-over-lm-studio.md) and [#116](https://github.com/artem-from-ua/voice-transcriber/issues/116))
 - See [ADR 0020](adr/0020-default-llm-qwen25-7b.md) for the resolver and `docs/models.md` for the table of recommended sampling per model.
 
 ## "Whisper model … is not in the Hugging Face cache"
@@ -82,7 +82,7 @@ The pipeline serialises three model loads (Whisper → pyannote → LLM) so they
 
 - Stick to the default `Qwen2.5-7B-Instruct-4bit` LLM (~4 GB) — the project's default since v0.22.0 specifically because it fits on a 16 GB Mac end-to-end. See [ADR 0020](adr/0020-default-llm-qwen25-7b.md).
 - Whisper (~3 GB) is the only ASR backend since v0.23.0 — see [ADR 0021](adr/0021-remove-vibevoice-backend.md).
-- If LM Studio is still running with its own model loaded in the background, quit it — its server is no longer needed at runtime (only the model cache is).
+- If LM Studio is still running with its own model loaded in the background, quit it — its server is no longer needed at runtime (only the model cache is). (deprecated — see [ADR 0006](adr/0006-mlx-lm-over-lm-studio.md))
 - Run with `--verbose` to print per-call MLX `pre`/`peak`/`post-clear` lines and prompt/output token counts. The numbers pinpoint which stage actually hits the ceiling.
 - `gemma-3-12b` does **not** fit on a 16 GB Mac for the full pipeline. Even with v0.21's chunked structure + per-stage cleanup, the third chunked structure call OOMs once the allocator is fragmented from proofread. Stay with the default `Qwen2.5-7B` or upgrade to a 24 GB+ machine.
 - When you switch `--llm-model` to a different family, also pass that model's recommended sampling — Qwen2.5's defaults (`temp=0.7, top_p=0.8, top_k=20, rep_penalty=1.05`) hurt structure output on gemma / Llama. See `docs/models.md` for the per-model table.

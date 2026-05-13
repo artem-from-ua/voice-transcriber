@@ -16,7 +16,7 @@ The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR
 - macOS on Apple Silicon
 - [`ffmpeg`](https://ffmpeg.org/) in `PATH`
 - [`uv`](https://github.com/astral-sh/uv) for dependency management
-- [`huggingface-cli`](https://huggingface.co/docs/huggingface_hub/guides/cli) (ships with `huggingface_hub`, pulled in by `uv sync`) — for fetching the default LLM and Whisper ASR weights into `~/.cache/huggingface/hub/`. [LM Studio](https://lmstudio.ai/) is **optional** and only useful if you want to manage local LLM checkpoints through a GUI — its server never needs to run.
+- [`huggingface-cli`](https://huggingface.co/docs/huggingface_hub/guides/cli) (ships with `huggingface_hub`, pulled in by `uv sync`) — for fetching the default LLM and Whisper ASR weights into `~/.cache/huggingface/hub/`. [LM Studio](https://lmstudio.ai/) is **optional** and only useful if you want to manage local LLM checkpoints through a GUI — its server never needs to run. (deprecated — see [ADR 0006](docs/adr/0006-mlx-lm-over-lm-studio.md); a first-class `voice models` CLI is tracked in [#116](https://github.com/artem-from-ua/voice-transcriber/issues/116))
 - A Hugging Face account with **accepted licenses** for the three gated pyannote repositories — see [`docs/troubleshooting.md`](docs/troubleshooting.md) under *GatedRepoError* for the exact list and instructions
 
 ## Setup

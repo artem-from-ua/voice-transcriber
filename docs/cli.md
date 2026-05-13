@@ -70,6 +70,7 @@ uv run voice transcribe a.m4a \
   --llm-temperature 0.7 --llm-top-p 0.8 --llm-top-k 20
 
 # 6) Keep the v0.21 default LLM (gemma-3-12b) on a machine with ≥24 GB unified memory
+# (deprecated path — LM Studio cache; see ADR 0006 and #116 for the managed-LLM CLI)
 uv run voice transcribe a.m4a \
   --llm-model ~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit \
   --llm-temperature 1.0 --llm-top-p 0.95 --llm-top-k 64 --llm-repetition-penalty 1.0
