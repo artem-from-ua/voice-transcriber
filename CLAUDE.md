@@ -22,7 +22,7 @@ This applies equally to background invocations from agentic tools (Claude Code's
 
 ## Troubleshooting a regression
 
-Run with `--dump-stages DIR` to write one JSON file per stage (`01-meta.json` … `09-tldr.txt`). Diffing `03-asr.json` against `05-proofread.json` is the fastest way to tell whether a bad output came from the raw ASR or the LLM proof-reader. See [`docs/architecture.md`](docs/architecture.md) for the stage map.
+Run with `--dump-stages DIR` to write one file per stage (`01-meta.json` … `10-speech_summary.txt`; `09-safe_speech-decisions.json` is added when `--safe-speech-topics` is active). Diffing `03-asr.json` against `05-proofread.json` is the fastest way to tell whether a bad output came from the raw ASR or the LLM proof-reader. See [`docs/architecture.md`](docs/architecture.md) for the stage map.
 
 ## Dependencies
 
