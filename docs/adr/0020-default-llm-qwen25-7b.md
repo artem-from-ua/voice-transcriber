@@ -17,7 +17,7 @@ Two findings from the v0.21 benchmark (one-off dev-time runs comparing six MLX m
 1. **gemma-3-12b does not fit on a 16 GB Mac end-to-end.** Even with chunked `structure_dialog` (ADR 0018), per-stage `free_mlx()` (v0.21), and a hybrid swap to a smaller proofread model, the third chunked structure call hits a Metal OOM. The 16 GB target is the primary developer machine, and shipping a default that crashes on it is a regression no flag can hide.
 2. **Sampling defaults from prompt frontmatter (temp 0.1–0.3, no top_p/top_k) were chosen for gemma-3-12b's behaviour on structured output.** They produce different, often worse, results on other models — most starkly on Llama-3.2-3B, whose JSON parser fails entirely at temp 0.2 (trailing commas) but produces valid 4-section layouts at the model's own recommended temp 0.6. Defaults that hard-code one model's tuning are a footgun for users who swap models via `--llm-model`.
 
-The bench identified `mlx-community/Qwen2.5-7B-Instruct-4bit` (~4 GB) as the best all-stages single-model option on 16 GB Macs **when paired with the model's own recommended sampling parameters** (`temperature=0.7`, `top_p=0.8`, `top_k=20`, `repetition_penalty=1.05`, sourced from the official `generation_config.json` on the Qwen HuggingFace repo). With those values it produces:
+The bench identified `mlx-community/Qwen2.5-7B-Instruct-4bit` (~4 GB) as the best all-stages single-model option on 16 GB Macs **when paired with the model's own recommended sampling parameters** (`temperature=0.7`, `top_p=0.8`, `top_k=20`, `repetition_penalty=1.05`, sourced from the official `generation_config.json` on the Qwen Hugging Face repo). With those values it produces:
 
 - 6 thematic sections from a 6-minute Ukrainian recording (vs 3 with our previous default sampling, vs 1 OOM with gemma-12b);
 - 274-token TL;DR (vs 1024-token blow-up on gemma-3-1b);
@@ -29,10 +29,10 @@ We also need a way to express "the default model" that does not encode an LM Stu
 
 ## Decision
 
-1. **`MlxLLM.DEFAULT_MODEL` is now the HuggingFace repo id `mlx-community/Qwen2.5-7B-Instruct-4bit`** (not a filesystem path).
+1. **`MlxLLM.DEFAULT_MODEL` is now the Hugging Face repo id `mlx-community/Qwen2.5-7B-Instruct-4bit`** (not a filesystem path).
 2. **`MlxLLM` resolves `model_path` flexibly.** A new `_resolve_model_path(spec)` accepts either:
    - A filesystem path (legacy LM Studio cache or any explicit MLX checkpoint directory) — returned as-is after `expanduser`.
-   - A HuggingFace `org/repo` id — resolved via `huggingface_hub.try_to_load_from_cache(repo_id, "config.json")`. The snapshot directory hosting that file becomes the path passed to `mlx_lm.load`. If the repo is not in the cache, a `LLMError` is raised with the exact `huggingface-cli download <repo>` command the user can run to fix it. **No implicit network fetches** — same policy as the Whisper backend (ADR 0017).
+   - A Hugging Face `org/repo` id — resolved via `huggingface_hub.try_to_load_from_cache(repo_id, "config.json")`. The snapshot directory hosting that file becomes the path passed to `mlx_lm.load`. If the repo is not in the cache, a `LLMError` is raised with the exact `huggingface-cli download <repo>` command the user can run to fix it. **No implicit network fetches** — same policy as the Whisper backend (ADR 0017).
 3. **`MlxLLM.load()` records the resolved snapshot directory in `_resolved_path`.** The pipeline's `_ensure_llm` uses it to decide whether to reuse the resident model across stages: two specs that resolve to the same on-disk directory count as the same model (no spurious cold reload between, say, `--llm-proofread-model mlx-community/Qwen2.5-7B-Instruct-4bit` and `--llm-structure-model /Users/me/.cache/huggingface/.../snapshots/<sha>`).
 4. **Default sampling now matches Qwen2.5's recommendation.** `PipelineOptions` defaults:
    - `llm_temperature = 0.7`

@@ -33,7 +33,7 @@ The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR
    chmod 600 ~/.cache/huggingface/token
    ```
 
-3. **Download the default models** (~7 GB total into the HuggingFace cache)
+3. **Download the default models** (~7 GB total into the Hugging Face cache)
 
    ```bash
    uv run voice download-whisper                                          # ~3 GB

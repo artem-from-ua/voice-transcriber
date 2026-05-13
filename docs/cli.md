@@ -20,7 +20,7 @@ voice transcribe <audio> [options]
 | `--unknown-speaker` | `{ask,keep}` | `ask` | What to do when self-intro is missing. `ask` prompts on stdin; `keep` leaves `SPEAKER_XX`. |
 | `--names` | `"A,B,..."` | – | Override automatic naming. Mapped to clusters in order of first appearance. Skips the LLM identify step. |
 | `--datetime` | ISO 8601 | – | Override recording start time. Defaults to `ffprobe creation_time`, then `stat birthtime`, then `stat mtime`. |
-| `--llm-model` | path or HF repo-id | `mlx-community/Qwen2.5-7B-Instruct-4bit` | HuggingFace `org/repo` id **or** a filesystem path to an MLX model directory, used as the default for all four LLM stages. Repo ids are resolved via `huggingface_hub.try_to_load_from_cache`; missing repos fail fast with the `huggingface-cli download` command to run. See [ADR 0020](adr/0020-default-llm-qwen25-7b.md). |
+| `--llm-model` | path or HF repo-id | `mlx-community/Qwen2.5-7B-Instruct-4bit` | Hugging Face `org/repo` id **or** a filesystem path to an MLX model directory, used as the default for all four LLM stages. Repo ids are resolved via `huggingface_hub.try_to_load_from_cache`; missing repos fail fast with the `huggingface-cli download` command to run. See [ADR 0020](adr/0020-default-llm-qwen25-7b.md). |
 | `--llm-temperature` | float | `0.7` (Qwen2.5 rec) | Sampling temperature applied to all LLM stages. Overrides the per-prompt frontmatter value. When switching `--llm-model`, also pass this and the other sampling flags to match that model's recommendation — see `docs/models.md`. |
 | `--llm-top-p` | float | `0.8` (Qwen2.5 rec) | Nucleus-sampling cutoff applied globally. |
 | `--llm-top-k` | int | `20` (Qwen2.5 rec) | Top-K sampling cutoff (0 disables). |

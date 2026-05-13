@@ -86,7 +86,7 @@ Approximate wall-clock figures are for a 6-minute Ukrainian conversation on an M
 
 | Failure | Stage | Behaviour |
 |---------|-------|-----------|
-| LLM model directory missing or invalid | health check | `MlxLLM.health_check()` raises `LLMError` with the actionable message *"… is not in the HuggingFace cache. Fetch it once with `huggingface-cli download <repo>`"* (or the equivalent for a filesystem path); pipeline exits before any LLM stage runs. See [`troubleshooting.md`](troubleshooting.md) and [ADR 0020](adr/0020-default-llm-qwen25-7b.md) |
+| LLM model directory missing or invalid | health check | `MlxLLM.health_check()` raises `LLMError` with the actionable message *"… is not in the Hugging Face cache. Fetch it once with `huggingface-cli download <repo>`"* (or the equivalent for a filesystem path); pipeline exits before any LLM stage runs. See [`troubleshooting.md`](troubleshooting.md) and [ADR 0020](adr/0020-default-llm-qwen25-7b.md) |
 | Hugging Face token missing | diarize_speakers | `DiarizationError` with path/`chmod` instructions |
 | Gated repo not accepted on HF | diarize_speakers | `GatedRepoError` from pyannote; see [`troubleshooting.md`](troubleshooting.md) |
 | ASR repetition loop | asr | `mlx-whisper` runs an internal temperature schedule that escapes most loops; `condition_on_previous_text=False` removes the dominant trigger. See troubleshooting if it persists. |

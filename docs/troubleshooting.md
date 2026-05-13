@@ -1,14 +1,14 @@
 # Troubleshooting
 
-## "LLM model not found at …" / "LLM model `…` is not in the HuggingFace cache"
+## "LLM model not found at …" / "LLM model `…` is not in the Hugging Face cache"
 
-The pipeline expected either an MLX checkpoint directory or a cached HuggingFace repo and found nothing.
+The pipeline expected either an MLX checkpoint directory or a cached Hugging Face repo and found nothing.
 
 - Fetch the default model once: `huggingface-cli download mlx-community/Qwen2.5-7B-Instruct-4bit` (~4 GB into `~/.cache/huggingface/hub/`). The pipeline resolves repo ids via that cache automatically.
 - To use a model already extracted on disk (e.g. via LM Studio's GUI), pass `--llm-model /path/to/mlx/checkpoint` — any directory containing `config.json` plus the MLX weights works.
 - See [ADR 0020](adr/0020-default-llm-qwen25-7b.md) for the resolver and `docs/models.md` for the table of recommended sampling per model.
 
-## "Whisper model … is not in the HuggingFace cache"
+## "Whisper model … is not in the Hugging Face cache"
 
 `voice transcribe` checked `~/.cache/huggingface/hub/models--mlx-community--whisper-large-v3-mlx/` and found nothing.
 
