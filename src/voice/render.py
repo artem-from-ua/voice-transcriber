@@ -10,8 +10,9 @@ A paragraph break inside a section happens when:
 - the speaker changes, OR
 - the gap between consecutive same-speaker utterances exceeds `PARAGRAPH_GAP_S`.
 
-Silent gaps with no speaker are dropped unless they are long enough to
-warrant an explicit `> _[пауза Nс]_` quote between paragraphs.
+Silent gaps with no speaker are rendered as `---` (horizontal rule) only when
+they appear between two speaker paragraphs.  Leading and trailing silences
+(before the first or after the last speaker paragraph in a section) are dropped.
 """
 
 from __future__ import annotations
@@ -84,7 +85,12 @@ def _render_section_body(
     seg_in_section: list[Segment],
     emoji_for: dict[str, str],
 ) -> list[str]:
-    """Return Markdown paragraphs for one section."""
+    """Return Markdown paragraphs for one section.
+
+    Silence events (long same-speaker pauses and muted regions) render as
+    ``---`` only when sandwiched between two speaker paragraphs.  Silence
+    before the first speaker paragraph or after the last one is suppressed.
+    """
     if not seg_in_section:
         return []
 
@@ -92,6 +98,10 @@ def _render_section_body(
     cur_speaker: str | None = None
     cur_lines: list[str] = []
     prev_end: float | None = None
+    # True when a "---" has been accumulated but not yet emitted.
+    # It is emitted only when the next speaker paragraph starts, ensuring
+    # trailing silences are automatically discarded.
+    pending_hr: bool = False
 
     def flush() -> None:
         if cur_lines and cur_speaker is not None:
@@ -101,12 +111,16 @@ def _render_section_body(
 
     for seg in seg_in_section:
         if seg.speaker is None:
-            # Speakerless segments: emit [muted, Xs] placeholders, skip ASR noise tags
+            # Speakerless segments: muted placeholders become "---"; other
+            # noise tags (e.g. [Human Sounds]) are dropped entirely.
             if seg.content.startswith("[muted"):
                 flush()
                 cur_lines = []
                 cur_speaker = None
-                blocks.append(seg.content.strip())
+                # Only set pending_hr if a speaker paragraph has already been
+                # emitted (i.e. this is not a leading silence).
+                if blocks:
+                    pending_hr = True
                 prev_end = seg.end
             continue
 
@@ -117,14 +131,22 @@ def _render_section_body(
         if not same_speaker or gap >= PARAGRAPH_GAP_S:
             flush()
             cur_lines = []
-            if gap >= EXPLICIT_PAUSE_S:
-                blocks.append(f"> _[пауза {int(round(gap))}с]_")
+            if gap >= EXPLICIT_PAUSE_S and not pending_hr:
+                # Long same-speaker or cross-speaker gap without an
+                # intervening muted region → emit a horizontal rule.
+                pending_hr = True
             cur_speaker = label
+
+        # Emit any pending horizontal rule now that we know a speaker follows.
+        if pending_hr and blocks:
+            blocks.append("---")
+            pending_hr = False
 
         cur_lines.append(seg.content.strip())
         prev_end = seg.end
 
     flush()
+    # Any pending_hr here is trailing silence — discard it.
     return blocks
 
 

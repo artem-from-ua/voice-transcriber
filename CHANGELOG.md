@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.0] — 2026-05-13
+
+### Changed
+
+- Silence events now render as `---` (horizontal rule) instead of blockquote timestamp ranges (`> _[пауза HH:MM:SS–HH:MM:SS]_` / `> _[muted HH:MM:SS–HH:MM:SS]_`).
+- Silence at section start or end is suppressed — only mid-section silences (between two speaker paragraphs) are shown.
+
 ## [0.27.0] — 2026-05-12
 
 ### Added

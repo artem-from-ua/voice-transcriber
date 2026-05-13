@@ -121,6 +121,7 @@ def test_render_merges_same_speaker_short_gap_into_one_paragraph():
 
 
 def test_render_explicit_pause_marker_on_long_gap():
+    """A long gap between paragraphs renders as a horizontal rule."""
     segs = [
         Segment(start=0.0, end=2.0, content="перше.", speaker="A", name="Артем"),
         Segment(start=10.0, end=12.0, content="друге.", speaker="A", name="Артем"),
@@ -128,8 +129,52 @@ def test_render_explicit_pause_marker_on_long_gap():
     sections = [Section(title="Test", start_ms=0, end_ms=12000)]
     dialog = StructuredDialog(sections=sections, segments=segs)
     out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
-    assert "пауза 8с" in out
+    assert "---" in out
+    assert "пауза" not in out
     assert out.count("**Артем:**") == 2
+
+
+def test_render_silence_suppressed_at_section_start():
+    """A muted region before the first speaker paragraph is not rendered."""
+    segs = [
+        Segment(start=0.0, end=3.0, content="[muted, 3.0s]", speaker=None),
+        Segment(start=3.0, end=5.0, content="Привіт.", speaker="A", name="Артем"),
+    ]
+    sections = [Section(title="Test", start_ms=0, end_ms=5000)]
+    dialog = StructuredDialog(sections=sections, segments=segs)
+    out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
+    assert "---" not in out.split("## Test")[1]
+    assert "**Артем:** Привіт." in out
+
+
+def test_render_silence_suppressed_at_section_end():
+    """A muted region after the last speaker paragraph is not rendered."""
+    segs = [
+        Segment(start=0.0, end=2.0, content="Бувай.", speaker="A", name="Артем"),
+        Segment(start=2.0, end=5.0, content="[muted, 3.0s]", speaker=None),
+    ]
+    sections = [Section(title="Test", start_ms=0, end_ms=5000)]
+    dialog = StructuredDialog(sections=sections, segments=segs)
+    out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
+    assert "---" not in out.split("## Test")[1]
+    assert "**Артем:** Бувай." in out
+
+
+def test_render_silence_as_hr_between_speakers():
+    """A muted region between two speaker paragraphs renders as '---'."""
+    segs = [
+        Segment(start=0.0, end=2.0, content="Привіт.", speaker="A", name="Артем"),
+        Segment(start=2.0, end=5.0, content="[muted, 3.0s]", speaker=None),
+        Segment(start=5.0, end=7.0, content="Привіт-привіт.", speaker="B", name="Остап"),
+    ]
+    sections = [Section(title="Test", start_ms=0, end_ms=7000)]
+    dialog = StructuredDialog(sections=sections, segments=segs)
+    out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
+    section_body = out.split("## Test")[1]
+    assert "---" in section_body
+    assert "muted" not in section_body
+    assert "**Артем:** Привіт." in out
+    assert "**Остап:** Привіт-привіт." in out
 
 
 def test_render_skips_speakerless_segments():
