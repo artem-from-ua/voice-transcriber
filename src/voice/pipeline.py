@@ -527,6 +527,7 @@ def run(options: PipelineOptions) -> str:
                         llm.close()
 
         total_elapsed = time.perf_counter() - pipeline_t0
+        log("[13/13] render → Markdown")
         markdown = render_markdown(
             audio_meta=audio_meta,
             dialog=dialog,

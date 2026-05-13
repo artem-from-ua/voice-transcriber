@@ -39,7 +39,7 @@ Default for every language task: identify_speakers, proofread, speech_structure,
 **Resolution.** `MlxLLM.model_path` accepts either:
 
 - A Hugging Face `org/repo` id (the default — `mlx-community/Qwen2.5-7B-Instruct-4bit`). Resolved via `huggingface_hub.try_to_load_from_cache`; the snapshot directory under `~/.cache/huggingface/hub/models--<org>--<repo>/snapshots/<sha>/` becomes the path passed to `mlx_lm.load`.
-- A filesystem path (e.g. `~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit`). Returned as-is.
+- A filesystem path (e.g. `~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit`). Returned as-is. (deprecated path format — LM Studio cache; see [ADR 0006](adr/0006-mlx-lm-over-lm-studio.md) and [#116](https://github.com/artem-from-ua/voice-transcriber/issues/116))
 
 If a repo id is not in the cache, the pipeline fails fast with the exact `huggingface-cli download <repo>` command to run — there are no implicit multi-GB fetches. Same policy as Whisper (see [ADR 0017](adr/0017-whisper-asr-backend.md)).
 

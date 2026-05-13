@@ -1,6 +1,6 @@
 # Pipeline — step by step
 
-`pipeline.run(PipelineOptions)` is the single entry point used by both the CLI and tests. It runs eleven sequential stages; each stage gets the previous one's output and adds a layer of information.
+`pipeline.run(PipelineOptions)` is the single entry point used by both the CLI and tests. It runs thirteen sequential stages; each stage gets the previous one's output and adds a layer of information.
 
 ## Sequence
 
@@ -81,6 +81,7 @@ Approximate wall-clock figures are for a 6-minute Ukrainian conversation on an M
 | 10 | speech_structure | LLM via in-process `mlx-lm` | `Segment[]` | `StructuredDialog` | ~10–20 s |
 | 11 | safe_speech | LLM via in-process `mlx-lm` | `StructuredDialog` | `StructuredDialog` (redacted) | ~5–15 s; skipped when `--no-safe-speech` or `--safe-speech-topics ""`. See [ADR 0023](adr/0023-safe-speech-stage.md). |
 | 12 | speech_summary | LLM via in-process `mlx-lm` | `Segment[]` (redacted) | Markdown string | ~10–20 s |
+| 13 | render | pure Python (Markdown templating) | `StructuredDialog` + TL;DR + metadata | Markdown file written to disk | < 1 s |
 
 ## Errors and recovery
 
