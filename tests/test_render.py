@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from voice.render import render_markdown
+from voice.render import render_markdown, _auto_silence_threshold
 from voice.speaker_emojis import EMOJI_PALETTE, assign_emojis
 from voice.types import AudioMeta, Section, Segment, StructuredDialog
 
@@ -375,3 +375,56 @@ def test_render_processing_percent_of_duration():
         model_load_elapsed={},
     )
     assert "⚡ **Час обробки:** 5m0s (50% of duration)" in out
+
+
+# -------------------------------------------------------- auto silence threshold
+
+
+def test_auto_silence_threshold_short_section():
+    assert _auto_silence_threshold(30.0) == 5.0
+
+
+def test_auto_silence_threshold_at_lower_bound():
+    assert _auto_silence_threshold(60.0) == 5.0
+
+
+def test_auto_silence_threshold_midpoint():
+    # 180 s is exactly halfway between 60 and 300 → midpoint of 5..15 = 10
+    assert _auto_silence_threshold(180.0) == 10.0
+
+
+def test_auto_silence_threshold_at_upper_bound():
+    assert _auto_silence_threshold(300.0) == 15.0
+
+
+def test_auto_silence_threshold_long_section():
+    assert _auto_silence_threshold(600.0) == 15.0
+
+
+def test_render_auto_threshold_used_when_not_overridden():
+    """Default (no min_silence_s) uses auto threshold: short section → 5 s floor."""
+    segs = [
+        Segment(start=0.0, end=2.0, content="перше.", speaker="A", name="Артем"),
+        Segment(start=8.0, end=10.0, content="друге.", speaker="A", name="Артем"),
+    ]
+    # Section duration = 10 s → auto threshold = 5 s; gap = 6 s → visible
+    sections = [Section(title="Test", start_ms=0, end_ms=10000)]
+    dialog = StructuredDialog(sections=sections, segments=segs)
+    out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
+    assert "\n---\n" in out
+
+
+def test_render_explicit_override_suppresses_auto():
+    """Explicit min_silence_s overrides auto threshold for all sections."""
+    segs = [
+        Segment(start=0.0, end=2.0, content="перше.", speaker="A", name="Артем"),
+        Segment(start=8.0, end=10.0, content="друге.", speaker="A", name="Артем"),
+    ]
+    # Same 6 s gap, but explicit threshold = 10 s → hidden
+    sections = [Section(title="Test", start_ms=0, end_ms=10000)]
+    dialog = StructuredDialog(sections=sections, segments=segs)
+    out = render_markdown(
+        audio_meta=_meta(), dialog=dialog, tldr="", language="uk",
+        min_silence_s=10.0,
+    )
+    assert "\n---\n" not in out
