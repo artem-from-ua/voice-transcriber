@@ -10,7 +10,7 @@ date: 2026-05-11
 
 > Superseded by [ADR 0006](0006-mlx-lm-over-lm-studio.md) (mlx-lm runtime
 > replaces the LM Studio HTTP server) and [ADR 0020](0020-default-llm-qwen25-7b.md)
-> (default LLM resolves via HuggingFace cache, not the LM Studio path).
+> (default LLM resolves via Hugging Face cache, not the LM Studio path).
 > LM Studio is no longer in the runtime path.
 
 ## Context

@@ -34,11 +34,11 @@ Inference runs on `mps` when available and falls back to `cpu` if the move fails
 
 ## LLM — `mlx-community/Qwen2.5-7B-Instruct-4bit`
 
-Default for every language task: identify_speakers, proofread, speech_structure, speech_summary. The model is loaded in-process via `mlx-lm` against an MLX-quantised checkpoint in the HuggingFace cache.
+Default for every language task: identify_speakers, proofread, speech_structure, speech_summary. The model is loaded in-process via `mlx-lm` against an MLX-quantised checkpoint in the Hugging Face cache.
 
 **Resolution.** `MlxLLM.model_path` accepts either:
 
-- A HuggingFace `org/repo` id (the default — `mlx-community/Qwen2.5-7B-Instruct-4bit`). Resolved via `huggingface_hub.try_to_load_from_cache`; the snapshot directory under `~/.cache/huggingface/hub/models--<org>--<repo>/snapshots/<sha>/` becomes the path passed to `mlx_lm.load`.
+- A Hugging Face `org/repo` id (the default — `mlx-community/Qwen2.5-7B-Instruct-4bit`). Resolved via `huggingface_hub.try_to_load_from_cache`; the snapshot directory under `~/.cache/huggingface/hub/models--<org>--<repo>/snapshots/<sha>/` becomes the path passed to `mlx_lm.load`.
 - A filesystem path (e.g. `~/.cache/lm-studio/models/mlx-community/gemma-3-12b-it-qat-4bit`). Returned as-is.
 
 If a repo id is not in the cache, the pipeline fails fast with the exact `huggingface-cli download <repo>` command to run — there are no implicit multi-GB fetches. Same policy as Whisper (see [ADR 0017](adr/0017-whisper-asr-backend.md)).
