@@ -79,7 +79,7 @@ class PipelineOptions:
     clearspeech_dereverb_crossfade_ms: float = 50.0
     dump_stages_dir: str | None = None
     verbose: bool = False
-    render_min_silence_s: float = 10.0
+    render_min_silence_s: float | None = None
     tldr_include_silence: bool = False
 
 

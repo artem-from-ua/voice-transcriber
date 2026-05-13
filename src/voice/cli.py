@@ -120,11 +120,12 @@ def _build_parser() -> argparse.ArgumentParser:
     t.add_argument("--no-structure", action="store_true", help="Skip section structuring.")
     t.add_argument("--no-safe-speech", action="store_true", help="Skip sensitive-content redaction.")
     t.add_argument(
-        "--render-min-silence-s", type=float, default=10.0, metavar="SECONDS",
+        "--render-min-silence-s", type=float, default=None, metavar="SECONDS",
         help=(
-            "Minimum silence duration (seconds) to show as a pause or muted marker "
-            "in the transcript. Shorter silences are hidden. Default: 10.0. "
-            "Adjacent muted/gap chains are merged before the threshold is applied."
+            "Minimum silence duration (seconds) to show as --- in the transcript. "
+            "By default the threshold is computed automatically per section based on "
+            "its duration (5 s for ≤60 s sections, up to 15 s for ≥5 min sections). "
+            "Pass an explicit value to override for all sections."
         ),
     )
     t.add_argument(

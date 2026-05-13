@@ -30,6 +30,20 @@ from .types import AudioMeta, Section, Segment, StructuredDialog
 PARAGRAPH_GAP_S = 2.0
 MIN_SILENCE_S = 10.0
 
+# Auto-threshold bounds: short sections get a low threshold (more markers),
+# long sections get a high one (only major pauses shown).
+_AUTO_SILENCE_MIN_S = 5.0   # threshold at section duration <= _AUTO_SHORT_S
+_AUTO_SILENCE_MAX_S = 15.0  # threshold at section duration >= _AUTO_LONG_S
+_AUTO_SHORT_S = 60.0        # section duration anchor for min threshold
+_AUTO_LONG_S = 300.0        # section duration anchor for max threshold
+
+
+def _auto_silence_threshold(section_duration_s: float) -> float:
+    """Linear interpolation between 5 s (≤60 s section) and 15 s (≥300 s section)."""
+    t = (section_duration_s - _AUTO_SHORT_S) / (_AUTO_LONG_S - _AUTO_SHORT_S)
+    t = max(0.0, min(1.0, t))
+    return _AUTO_SILENCE_MIN_S + t * (_AUTO_SILENCE_MAX_S - _AUTO_SILENCE_MIN_S)
+
 
 def _format_duration(seconds: float) -> str:
     s = int(round(seconds))
@@ -281,9 +295,15 @@ def render_markdown(
     model_load_elapsed: dict[str, float] | None = None,
     name_sources: dict[str, str] | None = None,
     lang_detect_info: dict | None = None,
-    min_silence_s: float = MIN_SILENCE_S,
+    min_silence_s: float | None = None,
 ) -> str:
-    """Compose the full Markdown output."""
+    """Compose the full Markdown output.
+
+    When *min_silence_s* is None (default), the threshold is computed
+    automatically per section based on its duration (see
+    `_auto_silence_threshold`).  Pass an explicit value to override for all
+    sections — e.g. from ``--render-min-silence-s``.
+    """
     basename = Path(audio_meta.path).name
     speakers = _speakers_in_order(dialog.segments)
     emoji_for = assign_emojis(speakers)
@@ -332,9 +352,14 @@ def render_markdown(
         in_section = _segments_in_section(dialog.segments, section)
         if not in_section:
             continue
+        if min_silence_s is None:
+            section_dur = (section.end_ms - section.start_ms) / 1000.0
+            threshold = _auto_silence_threshold(section_dur)
+        else:
+            threshold = min_silence_s
         lines.append(f"## {section.title}")
         lines.append("")
-        for block in _render_section_body(in_section, emoji_for, min_silence_s):
+        for block in _render_section_body(in_section, emoji_for, threshold):
             lines.append(block)
             lines.append("")
 
