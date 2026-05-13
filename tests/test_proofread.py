@@ -48,6 +48,15 @@ def test_quotes_are_stripped():
     assert out == original
 
 
+def test_text_prefix_artifact_is_stripped():
+    original = "Це додаток на Hugging Space у фреймворку градіо."
+    fixed = "Це додаток на Hugging Face у фреймворку Gradio."
+    llm = StubLLM(reply=f"Text: {fixed}")
+    out = fix_segment(original, llm=llm, language="uk")
+    assert out == fixed
+    assert not out.startswith("Text:")
+
+
 def test_llm_error_keeps_original():
     original = "якийсь нормальний текст для тесту"
     llm = StubLLM(error=LLMError("server down"))
