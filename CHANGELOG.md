@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.0] — 2026-05-13
+
+### Changed
+
+- **BREAKING (CLI): proofread is now off by default.** Closes [#57](https://github.com/artem-from-ua/voice-transcriber/issues/57).
+
+  Measurement on Whisper output (the only ASR backend since v0.23.0) showed the proofread stage degrades the transcript more often than it improves it on lively Ukrainian conversational speech with code-switched English IT terms. On the reference recording: 3 better vs 4 worse human verdicts across 9 contested segments, plus systematic IT-slang regressions (`продуктовий` → `продуктівого`/`продуктівим` twice in a row) and out-of-scope synonym substitutions (`чуваки` → `хлопці`). See [ADR 0026](docs/adr/0026-proofread-default-off.md) and [`docs/benchmarks/proofread-hit-rate.md`](docs/benchmarks/proofread-hit-rate.md) for full results.
+
+  CLI change:
+  - The off-switch `--no-proofread` is **removed**.
+  - The on-switch `--proofread` is **added** (`action="store_true"`).
+  - `PipelineOptions.run_proofread` default flips from `True` to `False`.
+
+  Migration: users who passed `--no-proofread` can simply drop the flag — the new default already does what that flag did. Users who relied on the implicit proofread should add `--proofread` explicitly.
+
+  A critical follow-up issue ([#120](https://github.com/artem-from-ua/voice-transcriber/issues/120)) tracks the prompt/model rework needed before proofread can return to default-on.
+
+### Added
+
+- **Per-stage LLM telemetry in `01-meta.json`.** Partial implementation for #57; full coverage of all LLM stages is tracked in [#118](https://github.com/artem-from-ua/voice-transcriber/issues/118).
+
+  Pipeline now writes a `stages` field into `01-meta.json` containing, for each instrumented stage, `wall_clock_s`, `llm_calls`, and `model`. Currently populated for `proofread` only. The file is written twice: an initial write at pipeline start (no `stages`) and a final write at end (with `stages`).
+
+- **`scripts/proofread-classify.py` — measurement tool for the proofread stage.** Three subcommands:
+  - `classify` — reads a `--dump-stages` directory, classifies each `(04-merge.json, 05-proofread.json)` pair into one of `unchanged` / `cosmetic` / `proper_noun_fix` / `substantive_rewrite`, writes `categories.json` and a `spot-check.md` checkbox file for the contested segments.
+  - `prepare-judge` — writes a `judge-input.md` formatted for an LLM judge to read and produce a JSON file of marks.
+  - `parse-marks` — aggregates the filled `spot-check.md` and (optional) `judge-marks.json` into a `final-table.md` with agreement metric and per-segment confusion table.
+
+  Output is plain text with no ANSI / no `\r` — readable from agent runners (Claude Code Bash tool, CI). Each subcommand emits a machine-readable `---SUMMARY-START---` / `---SUMMARY-END---` JSON block.
+
+- **`docs/benchmarks/`** — quality-measurement framework for per-stage, per-chain, and end-to-end benchmarks. Each benchmark doc follows a six-section contract (Input / Expected output / Evaluation / Synthetic data / Real test data / Result + decision). [`docs/benchmarks/README.md`](docs/benchmarks/README.md) is the entry point; [`docs/benchmarks/proofread-hit-rate.md`](docs/benchmarks/proofread-hit-rate.md) is the first concrete benchmark.
+
+- **CLAUDE.md "Project goal" section** spelling out the user's targets — Ukrainian conversational audience, quality over speed within hardware budget, M1/16 GB floor, faster-than-real-time speed floor, structured Markdown output — so every future technical decision can be sanity-checked against them.
+
+### Internal
+
+- **API change: `proofread.fix_asr_errors` returns a tuple** `(list[Segment], dict)` instead of `list[Segment]`. The dict carries telemetry (`llm_calls`). Module-internal `fix_segment` similarly returns `(text, called)`. Only one in-repo caller (`pipeline.py`); test fixtures updated.
+
+- New ADR: [0026 — Proofread stage: default off, opt-in via `--proofread`](docs/adr/0026-proofread-default-off.md).
+
 ## [0.28.1] — 2026-05-13
 
 ### Changed

@@ -30,7 +30,7 @@ voice transcribe <audio> [options]
 | `--llm-structure-model` | path | inherits `--llm-model` | Per-stage override for the section-structuring stage. |
 | `--llm-tldr-model` | path | inherits `--llm-model` | Per-stage override for the TL;DR stage. |
 | `--output`, `-o` | path | `<audio>.md` | Output Markdown path. |
-| `--no-proofread` | flag | off | Skip per-segment ASR proof-reading. |
+| `--proofread` | flag | off (default since v0.29.0) | **Opt-in** per-segment ASR proof-reading via LLM. Default is OFF — measurement on Whisper output showed the stage hurts more than it helps on Ukrainian conversational speech (see [ADR 0026](adr/0026-proofread-default-off.md) and [`docs/benchmarks/proofread-hit-rate.md`](benchmarks/proofread-hit-rate.md)). Pre-v0.29.0 users of `--no-proofread` should simply drop the flag. |
 | `--no-tldr` | flag | off | Skip TL;DR generation. |
 | `--no-structure` | flag | off | Skip LLM-driven sectioning; output is one section "Розмова". |
 | `--no-safe-speech` | flag | off | Skip sensitive-content redaction entirely. |

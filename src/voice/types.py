@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -51,3 +52,4 @@ class AudioMeta:
     ended_at: str
     duration_s: float
     source: str  # "ffprobe creation_time" or "stat birthtime" or "stat mtime" or "cli override"
+    stages: dict[str, dict[str, Any]] | None = None

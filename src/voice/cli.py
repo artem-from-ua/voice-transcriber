@@ -115,7 +115,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output", "-o", default=None,
         help="Output Markdown path (default: <audio_basename>.md alongside the audio).",
     )
-    t.add_argument("--no-proofread", action="store_true", help="Skip per-segment ASR proof-reading.")
+    t.add_argument(
+        "--proofread",
+        action="store_true",
+        help=(
+            "Enable per-segment ASR proof-reading via LLM. Default is OFF "
+            "since v0.29.0 — measurement on Whisper output showed proofread "
+            "hurts more than it helps on Ukrainian conversational speech "
+            "(see docs/benchmarks/proofread-hit-rate.md and ADR 0026)."
+        ),
+    )
     t.add_argument("--no-tldr", action="store_true", help="Skip TL;DR generation.")
     t.add_argument("--no-structure", action="store_true", help="Skip section structuring.")
     t.add_argument("--no-safe-speech", action="store_true", help="Skip sensitive-content redaction.")
@@ -309,7 +318,7 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         llm_top_p=args.llm_top_p,
         llm_top_k=args.llm_top_k,
         llm_repetition_penalty=args.llm_repetition_penalty,
-        run_proofread=not args.no_proofread,
+        run_proofread=args.proofread,
         run_safe_speech=not args.no_safe_speech,
         run_tldr=not args.no_tldr,
         run_structure=not args.no_structure,
