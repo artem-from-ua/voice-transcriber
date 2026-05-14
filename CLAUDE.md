@@ -101,6 +101,84 @@ If a change naturally needs another PR to land first, **wait for the dependency 
 
 We've also gone version skipping in past PRs (0.4.0 was reserved for a PR that landed second, so we shipped 0.5.0 after 0.3.0). That's fine for a pre-1.0 project but spell it out in the CHANGELOG entry so a future reader doesn't think a release went missing.
 
+## Issue labels — MANDATORY when creating or editing issues
+
+Every issue in this repo MUST satisfy all four rules below. This applies whether the issue is created by a human, by Claude on the human's behalf, or by automation. The full rationale lives in [ADR 0029](docs/adr/0029-issue-label-taxonomy.md) and the full reference (with worked examples) in [`docs/conventions.md`](docs/conventions.md) — the rules below are the operational subset.
+
+**Mandatory labels:**
+
+1. Exactly one `type:*`.
+2. Exactly one `priority:*`.
+3. At least one of `stage:*` or `area:*` (both axes can coexist on the same issue).
+4. Soft maximum: 5 labels total per issue.
+
+### `type:*` (exactly one)
+
+- `type:bug` — something is broken or behaves incorrectly against documented expectations.
+- `type:feature` — a new user-visible capability (new flag, new output, new behaviour the user can observe).
+- `type:perf` — speed or memory improvement work, with or without a user-visible behavioural change.
+- `type:docs` — changes only to `README.md`, `CLAUDE.md`, `docs/`, or in-code docstrings/comments.
+- `type:refactor` — internal restructuring with no user-visible behaviour change and no perf claim.
+- `type:test` — adding, fixing, or restructuring tests.
+- `type:chore` — tooling, build, dependencies, repo hygiene, CI, label/issue housekeeping.
+
+### `priority:*` (exactly one)
+
+- `priority:critical` — the project is broken for users right now, or about to be. Fix before anything else.
+- `priority:high` — should land in the next release cycle.
+- `priority:medium` — default for most work. Use this if unsure. Do not leave priority unset.
+- `priority:low` — nice to have.
+
+### `stage:*` (at least one of `stage:*` or `area:*`)
+
+One label per pipeline stage, keyed on the module name in `src/voice/`. Use `stage:*` when the issue is about that specific step's behaviour, parameters, or output.
+
+- `stage:transcode` — `transcode.py`
+- `stage:audio_meta` — `audio_meta.py`
+- `stage:diarize_speakers` — `diarize_speakers.py`
+- `stage:lang_detect` — `lang_detect.py`
+- `stage:clear_speech` — `clear_speech.py`
+- `stage:speech2text` — `whisper_asr.py`, `download_whisper.py`
+- `stage:merge` — `merge.py`
+- `stage:proofread` — `proofread.py`
+- `stage:identify_speakers` — `identify_speakers.py`
+- `stage:speech_structure` — `speech_structure.py`
+- `stage:safe_speech` — `safe_speech.py`
+- `stage:speech_summary` — `speech_summary.py`
+- `stage:render` — `render.py`, `speaker_emojis.py`
+
+### `area:*` (at least one of `stage:*` or `area:*`)
+
+Cross-stage concerns. Use `area:*` when the issue spans multiple stages or lives in shared infrastructure that does not belong to a single stage.
+
+- `area:llm` — shared LLM stack (`llm.py`, prompt cache, token accounting). Affects all five LLM-driven stages.
+- `area:audio` — audio preprocessing in general (`transcode`, `silence`, `clear_speech`, loudness work).
+- `area:cli` — command-line surface (`cli.py`, flags, progress reporting).
+- `area:perf` — cross-stage performance infrastructure (benchmarks, profiling, memory budgets). NOT used for per-stage speedups — those use `type:perf` + `stage:*`.
+- `area:models` — model lifecycle across the project: download, quantization, swap (ASR + diarization + LLM).
+- `area:prompts` — LLM system prompts only. Does NOT include Whisper `initial_prompt` — that goes under `stage:speech2text`.
+- `area:i18n` — language behaviour: Ukrainian/English code-switching, IT loanwords, transliteration.
+
+### Disambiguation rules (settled — do not re-derive)
+
+- **`type:perf` vs `area:perf`**: per-stage speedup → `type:perf` + `stage:X`. Cross-stage perf infrastructure (benchmark harness, profiler) → `type:feature` (or whatever fits) + `area:perf`.
+- **`type:feature` vs `type:refactor`**: only `type:feature` if a user can observe the change. Internal restructuring → `type:refactor`. Renames (`agc` → `autogain`) are `type:refactor`, not `type:feature`.
+- **Whisper `initial_prompt`** issues → `stage:speech2text` (+ `area:i18n` if about language). Never `area:prompts`.
+- **`area:models` vs `area:llm`**: `area:models` covers all three model classes; `area:llm` is LLM-specific. Whisper quantization is `area:models` + `stage:speech2text`, not `area:llm`.
+- **`kb-grooming` issues**: keep the `kb-grooming` label AND apply the standard 4 axes (typically `type:docs` + `area:*` + `priority:low`).
+- **Built-in `bug`, `enhancement`, `documentation`**: do not use. GitHub restores them after deletion for UI compatibility, but this project uses `type:bug`, `type:feature`, `type:docs` exclusively.
+
+### When creating an issue
+
+1. Pick `type:*` from the issue's core nature (one of seven).
+2. Pick `priority:*` from impact and urgency (one of four; default `medium`).
+3. Map to `stage:*` if the issue is about a specific pipeline step; otherwise (or additionally) pick `area:*`.
+4. Apply labels in one shot: `gh issue create --label "type:X,priority:Y,stage:Z" --title "..." --body "..."`.
+
+### Scope
+
+This taxonomy applies to **issues only**. PRs are not labelled — Conventional Commit prefixes in PR titles (`feat:`, `fix:`, `docs:`, `perf:`, `chore:`) carry the type signal.
+
 ## Editing the architecture diagram
 
 `docs/architecture.md` has two PlantUML diagrams whose edges encode the actual data-flow:
