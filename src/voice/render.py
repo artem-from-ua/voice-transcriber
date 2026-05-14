@@ -192,6 +192,12 @@ def _render_lang_value(language: str, lang_detect_info: dict | None) -> str:
     second = lang_detect_info.get("second")
     if second:
         tag += f", {second[0]}={second[1]:.2f}"
+    agreement = lang_detect_info.get("agreement")
+    n_attempts = lang_detect_info.get("n_attempts")
+    if agreement == "agree" and n_attempts:
+        tag += f", {n_attempts}/{n_attempts} agree"
+    elif agreement == "disagree" and n_attempts:
+        tag += f", {n_attempts}/{n_attempts} disagree, picked higher prob"
     return f"{top_lang} ({tag})"
 
 

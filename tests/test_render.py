@@ -279,6 +279,45 @@ def test_render_lang_auto_detected_no_runner_up():
     assert "ru=" not in out
 
 
+def test_render_lang_auto_detected_two_attempts_agree():
+    """Two attempts that agree on top-1 → '2/2 agree' is appended."""
+    segs = [Segment(start=0, end=1, content="x", speaker="A", name="Sam")]
+    dialog = StructuredDialog(
+        sections=[Section(title="T", start_ms=0, end_ms=1000)], segments=segs
+    )
+    out = render_markdown(
+        audio_meta=_meta(), dialog=dialog, language="uk",
+        lang_detect_info={
+            "top": ("uk", 0.74),
+            "second": ("ru", 0.24),
+            "agreement": "agree",
+            "n_attempts": 2,
+        },
+    )
+    assert "🌐 **Мова:** | uk (auto-detected=0.74, ru=0.24, 2/2 agree)" in out
+
+
+def test_render_lang_auto_detected_two_attempts_disagree():
+    """Two attempts that disagree → '2/2 disagree, picked higher prob' is appended."""
+    segs = [Segment(start=0, end=1, content="x", speaker="A", name="Sam")]
+    dialog = StructuredDialog(
+        sections=[Section(title="T", start_ms=0, end_ms=1000)], segments=segs
+    )
+    out = render_markdown(
+        audio_meta=_meta(), dialog=dialog, language="ru",
+        lang_detect_info={
+            "top": ("ru", 0.80),
+            "second": ("uk", 0.15),
+            "agreement": "disagree",
+            "n_attempts": 2,
+        },
+    )
+    assert (
+        "🌐 **Мова:** | ru (auto-detected=0.80, uk=0.15, 2/2 disagree, picked higher prob)"
+        in out
+    )
+
+
 def test_render_participants_with_source_tags():
     """Each participant line includes its source tag in parentheses."""
     segs = [

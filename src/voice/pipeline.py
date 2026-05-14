@@ -326,7 +326,7 @@ def run(options: PipelineOptions) -> str:
             lang_detect_info: dict | None = None
             if options.language is None:
                 with progress.spinner("[4/13] Визначення мови"), _timed("lang_detect"):
-                    lang_result = lang_detect_module.detect_language_on_longest_turn(
+                    lang_result = lang_detect_module.detect_language(
                         wav_path, turns, log=log,
                     )
                 effective_language = lang_result.language
@@ -337,7 +337,11 @@ def run(options: PipelineOptions) -> str:
                     top_p = float(probs[top_lang])
                     others = [(k, float(v)) for k, v in probs.items() if k != top_lang]
                     second = max(others, key=lambda x: x[1]) if others else None
-                    lang_detect_info = {"top": (top_lang, top_p)}
+                    lang_detect_info = {
+                        "top": (top_lang, top_p),
+                        "agreement": lang_result.agreement,
+                        "n_attempts": len(lang_result.attempts),
+                    }
                     if second is not None and second[1] >= 0.05:
                         lang_detect_info["second"] = second
                 origin = "auto-detect"
