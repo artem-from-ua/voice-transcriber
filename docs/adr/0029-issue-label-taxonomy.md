@@ -41,7 +41,7 @@ Total label dictionary: 31 prefixed labels + the project-relevant built-ins (`go
 
 **Format chosen: colon prefix** (`type:bug`, `stage:proofread`). The alternative — slash (`type/bug`, Kubernetes-style) — URL-escapes to `type%2Fbug` in GitHub filter URLs, which is less readable; colon stays literal. Colon is the de-facto convention in modern open-source projects (Salt, Sane GitHub Labels guide, Robin's labelling guide).
 
-**Color per axis, not per value.** All `type:*` share `#cccccc`. All `area:*` share `#2da44e`. `stage:*` uses a blue gradient (`#cfe2ff` → `#0a2a5e`) ordered by pipeline position, so that label chips on an issue visually echo "this work is upstream/downstream". `priority:*` uses a red→grey gradient. The prefix carries identity; the color carries the axis.
+**Color per axis, not per value.** All `type:*` share `#cccccc`. All `area:*` share `#2da44e`. All `stage:*` share `#5888dc`. `priority:*` uses a red→grey gradient (the only axis where the gradient carries meaning — urgency). The prefix carries identity; the color carries the axis. A per-stage blue gradient was considered (upstream-light → downstream-dark) and rejected after first use: multi-stage issues read as visual noise; one calm color is easier to scan.
 
 **Disambiguation rules** are part of the decision, not an afterthought:
 

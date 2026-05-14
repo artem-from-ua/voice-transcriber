@@ -62,7 +62,7 @@ One label per pipeline stage from [`pipeline.md`](pipeline.md), keyed on the mod
 | `stage:speech_summary` | `speech_summary.py` |
 | `stage:render` | `render.py`, `speaker_emojis.py` |
 
-Color: blue gradient from `#cfe2ff` (upstream stages) to `#0a2a5e` (downstream stages). Order in the gradient matches pipeline order.
+Color: all `stage:*` share `#5888dc` (mid-blue). A per-stage gradient was tried first but made label chips visually noisy when an issue carried multiple stages; one color is calmer to read.
 
 ### `area:*` (at least one of `stage:*` or `area:*`)
 
