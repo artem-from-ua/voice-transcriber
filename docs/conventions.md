@@ -29,7 +29,7 @@ The full rationale is recorded in [ADR 0029](adr/0029-issue-label-taxonomy.md). 
 | `type:test` | Adding, fixing, or restructuring tests. |
 | `type:chore` | Tooling, build, dependencies, repo hygiene, CI, label/issue housekeeping. |
 
-Color: all `type:*` use `#cccccc` (neutral grey). The prefix carries the meaning; the color carries the axis.
+Color: all `type:*` use `#cccccc` (neutral grey), with one exception — `type:bug` uses `#d73a4a` (red) so broken-functionality issues stand out in lists. The prefix carries the meaning; the color carries the axis.
 
 ### `priority:*` (exactly one)
 
@@ -101,6 +101,8 @@ Marks issues that originate from a non-human source — automation, periodic aud
 | `by:kb-grooming` | Project | The `kb-grooming` automation's periodic documentation-health audits. |
 
 The axis exists so we can add `by:dependabot`, `by:security-audit`, `by:lint-report` etc. later without re-engineering the taxonomy. If a `by:*` value applies, add it; the issue still needs the standard 4 axes.
+
+Color: all `by:*` use `#cccccc` (neutral grey) — provenance is metadata, not a primary signal.
 
 ## Disambiguation rules
 
