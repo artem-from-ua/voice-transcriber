@@ -1,0 +1,15 @@
+{
+  "path": "/Users/artem/Downloads/two-speakers-diar-test-ukr.m4a",
+  "started_at": "2026-05-10T15:44:02+00:00",
+  "ended_at": "2026-05-10T15:50:16+00:00",
+  "duration_s": 374.933333,
+  "source": "ffprobe creation_time",
+  "stages": {
+    "proofread": {
+      "wall_clock_s": 258.34,
+      "llm_calls": 86,
+      "n_context": 8,
+      "model": "mlx-community/Qwen2.5-7B-Instruct-4bit"
+    }
+  }
+}

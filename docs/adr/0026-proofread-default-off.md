@@ -1,10 +1,20 @@
 ---
-status: accepted
+status: superseded
 date: 2026-05-13
-see_also: [0005, 0017, 0021]
+superseded_by: ["0028-proofread-default-on-after-rework"]
+see_also: [0005, 0017, 0021, 0028]
 ---
 
 # 0026 — Proofread stage: default off, opt-in via `--proofread`
+
+> **Note (v0.30.0):** superseded by [ADR 0028](0028-proofread-default-on-after-rework.md).
+> The decision below — to make proofread default-off after the iteration-1
+> measurement — was correct for v0.29.0 but is no longer in force. The
+> iteration-2.1 rework (prompt + context-aware mode) shipped in v0.30.0
+> recovers enough quality to flip the default back to on; see ADR 0028
+> for the new design and the iteration-2.1 measurement that drove it.
+> This ADR is preserved as the historical record of why the default was
+> ever off.
 
 ## Context
 

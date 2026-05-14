@@ -114,11 +114,59 @@ Higher-level benchmarks **subsume** lower-level ones — if the e2e
 benchmark catches a regression that no stage benchmark caught, that's a
 hint to add or sharpen a stage benchmark.
 
+## Parameter sweep / knee detection
+
+Many stages have at least one tunable parameter (chunk size, context
+window, temperature, redaction threshold, ...). The default value is not
+"pick whatever sounds reasonable" — it is **measured**, on the same
+recording and harness the stage's quality benchmark uses, by running a
+small grid and finding the **knee**: the point past which additional
+cost (wall-clock, tokens, memory) stops buying proportional quality.
+
+Procedure:
+
+1. **Pick a grid** of 4-6 values spanning the practical range.
+   Geometric / log-spaced is usually right (e.g. `0, 1, 2, 3, 5, 8`,
+   not `0, 1, 2, 3, 4, 5` which over-samples the cheap end).
+2. **Run the same quality measurement at each value.** Use the same
+   recording, same harness, same scoring. Only the parameter changes.
+3. **Tabulate both axes** — the quality metric **and** the cost metric.
+   Wall-clock is the cheapest cost to measure; record tokens / memory
+   too when they matter for the hardware budget.
+4. **Pick the knee**, not the maximum. The knee is the value where
+   adding more parameter stops moving the quality metric meaningfully.
+   Report the runner-up value and why it lost.
+
+Decision rules of thumb:
+
+- If two values tie on quality, pick the **cheaper** one.
+- If the knee is at the **smallest** tested value, the parameter
+  probably shouldn't exist (or should be hard-coded) — flag that
+  finding.
+- If the knee is **past the largest** tested value, expand the grid
+  before defaulting; don't silently pick the edge.
+- A grid run must be **sequential** for any stage that uses local
+  inference — never parallelise ML on the same machine (CLAUDE.md
+  rule).
+
+Sweep runners should follow the [`scripts/proofread-classify.py
+sweep`](../../scripts/proofread-classify.py) pattern: per-value
+sub-directory under a sweep output dir, each containing the full
+`--dump-stages` artefacts plus a per-run `categories.json`; one
+top-level `sweep-summary.json` and `sweep-summary.md` aggregating the
+grid in one table. This format is reusable for any per-stage sweep.
+
+Worked example: the context-size sweep for the proofread stage —
+see iteration 2 in [`proofread-hit-rate.md`](proofread-hit-rate.md).
+
 ## Existing benchmarks
 
 - [`proofread-hit-rate.md`](proofread-hit-rate.md) — does the proofread
-  stage earn its keep on Whisper output? Result: no — proofread is now
-  default-off ([ADR 0026](../adr/0026-proofread-default-off.md)).
+  stage earn its keep on Whisper output? Result of iteration 1: no — set
+  to default-off ([ADR 0026](../adr/0026-proofread-default-off.md)).
+  Iteration 2 adds a context-size parameter sweep and the prompt
+  rework that flips the default back on
+  ([ADR 0028](../adr/0028-proofread-default-on-after-rework.md)).
 - [`prompt-cache-proofread.md`](prompt-cache-proofread.md) — can the
   system-prompt KV state be amortised across calls in a tight LLM loop?
   Result: yes, with the right strategy (delta-tokens + trim-back) —

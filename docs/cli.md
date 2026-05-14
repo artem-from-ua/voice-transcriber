@@ -30,7 +30,9 @@ voice transcribe <audio> [options]
 | `--llm-structure-model` | path | inherits `--llm-model` | Per-stage override for the section-structuring stage. |
 | `--llm-tldr-model` | path | inherits `--llm-model` | Per-stage override for the TL;DR stage. |
 | `--output`, `-o` | path | `<audio>.md` | Output Markdown path. |
-| `--proofread` | flag | off (default since v0.29.0) | **Opt-in** per-segment ASR proof-reading via LLM. Default is OFF — measurement on Whisper output showed the stage hurts more than it helps on Ukrainian conversational speech (see [ADR 0026](adr/0026-proofread-default-off.md) and [`docs/benchmarks/proofread-hit-rate.md`](benchmarks/proofread-hit-rate.md)). Pre-v0.29.0 users of `--no-proofread` should simply drop the flag. |
+| `--no-proofread` | flag | proofread is **on** by default since v0.31.0 | Opt out of per-segment ASR proof-reading. Default is ON again since v0.31.0 — see [ADR 0028](adr/0028-proofread-default-on-after-rework.md) and iteration 2.1 of [`docs/benchmarks/proofread-hit-rate.md`](benchmarks/proofread-hit-rate.md). Pass this flag for a faster pipeline at the cost of leaving raw ASR mishearings in the transcript. |
+| `--proofread` | flag | legacy v0.29.0 on-switch (no-op since v0.31.0) | Backward-compat alias kept for v0.29.0/v0.30.0 invocations that had to opt in explicitly. Mutually exclusive with `--no-proofread`. |
+| `--proofread-context` | int | `3` (chosen by the iteration-2 context-size sweep) | Number of neighbouring segments shown to proofread as context on each side of the current segment. `0` reproduces the v0.29.0 isolation behaviour. Higher values increase wall-clock roughly linearly. See [`docs/benchmarks/proofread-hit-rate.md`](benchmarks/proofread-hit-rate.md). |
 | `--no-tldr` | flag | off | Skip TL;DR generation. |
 | `--no-structure` | flag | off | Skip LLM-driven sectioning; output is one section "Розмова". |
 | `--no-safe-speech` | flag | off | Skip sensitive-content redaction entirely. |

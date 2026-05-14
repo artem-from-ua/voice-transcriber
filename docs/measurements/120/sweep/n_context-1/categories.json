@@ -1,0 +1,12 @@
+{
+  "total": 90,
+  "hit_rate_pct": 36.7,
+  "unchanged": 57,
+  "cosmetic": 1,
+  "proper_noun_fix": 11,
+  "substantive_rewrite": 21,
+  "wall_clock_s": 125.76,
+  "llm_calls": 86,
+  "model": "mlx-community/Qwen2.5-7B-Instruct-4bit",
+  "n_context": 1
+}

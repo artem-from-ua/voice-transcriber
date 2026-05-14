@@ -2,6 +2,55 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.0] — 2026-05-14
+
+### Changed
+
+- **BREAKING (behaviour): proofread is on by default again.** Closes [#120](https://github.com/artem-from-ua/voice-transcriber/issues/120). See [ADR 0028](docs/adr/0028-proofread-default-on-after-rework.md) and iteration 2.1 of [`docs/benchmarks/proofread-hit-rate.md`](docs/benchmarks/proofread-hit-rate.md) for the full rationale and measurement.
+
+  Iteration 1 (ADR 0026, v0.29.0) had flipped proofread to default-off after a measurement showed the stage degrading the transcript on Whisper output. Issue #120 tracked the prompt/model rework needed to recover. This release ships that rework and re-enables the default — without proofread, the user-facing transcript shipped raw ASR with non-words (`корище цей`, `контролуси`, `дотавку`), mis-heard tech terms, and other artefacts that defeat the project's "readable structured Markdown" goal.
+
+  Behaviour-breaking note: users who relied on the v0.29.0 / v0.30.0 default-off behaviour must now pass `--no-proofread` explicitly.
+
+  CLI surface:
+  - `--no-proofread` is **reintroduced** as the opt-out switch.
+  - `--proofread` is **kept as a no-op** for backward compatibility with v0.29.0 invocations (it was the opt-in switch when the default was off; on the new default-on it does nothing).
+  - The two flags are mutually exclusive at argparse level.
+
+### Added
+
+- **Context-aware proofreading.** Each per-segment LLM call now sees up to N neighbouring segments on either side, framed as `[CONTEXT BEFORE]` (built from already-proofread outputs — final form) / `[CURRENT SEGMENT — fix this one only]` / `[CONTEXT AFTER]` (raw upcoming segments, with an explicit "not yet proofread" framing so the model does not match against still-garbled terms). This self-bootstraps a running glossary: once `[i-1]` resolves `хагінг фейсі` → `Hugging Face`, `[i]` sees the canonical form.
+
+  - New `PipelineOptions.proofread_n_context: int = 3` and `--proofread-context N` CLI flag (default 3 — the knee on the quality-vs-cost curve, chosen by the context-size sweep). `n_context=0` reproduces the v0.29.0 isolation behaviour.
+
+- **Proofread prompt fully rewritten.** `src/voice/prompts/proofread_system.md` grew from ~14 lines to ~150 with:
+  - Genre frame describing raw ASR + lively Ukrainian conversation + code-switched English IT terms.
+  - Closed **glossary** of canonical forms for tech terms (Hugging Face, Gradio, Claude Code, GitHub, pyannote, Whisper, MLX, ChatGPT, …) with their known ASR mishearings.
+  - A "Words to LEAVE" section explicitly listing colloquial answers (`Нє`, `Ага`, `Угу`, `шо`, …), particles/conjunctions (`от`, `і`, `а`, `ну`, …), near-equivalent demonstratives (`оцей`/`цей`, …), Ukrainian IT loanwords (`продуктовий`, `шерити`, `мітинг`, `деплоїти`, …).
+  - Explicit obscenity rule (project policy: never censor swearing).
+  - Interrupted-sentence rule (never complete a segment ending in `...`).
+  - Short-segment bias toward leaving alone.
+  - Sampling tightened to `temperature: 0.0` (greedy, deterministic), `repetition_penalty: null`, `max_tokens: 256`.
+
+- **New benchmark tooling** in `scripts/proofread-classify.py`:
+  - `sweep` subcommand — drives a full pipeline run for each value in a context-size grid, classifies each dump, aggregates into `sweep-summary.{json,md}`. Reusable for any future per-stage parameter sweep.
+  - `compare-baseline` subcommand — diffs a new `categories.json` against a baseline; surfaces per-bucket movement.
+
+- **`docs/benchmarks/README.md` gained a "Parameter sweep / knee detection" section** formalising the pattern: pick 4-6 grid values, run the same quality measurement at each, plot quality vs cost, pick the knee. The proofread context-size sweep is the worked example.
+
+### Internal
+
+- `proofread.fix_segment` accepts new `context_before` / `context_after` kwargs (both default to `""` for back-compat).
+- `proofread.fix_asr_errors` accepts a new `n_context` kwarg; its returned telemetry now includes both `llm_calls` and `n_context` (recorded in `01-meta.json` so the dump artefact carries the parameter that produced it).
+- New private helpers `_format_context_block()` and `_build_user_content()` in `proofread.py`.
+- ADR 0026 marked superseded by ADR 0028; ADR 0026 frontmatter `status` updated and a postscript note added.
+
+### Documentation
+
+- New ADR [0028 — Proofread stage: default on again after the iteration-2.1 rework](docs/adr/0028-proofread-default-on-after-rework.md).
+- `docs/benchmarks/proofread-hit-rate.md` extended with the full iteration-2 sweep table, the iteration-2.1 sharpened-prompt measurement, the per-bucket comparison against the iteration-1 baseline, and an explicit note on the decision criterion (readability of the rendered document, not maximally-faithful phonetic fidelity).
+- `docs/measurements/120/` checked in as evidence: the six-grid sweep, the iter-2 spot-check, the iter-2.1 single-point rerun + spot-check, and the final comparison.
+
 ## [0.30.0] — 2026-05-13
 
 ### Added

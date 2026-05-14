@@ -58,7 +58,20 @@ class PipelineOptions:
     llm_top_p: float | None = 0.8
     llm_top_k: int | None = 20
     llm_repetition_penalty: float | None = 1.05
-    run_proofread: bool = False
+    # Proofread is on by default again since v0.31.0 — see ADR 0028 and
+    # docs/benchmarks/proofread-hit-rate.md iteration 2.1. Iteration 1
+    # (ADR 0026, v0.29.0) had flipped it off after a measurement showed
+    # the stage degraded the transcript on isolated per-segment calls.
+    # Iteration 2/2.1 added a context-aware mode and a sharpened prompt
+    # that fix enough of the failures to ship default-on.
+    run_proofread: bool = True
+    # Number of neighbouring segments shown to proofread as context on each
+    # side of the current segment. 0 reproduces v0.29.0 isolation; >0 turns
+    # on context-aware proofreading. The default of 3 comes from the
+    # context-size sweep in docs/benchmarks/proofread-hit-rate.md iter 2:
+    # it is the knee on the quality-vs-cost curve that still fits the
+    # real-time floor.
+    proofread_n_context: int = 3
     run_safe_speech: bool = True
     run_tldr: bool = True
     run_structure: bool = True
@@ -407,10 +420,12 @@ def run(options: PipelineOptions) -> str:
                             language=effective_language,
                             log=log,
                             progress=progress,
+                            n_context=options.proofread_n_context,
                         )
                     stage_meta["proofread"] = {
                         "wall_clock_s": round(stage_timings["proofread"], 2),
                         "llm_calls": proofread_telemetry["llm_calls"],
+                        "n_context": proofread_telemetry["n_context"],
                         "model": proofread_model,
                     }
                     dumper.write("05-proofread.json", segments)
