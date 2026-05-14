@@ -21,10 +21,11 @@ def test_minimal_invocation_defaults():
     assert opts.unknown_speaker == "ask"
     assert opts.names_override is None
     assert opts.datetime_override is None
-    # Proofread is OFF by default since v0.29.0 — see ADR 0026 and
-    # docs/postprocess-hit-rate.md for the measurement that drove the
-    # default flip.
-    assert opts.run_proofread is False
+    # Proofread is ON again by default since v0.31.0 — see ADR 0028 and
+    # iteration 2.1 of docs/benchmarks/proofread-hit-rate.md. The
+    # iteration-1 default-off state (ADR 0026, v0.29.0) was reversed
+    # after the prompt rework + context-aware mode landed.
+    assert opts.run_proofread is True
     assert opts.run_tldr is True
     assert opts.run_structure is True
     assert opts.clearspeech_chain == "autogain"
@@ -71,22 +72,44 @@ def test_datetime_override_parsed():
 def test_no_flags_disable_stages():
     ns = _parse([
         "transcribe", "/tmp/a.m4a",
-        "--no-tldr", "--no-structure",
+        "--no-proofread", "--no-tldr", "--no-structure",
     ])
     opts = _opts_from_args(ns)
-    # Proofread is OFF by default; --no-tldr / --no-structure flip those off
-    # explicitly. The --proofread on-switch (added in v0.29.0) is tested
-    # separately below.
     assert opts.run_proofread is False
     assert opts.run_tldr is False
     assert opts.run_structure is False
 
 
-def test_proofread_flag_opts_in():
-    # The off-switch --no-proofread was removed in v0.29.0 along with the
-    # default flip; opt-in via --proofread is the new path.
+def test_proofread_legacy_on_switch_is_noop_since_v030():
+    # --proofread was the v0.29.0 opt-in switch when the default was off.
+    # Since v0.31.0 it is a no-op kept for backward compatibility — the
+    # default is already on.
     ns = _parse(["transcribe", "/tmp/a.m4a", "--proofread"])
     assert _opts_from_args(ns).run_proofread is True
+
+
+def test_proofread_off_switch_disables_stage():
+    ns = _parse(["transcribe", "/tmp/a.m4a", "--no-proofread"])
+    assert _opts_from_args(ns).run_proofread is False
+
+
+def test_proofread_flags_are_mutually_exclusive():
+    with pytest.raises(SystemExit):
+        _parse(["transcribe", "/tmp/a.m4a", "--proofread", "--no-proofread"])
+
+
+def test_proofread_context_default_matches_pipeline_default():
+    from voice.pipeline import PipelineOptions
+    ns = _parse(["transcribe", "/tmp/a.m4a"])
+    opts = _opts_from_args(ns)
+    assert opts.proofread_n_context == PipelineOptions.proofread_n_context
+
+
+def test_proofread_context_explicit_override():
+    ns = _parse(["transcribe", "/tmp/a.m4a", "--proofread-context", "0"])
+    assert _opts_from_args(ns).proofread_n_context == 0
+    ns = _parse(["transcribe", "/tmp/a.m4a", "--proofread-context", "8"])
+    assert _opts_from_args(ns).proofread_n_context == 8
 
 
 def test_unknown_speaker_choices():

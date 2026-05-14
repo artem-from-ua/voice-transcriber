@@ -235,3 +235,202 @@ ships in v0.29.0.
 - Existing #107 (proofread speedup) and #108 (proofread glossary) are
   related but address different angles. The new issue is specifically
   about *correctness*.
+
+---
+
+## Iteration 2 (2026-05-14) — prompt rework + context-size sweep
+
+This iteration closes #120 (the critical follow-up filed at the end of
+iteration 1). Two hypotheses about why proofread degraded transcripts in
+iteration 1 are tested together: insufficient per-call context, and a
+system prompt that did not describe the conversational genre. Both are
+addressed in this iteration.
+
+### Changes vs iteration 1
+
+- **System prompt fully rewritten** (`src/voice/prompts/proofread_system.md`):
+  - Genre frame describing raw ASR + lively Ukrainian conversation +
+    code-switched English IT terms.
+  - Closed glossary block of known-correct canonical forms (Hugging Face,
+    Gradio, Claude Code, GitHub, pyannote, …) with their common ASR
+    mishearings.
+  - Negative rules naming the specific failure modes from iteration 1:
+    no synonym substitutions, no literary/colloquial normalisation, no
+    loanword "correction" toward unrelated Ukrainian roots, no padding
+    or completion of mid-word interruptions.
+- **Sampling parameters tightened (`proofread_system.md` frontmatter):**
+  `temperature: 0.0` (greedy), `repetition_penalty: null`, `max_tokens: 256`.
+  Deterministic and faster.
+- **Context-aware per-segment calls.** The LLM now sees up to N
+  neighbouring segments around the current one:
+  - `[CONTEXT BEFORE]` from already-proofread outputs (final form).
+  - `[CONTEXT AFTER]` from the raw upcoming segments (with an explicit
+    note that they are not yet proofread).
+  - `[CURRENT SEGMENT — fix this one only]` is the edit target.
+- **`--proofread-context N` CLI flag and `PipelineOptions.proofread_n_context`**
+  expose the new parameter; the default value comes from this iteration's
+  sweep (see §6 below). `n_context=0` reproduces the iteration-1 wire
+  format for the baseline grid point.
+- **KV-cache reuse** ([ADR 0027](../adr/0027-prompt-cache-llm-stages.md))
+  is already in place; the longer system prompt of this iteration makes
+  the cache more valuable, not less.
+
+### 6. Result and decision
+
+#### Parameter sweep — context size
+
+Audio: `~/Downloads/two-speakers-diar-test-ukr.m4a` (same as iteration 1).
+Grid: `n_context ∈ {0, 1, 2, 3, 5, 8}`. Each grid point is one full
+`voice transcribe --proofread --proofread-context N --dump-stages …` run;
+results aggregated by [`scripts/proofread-classify.py sweep`](../../scripts/proofread-classify.py).
+Canonical numbers in
+[`docs/measurements/120/sweep/sweep-summary.md`](../measurements/120/sweep/sweep-summary.md).
+
+| n_context | unchanged | proper_noun_fix | substantive | hit-rate | wall-clock | seg 70 | seg 81 |
+|---|---|---|---|---|---|---|---|
+| 0 | 59 | 8 | 18 | 34.4 % | 97.6 s | ❌ хлопці | ✅ |
+| 1 | 57 | 11 | 21 | 36.7 % | 125.8 s | ❌ хлопці | ❌ продуктівим |
+| 2 | 62 | 9 | 16 | 31.1 % | 144.9 s | ❌ хлопці | ✅ |
+| **3** | **63** | **10** | **14** | **30.0 %** | **170.1 s** | **✅ чуваки** | **✅** |
+| 5 | 65 | 10 | 15 | 27.8 % | 208.2 s | ✅ чуваки | ✅ |
+| 8 | 66 | 10 | 14 | 26.7 % | 258.3 s | ❌ хлопці | ❌ продуктівим |
+
+Knee at `n_context=3`:
+
+- `substantive_rewrite` plateaus from 3 onward (14, 15, 14) — no
+  meaningful drop past this value.
+- `unchanged` keeps growing (63 → 65 → 66) — but the marginal trust
+  past n=3 is small.
+- Wall-clock scales roughly linearly (+38 s per step). n=5 and n=8
+  push proofread past the 200 s mark; the full pipeline on a 374 s
+  audio would then exceed the project's real-time floor.
+- n=8 regresses on both `seg 70` (synonym swap returns) and `seg 81`
+  (`продуктівим` returns) — long context appears to drown out the
+  glossary block, an instability that disqualifies it for default-on.
+
+`n_context=3` is the cheapest point that hits the quality plateau and
+keeps the real-time floor.
+
+#### Human spot-check on `n_context=3` (iteration 2)
+
+[Filled spot-check](../measurements/120/spotcheck-n3/spot-check.md) +
+[final-table](../measurements/120/spotcheck-n3/final-table.md):
+
+- Human marks: **3 better, 6 worse, 5 neutral** on the 14
+  `substantive_rewrite` segments.
+- `worse` exceeded `better`. The iteration-2 prompt fixed iteration-1's
+  systematic IT-slang regressions (`продуктовий` no longer touched) but
+  introduced six new failure patterns — colloquial-answer normalisation
+  (`Нє → Ні`), particle changes (`от → а`), interrupted-sentence
+  completion (`сигнал... → сигналізує`), obscenity censorship
+  (`Ніхуя → Нічого`), and the iteration-1 `оця → ця` regression
+  re-appearing.
+
+This is why iteration 2 by itself did **not** justify default-on. The
+sharpened prompt of iteration 2.1 addresses each named failure with
+explicit rules and re-runs the same `n_context=3` configuration.
+
+#### Iteration 2.1 — sharpened prompt on `n_context=3`
+
+Prompt extended with: a "Words to LEAVE" section (colloquial answers
+`Нє`/`шо`/…, particles `от`/`і`/`а`/…, demonstrative pairs
+`оцей`/`цей`/…, IT loanwords); an explicit obscenity rule; an
+explicit "never complete an interrupted sentence ending in `...`"
+rule; and a short-segment bias toward leaving alone.
+
+| Metric | Iter 2 (n=3) | Iter 2.1 (n=3) | Δ |
+|---|---|---|---|
+| unchanged | 63 | 74 | +11 |
+| cosmetic | 3 | 1 | -2 |
+| proper_noun_fix | 10 | 7 | -3 |
+| substantive_rewrite | 14 | 8 | -6 |
+| hit_rate | 30.0 % | 17.8 % | -12.2 pp |
+| wall_clock | 170.05 s | 173.32 s | +3 s |
+
+Failure-mode coverage on the six patterns from iteration 2 spot-check:
+
+- ✅ `Нє` no longer normalised to `Ні` (seg 15).
+- ✅ Interrupted-sentence `сигнал...` no longer completed (seg 24).
+- ✅ Obscenity `Ніхуя` no longer censored (seg 33).
+- ✅ `оця` no longer flattened to `ця` (seg 75).
+- ❌ Particle change `от → а` still happens occasionally (seg 11).
+- ❌ Synonym substitution `чуваки → хлопці` regressed on n=3 with the
+  new prompt (seg 70 — iter 2 had kept it correctly).
+
+The iter-2.1 spot-check ([source](../measurements/120/iter2.1/spotcheck/spot-check.md))
+revealed that most of the remaining `substantive_rewrite` segments fall
+into one specific category that **no prompt rule can fix**:
+
+- `контролуси → контроліри` (ground truth: `контролси`, from English
+  *Controls*)
+- `корище цей → користувач цей` (ground truth: `короче, цей` — a Russianism)
+- `твими скелами → твоїми скелами` (partial fix; ground truth: `скілами`,
+  from English *skills*)
+- `абстрактної → абстрактнії` (ground truth: `абстрактної` — should
+  have been left alone)
+- `допилювати → додати` (ground truth: `допилювати` — legit Ukrainian
+  IT slang the model didn't recognise)
+
+This is a **model-knowledge gap**: Qwen2.5-7B does not recognise
+Ukrainian-phonetic English IT loanwords. When confronted with such a
+word, it either invents a plausible-looking Ukrainian non-word or
+substitutes a generic synonym. Prompt rules cannot teach a model
+vocabulary it does not have.
+
+A separate critical follow-up tracks this gap; resolving it requires
+either a different (larger / fine-tuned) model, a retrieval-augmented
+glossary, or both. That work is out of scope for this iteration.
+
+#### Comparison against iteration 1 baseline
+
+```
+python scripts/proofread-classify.py compare-baseline \
+    --baseline docs/measurements/57/categories.json \
+    --current docs/measurements/120/iter2.1/spotcheck/categories.json
+```
+
+| Bucket | Iter 1 | Iter 2.1 | Δ |
+|---|---|---|---|
+| unchanged | 71 | 74 | +3 |
+| cosmetic | 3 | 1 | -2 |
+| proper_noun_fix | 7 | 7 | 0 |
+| substantive_rewrite | 9 | 8 | -1 |
+| hit_rate | 21.1 % | 17.8 % | -3.3 pp |
+
+Iteration-1's most damaging failures are gone — the two
+`продуктовий → продуктівого/продуктівим` regressions (seg 77, 81) and
+the `Gradle → Graddle` regression all return correct values now.
+
+#### Decision
+
+**Default flipped back to on**, `n_context=3`, with `--no-proofread`
+as opt-out. Shipped in v0.30.0. See
+[ADR 0028](../adr/0028-proofread-default-on-after-rework.md) for the
+full rationale.
+
+The decision criterion deserves an explicit note. Iteration-1 used a
+"closer to / further from what the speaker said" yardstick on the
+contested segments. Under that yardstick, iter 2.1 still has `worse`
+outnumbering `better` on the eight remaining substantive_rewrite
+segments — because most of those eight are exactly the Ukrainian-phonetic
+English-loanword cases the model cannot recognise (`контролси`,
+`скілами`, `допилювати`).
+
+But the project goal (CLAUDE.md) is a **readable structured Markdown
+document**, not a maximally-faithful phonetic transcript. Compared
+against the **default-off baseline** (raw ASR that the user actually
+gets), proofread at iter-2.1/n=3 is a net win:
+
+- Raw ASR ships `корище цей`, `дотавку`, `контролуси`, `твими` — all
+  unreadable non-words.
+- Iter-2.1 proofread turns most of those into either correct
+  Ukrainian (`доставку`, `твоїми`) or readable approximations
+  (`користувач`).
+- The remaining regressions (synonym substitutions, occasional particle
+  swaps) stay readable Ukrainian — they lose authenticity but not
+  readability.
+
+That trade-off favours default-on for the **primary user-facing
+metric** (readability) at an acceptable cost on the secondary metric
+(speech fidelity). Users who need maximum fidelity can opt out with
+`--no-proofread`.

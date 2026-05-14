@@ -1,0 +1,178 @@
+      Dumping stage artefacts to /Users/artem/devel/voice/docs/measurements/120/sweep/n_context-1/dump
+[1/13] transcode → WAV 16 kHz mono
+  ✓ [1/13] transcode → WAV 16 kHz mono in 0.3s
+  ✓ [2/13] audio_meta in 0.0s
+      Початок: 2026-05-10T15:44:02+00:00 (ffprobe creation_time)
+      Тривалість: 374.9s
+Loading pyannote pipeline...
+Pipeline loaded in 1.4s on mps.
+  · [3/13] Діаризація (pyannote 3.1): elapsed 0:15 · RAM 7.6 GB (48%) · MLX 0.0 GB
+Diarization done in 23.1s.
+  ✓ [3/13] Діаризація (pyannote 3.1) in 24.6s
+      2 мовців
+lang_detect: longest turn 23.35s (SPEAKER_01, 219.54-242.90s)
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files: 100%|██████████| 4/4 [00:00<00:00, 11932.59it/s]
+  · [4/13] Визначення мови: elapsed 0:05 · RAM 6.4 GB (40%) · MLX 1.9 GB
+lang_detect: model.detect_language done in 8.3s.
+lang_detect: top1 uk (p=0.74, ru p=0.24)
+  ✓ [4/13] Визначення мови in 8.8s
+      Мова: uk (auto-detect)
+clearspeech.autogain: 111 turn(s) | per-turn RMS std-dev 6.40 → 3.24 dB (+49.4%) | 26/111 hit +16 dB ceiling | target=-20.0 dBFS, crossfade=100 ms → audio.autogain.wav
+  ✓ [5/13] clear_speech (autogain) in 0.1s
+Whisper-large-v3-MLX from HF cache (mlx-community/whisper-large-v3-mlx)
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files: 100%|██████████| 4/4 [00:00<00:00, 40427.03it/s]
+Whisper loaded in 1.4s.
+  ✓ [6/13] Завантаження Whisper in 1.4s
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files: 100%|██████████| 4/4 [00:00<00:00, 15279.80it/s]
+  · [6/13] speech2text (Whisper-large-v3-MLX): elapsed 0:10 · RAM 8.5 GB (53%) · MLX 6.1 GB
+  · [6/13] speech2text (Whisper-large-v3-MLX): elapsed 0:25 · RAM 8.2 GB (51%) · MLX 6.0 GB
+  · [6/13] speech2text (Whisper-large-v3-MLX): elapsed 0:40 · RAM 7.8 GB (48%) · MLX 6.1 GB
+ASR finished in 47.6s.
+  ✓ [6/13] speech2text (Whisper-large-v3-MLX) in 47.8s
+      90 ASR-сегментів
+  ✓ [7/13] Merge in 0.0s
+Loading LLM: /Users/artem/.cache/huggingface/hub/models--mlx-community--Qwen2.5-7B-Instruct-4bit/snapshots/c26a38f6a37d0a51b4e9a1eb3026530fa35d9fed
+  ✓ Loading LLM (Qwen2.5-7B-Instruct-4bit) in 4.8s
+  · [8/13] Proofread: 0/90 (0%) elapsed 0:07 · RAM 13.0 GB (81%) · MLX 6.9 GB
+llm.chat: pre 6.87 GB, peak 7.81 GB, post-clear 6.96 GB, prompt 1740 tok, out 14 tok
+llm.chat: pre 6.96 GB, peak 7.14 GB, post-clear 6.98 GB, prompt 1781 tok, out 13 tok
+llm.chat: pre 6.98 GB, peak 7.16 GB, post-clear 6.98 GB, prompt 1785 tok, out 18 tok
+llm.chat: pre 6.98 GB, peak 7.15 GB, post-clear 6.98 GB, prompt 1776 tok, out 11 tok
+llm.chat: pre 6.98 GB, peak 7.16 GB, post-clear 6.98 GB, prompt 1782 tok, out 19 tok
+llm.chat: pre 6.98 GB, peak 7.16 GB, post-clear 6.98 GB, prompt 1783 tok, out 9 tok
+llm.chat: pre 6.98 GB, peak 7.15 GB, post-clear 6.98 GB, prompt 1780 tok, out 12 tok
+llm.chat: pre 6.98 GB, peak 7.18 GB, post-clear 6.98 GB, prompt 1792 tok, out 19 tok
+llm.chat: pre 6.98 GB, peak 7.20 GB, post-clear 6.98 GB, prompt 1804 tok, out 19 tok
+llm.chat: pre 6.98 GB, peak 7.20 GB, post-clear 6.98 GB, prompt 1803 tok, out 25 tok
+  · [8/13] Proofread: 12/90 (13%) elapsed 0:22 7 fixed · RAM 10.2 GB (64%) · MLX 7.0 GB
+llm.chat: pre 6.98 GB, peak 7.20 GB, post-clear 6.98 GB, prompt 1810 tok, out 17 tok
+llm.chat: pre 6.98 GB, peak 7.19 GB, post-clear 6.98 GB, prompt 1801 tok, out 26 tok
+llm.chat: pre 6.98 GB, peak 7.18 GB, post-clear 6.98 GB, prompt 1795 tok, out 15 tok
+llm.chat: pre 6.98 GB, peak 7.16 GB, post-clear 6.98 GB, prompt 1782 tok, out 13 tok
+llm.chat: pre 6.98 GB, peak 7.16 GB, post-clear 6.98 GB, prompt 1785 tok, out 12 tok
+llm.chat: pre 6.98 GB, peak 7.17 GB, post-clear 6.98 GB, prompt 1789 tok, out 18 tok
+llm.chat: pre 6.98 GB, peak 7.20 GB, post-clear 6.98 GB, prompt 1833 tok, out 24 tok
+llm.chat: pre 6.98 GB, peak 7.19 GB, post-clear 6.98 GB, prompt 1829 tok, out 48 tok
+llm.chat: pre 6.98 GB, peak 7.20 GB, post-clear 6.98 GB, prompt 1834 tok, out 21 tok
+llm.chat: pre 6.98 GB, peak 7.19 GB, post-clear 6.98 GB, prompt 1829 tok, out 23 tok
+llm.chat: pre 6.98 GB, peak 7.19 GB, post-clear 6.98 GB, prompt 1829 tok, out 42 tok
+  · [8/13] Proofread: 23/90 (26%) elapsed 0:37 11 fixed · RAM 10.3 GB (64%) · MLX 7.0 GB
+llm.chat: pre 6.98 GB, peak 7.21 GB, post-clear 6.98 GB, prompt 1819 tok, out 21 tok
+llm.chat: pre 6.98 GB, peak 7.18 GB, post-clear 6.98 GB, prompt 1792 tok, out 14 tok
+llm.chat: pre 6.98 GB, peak 7.18 GB, post-clear 6.98 GB, prompt 1793 tok, out 15 tok
+llm.chat: pre 6.98 GB, peak 7.19 GB, post-clear 6.98 GB, prompt 1796 tok, out 22 tok
+llm.chat: pre 6.98 GB, peak 7.20 GB, post-clear 6.98 GB, prompt 1804 tok, out 18 tok
+llm.chat: pre 6.98 GB, peak 7.18 GB, post-clear 6.98 GB, prompt 1795 tok, out 22 tok
+llm.chat: pre 6.98 GB, peak 7.17 GB, post-clear 6.98 GB, prompt 1788 tok, out 15 tok
+llm.chat: pre 6.98 GB, peak 7.14 GB, post-clear 6.98 GB, prompt 1774 tok, out 9 tok
+llm.chat: pre 6.98 GB, peak 7.13 GB, post-clear 6.98 GB, prompt 1770 tok, out 9 tok
+llm.chat: pre 6.98 GB, peak 7.13 GB, post-clear 6.98 GB, prompt 1764 tok, out 10 tok
+llm.chat: pre 6.98 GB, peak 7.16 GB, post-clear 6.98 GB, prompt 1784 tok, out 11 tok
+llm.chat: pre 6.98 GB, peak 7.20 GB, post-clear 6.98 GB, prompt 1802 tok, out 23 tok
+llm.chat: pre 6.98 GB, peak 7.22 GB, post-clear 6.98 GB, prompt 1825 tok, out 33 tok
+llm.chat: pre 6.98 GB, peak 7.22 GB, post-clear 6.98 GB, prompt 1825 tok, out 29 tok
+  · [8/13] Proofread: 37/90 (41%) elapsed 0:52 12 fixed · RAM 10.3 GB (64%) · MLX 7.0 GB
+llm.chat: pre 6.98 GB, peak 7.19 GB, post-clear 6.98 GB, prompt 1800 tok, out 21 tok
+llm.chat: pre 6.98 GB, peak 7.20 GB, post-clear 6.98 GB, prompt 1809 tok, out 10 tok
+llm.chat: pre 6.98 GB, peak 7.19 GB, post-clear 6.98 GB, prompt 1796 tok, out 37 tok
+llm.chat: pre 6.98 GB, peak 7.21 GB, post-clear 6.98 GB, prompt 1814 tok, out 9 tok
+llm.chat: pre 6.98 GB, peak 7.19 GB, post-clear 6.98 GB, prompt 1797 tok, out 27 tok
+llm.chat: pre 6.98 GB, peak 7.20 GB, post-clear 6.98 GB, prompt 1808 tok, out 19 tok
+llm.chat: pre 6.98 GB, peak 7.22 GB, post-clear 6.98 GB, prompt 1815 tok, out 21 tok
+llm.chat: pre 6.98 GB, peak 7.20 GB, post-clear 6.98 GB, prompt 1812 tok, out 33 tok
+llm.chat: pre 6.98 GB, peak 7.20 GB, post-clear 6.98 GB, prompt 1802 tok, out 15 tok
+llm.chat: pre 6.98 GB, peak 7.16 GB, post-clear 6.98 GB, prompt 1785 tok, out 13 tok
+llm.chat: pre 6.98 GB, peak 7.20 GB, post-clear 6.98 GB, prompt 1810 tok, out 14 tok
+llm.chat: pre 6.98 GB, peak 7.21 GB, post-clear 6.98 GB, prompt 1816 tok, out 43 tok
+llm.chat: pre 6.98 GB, peak 7.21 GB, post-clear 6.98 GB, prompt 1840 tok, out 17 tok
+  · [8/13] Proofread: 50/90 (56%) elapsed 1:07 17 fixed · RAM 10.6 GB (66%) · MLX 7.2 GB
+llm.chat: pre 6.98 GB, peak 7.19 GB, post-clear 6.98 GB, prompt 1827 tok, out 39 tok
+llm.chat: pre 6.98 GB, peak 7.23 GB, post-clear 6.98 GB, prompt 1857 tok, out 28 tok
+llm.chat: pre 6.98 GB, peak 7.23 GB, post-clear 6.98 GB, prompt 1863 tok, out 49 tok
+llm.chat: pre 6.98 GB, peak 7.25 GB, post-clear 6.98 GB, prompt 1880 tok, out 42 tok
+llm.chat: pre 6.98 GB, peak 7.27 GB, post-clear 6.98 GB, prompt 1896 tok, out 46 tok
+llm.chat: pre 6.98 GB, peak 7.35 GB, post-clear 6.98 GB, prompt 1958 tok, out 64 tok
+  · [8/13] Proofread: 56/90 (62%) elapsed 1:22 21 fixed · RAM 10.5 GB (66%) · MLX 7.0 GB
+llm.chat: pre 6.98 GB, peak 7.36 GB, post-clear 6.99 GB, prompt 1969 tok, out 100 tok
+llm.chat: pre 6.99 GB, peak 7.39 GB, post-clear 6.99 GB, prompt 1975 tok, out 56 tok
+llm.chat: pre 6.99 GB, peak 7.29 GB, post-clear 6.99 GB, prompt 1902 tok, out 80 tok
+llm.chat: pre 6.99 GB, peak 7.24 GB, post-clear 6.99 GB, prompt 1854 tok, out 28 tok
+llm.chat: pre 6.99 GB, peak 7.18 GB, post-clear 6.99 GB, prompt 1784 tok, out 24 tok
+llm.chat: pre 6.99 GB, peak 7.23 GB, post-clear 6.99 GB, prompt 1816 tok, out 13 tok
+llm.chat: pre 6.99 GB, peak 7.22 GB, post-clear 6.99 GB, prompt 1812 tok, out 35 tok
+llm.chat: pre 6.99 GB, peak 7.21 GB, post-clear 6.99 GB, prompt 1807 tok, out 23 tok
+llm.chat: pre 6.99 GB, peak 7.20 GB, post-clear 6.99 GB, prompt 1799 tok, out 7 tok
+  · [8/13] Proofread: 66/90 (73%) elapsed 1:37 26 fixed · RAM 10.7 GB (67%) · MLX 7.0 GB
+llm.chat: pre 6.99 GB, peak 7.23 GB, post-clear 6.99 GB, prompt 1843 tok, out 28 tok
+llm.chat: pre 6.99 GB, peak 7.23 GB, post-clear 6.99 GB, prompt 1842 tok, out 66 tok
+llm.chat: pre 6.99 GB, peak 7.20 GB, post-clear 6.99 GB, prompt 1825 tok, out 6 tok
+llm.chat: pre 6.99 GB, peak 7.22 GB, post-clear 6.99 GB, prompt 1819 tok, out 15 tok
+llm.chat: pre 6.99 GB, peak 7.22 GB, post-clear 6.99 GB, prompt 1838 tok, out 62 tok
+llm.chat: pre 6.99 GB, peak 7.23 GB, post-clear 6.99 GB, prompt 1846 tok, out 24 tok
+llm.chat: pre 6.99 GB, peak 7.22 GB, post-clear 6.99 GB, prompt 1821 tok, out 18 tok
+llm.chat: pre 6.99 GB, peak 7.21 GB, post-clear 6.99 GB, prompt 1807 tok, out 39 tok
+llm.chat: pre 6.99 GB, peak 7.20 GB, post-clear 6.99 GB, prompt 1827 tok, out 7 tok
+llm.chat: pre 6.99 GB, peak 7.20 GB, post-clear 6.99 GB, prompt 1796 tok, out 39 tok
+  · [8/13] Proofread: 76/90 (84%) elapsed 1:52 29 fixed · RAM 10.6 GB (66%) · MLX 7.1 GB
+llm.chat: pre 6.99 GB, peak 7.21 GB, post-clear 6.99 GB, prompt 1810 tok, out 6 tok
+llm.chat: pre 6.99 GB, peak 7.16 GB, post-clear 6.99 GB, prompt 1777 tok, out 24 tok
+llm.chat: pre 6.99 GB, peak 7.17 GB, post-clear 6.99 GB, prompt 1782 tok, out 6 tok
+llm.chat: pre 6.99 GB, peak 7.16 GB, post-clear 6.99 GB, prompt 1777 tok, out 12 tok
+llm.chat: pre 6.99 GB, peak 7.18 GB, post-clear 6.99 GB, prompt 1788 tok, out 17 tok
+llm.chat: pre 6.99 GB, peak 7.21 GB, post-clear 6.99 GB, prompt 1809 tok, out 21 tok
+llm.chat: pre 6.99 GB, peak 7.20 GB, post-clear 6.99 GB, prompt 1803 tok, out 32 tok
+llm.chat: pre 6.99 GB, peak 7.21 GB, post-clear 6.99 GB, prompt 1806 tok, out 8 tok
+llm.chat: pre 6.99 GB, peak 7.21 GB, post-clear 6.99 GB, prompt 1809 tok, out 24 tok
+llm.chat: pre 6.99 GB, peak 7.22 GB, post-clear 6.99 GB, prompt 1811 tok, out 39 tok
+llm.chat: pre 6.99 GB, peak 7.20 GB, post-clear 6.99 GB, prompt 1797 tok, out 19 tok
+llm.chat: pre 6.99 GB, peak 7.20 GB, post-clear 6.99 GB, prompt 1801 tok, out 29 tok
+llm.chat: pre 6.99 GB, peak 7.14 GB, post-clear 6.99 GB, prompt 1764 tok, out 11 tok
+  ✓ [8/13] Proofread in 125.7s
+proofread: 33/90 segments adjusted (86 LLM calls, n_context=1)
+  · [9/13] Ідентифікація мовців: 0/2 (0%) elapsed 0:01 · RAM 11.1 GB (69%) · MLX 7.1 GB
+llm.chat_json: pre 6.87 GB, peak 7.30 GB, post-clear 6.87 GB, prompt 296 tok, out 12 tok
+llm.chat_json: pre 6.87 GB, peak 7.29 GB, post-clear 6.87 GB, prompt 290 tok, out 12 tok
+  ✓ [9/13] Ідентифікація мовців in 4.2s
+
+Could not identify SPEAKER_01 automatically. First lines:
+  • Відбирається. Подойшов?
+  • Подойшов?
+  • Ну там де контроліри у тебе.
+Name for SPEAKER_01 (Enter to keep as-is): 
+Could not identify SPEAKER_00 automatically. First lines:
+  • Ну я от запустив, короче.
+  • Так яку, блять, відкривати?
+  • у мене стоїть стандарт а є Whisper недоступний короче
+Name for SPEAKER_00 (Enter to keep as-is):       0 мовців іменовано: {}
+structure: long dialogue (88 segments) — splitting into 3 chunks
+  · [10/13] Структурування на секції: 0/3 (0%) elapsed 0:12 · RAM 10.9 GB (68%) · MLX 7.0 GB
+llm.chat_json: pre 6.87 GB, peak 7.61 GB, post-clear 6.95 GB, prompt 1362 tok, out 166 tok
+  · [10/13] Структурування на секції: 1/3 (33%) elapsed 0:27 chunk 1 ok (4 sec) · RAM 11.4 GB (71%) · MLX 7.0 GB
+llm.chat_json: pre 6.95 GB, peak 7.80 GB, post-clear 6.97 GB, prompt 1789 tok, out 89 tok
+  · [10/13] Структурування на секції: 2/3 (67%) elapsed 0:42 chunk 2 ok (2 sec) · RAM 11.6 GB (72%) · MLX 7.0 GB
+llm.chat_json: pre 6.97 GB, peak 7.54 GB, post-clear 6.97 GB, prompt 962 tok, out 281 tok
+structure: chunk 3/3 invalid — skipping
+  ✓ [10/13] Структурування на секції in 47.0s
+structure: 6 section(s) across 3 chunks
+llm.chat_json: pre 6.87 GB, peak 7.54 GB, post-clear 6.94 GB, prompt 1048 tok, out 7 tok
+  ✓ safe_speech [Відбирається діалог] in 3.8s (7 tokens)
+llm.chat_json: pre 6.94 GB, peak 7.26 GB, post-clear 6.94 GB, prompt 1193 tok, out 7 tok
+  ✓ safe_speech [Обговорення діткофону] in 1.3s (7 tokens)
+llm.chat_json: pre 6.94 GB, peak 7.53 GB, post-clear 6.96 GB, prompt 1540 tok, out 7 tok
+  ✓ safe_speech [Рекомендація Voice Isolation] in 2.6s (7 tokens)
+llm.chat_json: pre 6.96 GB, peak 7.22 GB, post-clear 6.96 GB, prompt 1132 tok, out 7 tok
+  ✓ safe_speech [Обговорення ефективності діткофону] in 1.1s (7 tokens)
+  · safe_speech [Перевірка перебивання]: 0 tokens (0.0 t/s) elapsed 0:01 · RAM 11.9 GB (74%) · MLX 7.4 GB
+llm.chat_json: pre 6.96 GB, peak 7.43 GB, post-clear 6.96 GB, prompt 1607 tok, out 7 tok
+  ✓ safe_speech [Перевірка перебивання] in 2.6s (7 tokens)
+llm.chat_json: pre 6.96 GB, peak 7.65 GB, post-clear 7.00 GB, prompt 2249 tok, out 7 tok
+  ✓ safe_speech [Дискусія про Hugging Face] in 5.6s (7 tokens)
+safe_speech: no sensitive content found
+  ✓ [11/13] Замовчування чутливого in 16.9s
+  · [12/13] TL;DR: 0 tokens (0.0 t/s) elapsed 0:08 · RAM 12.0 GB (75%) · MLX 7.5 GB
+llm.chat: pre 6.87 GB, peak 7.63 GB, post-clear 6.87 GB, prompt 2787 tok, out 203 tok
+  ✓ [12/13] TL;DR in 15.5s (203 tokens)
+  ✓ Unloading LLM in 0.2s
+[13/13] render → Markdown
+      → /Users/artem/Downloads/two-speakers-diar-test-ukr.md
+/Users/artem/Downloads/two-speakers-diar-test-ukr.md

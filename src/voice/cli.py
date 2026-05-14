@@ -115,14 +115,41 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output", "-o", default=None,
         help="Output Markdown path (default: <audio_basename>.md alongside the audio).",
     )
-    t.add_argument(
+    # Proofread is on by default since v0.31.0 (ADR 0028 / iteration 2.1
+    # of the benchmark). Pre-v0.31.0 users of the off-default can pass
+    # --no-proofread to opt out. The legacy --proofread on-switch is kept
+    # as a no-op for backward compatibility with v0.29.0 invocations that
+    # had to opt in explicitly.
+    proof_group = t.add_mutually_exclusive_group()
+    proof_group.add_argument(
+        "--no-proofread",
+        action="store_true",
+        help=(
+            "Skip per-segment ASR proof-reading. Proofread is on by default "
+            "since v0.31.0 (see ADR 0028); pass this flag to disable it for "
+            "a run — typically for a faster pipeline at the cost of leaving "
+            "raw ASR mishearings in the transcript."
+        ),
+    )
+    proof_group.add_argument(
         "--proofread",
         action="store_true",
         help=(
-            "Enable per-segment ASR proof-reading via LLM. Default is OFF "
-            "since v0.29.0 — measurement on Whisper output showed proofread "
-            "hurts more than it helps on Ukrainian conversational speech "
-            "(see docs/benchmarks/proofread-hit-rate.md and ADR 0026)."
+            "Legacy v0.29.0 on-switch. Proofread is now on by default; this "
+            "flag is a no-op kept for backward compatibility. Use "
+            "--no-proofread to opt out."
+        ),
+    )
+    t.add_argument(
+        "--proofread-context",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Number of neighbouring segments shown to proofread as context "
+            "on each side of the current segment (default: 3). 0 reproduces "
+            "the v0.29.0 isolation behaviour. Used mainly by benchmark runs "
+            "for the context-size sweep."
         ),
     )
     t.add_argument("--no-tldr", action="store_true", help="Skip TL;DR generation.")
@@ -318,7 +345,15 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         llm_top_p=args.llm_top_p,
         llm_top_k=args.llm_top_k,
         llm_repetition_penalty=args.llm_repetition_penalty,
-        run_proofread=args.proofread,
+        # --no-proofread opts out (only flag that toggles state since v0.31.0);
+        # the legacy --proofread on-switch is a no-op because proofread is the
+        # default. The two flags are mutually exclusive at the argparse level.
+        run_proofread=not args.no_proofread,
+        proofread_n_context=(
+            args.proofread_context
+            if args.proofread_context is not None
+            else PipelineOptions.proofread_n_context
+        ),
         run_safe_speech=not args.no_safe_speech,
         run_tldr=not args.no_tldr,
         run_structure=not args.no_structure,

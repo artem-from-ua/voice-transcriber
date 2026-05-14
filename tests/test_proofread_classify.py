@@ -237,3 +237,170 @@ def test_classify_then_parse_marks_round_trip(tmp_path: Path):
 
     human = pc.parse_spot_check(spot.read_text(encoding="utf-8"))
     assert human == {2: "worse"}
+
+
+# ---------------------------------------------------------------------------
+# Grid-parsing
+# ---------------------------------------------------------------------------
+
+
+def test_parse_grid_happy_path():
+    assert pc._parse_grid("0,1,2,3,5,8") == [0, 1, 2, 3, 5, 8]
+
+
+def test_parse_grid_trims_whitespace_and_blanks():
+    assert pc._parse_grid(" 0 , 3,  5 , ") == [0, 3, 5]
+
+
+def test_parse_grid_rejects_negative():
+    with pytest.raises(ValueError, match="must be >= 0"):
+        pc._parse_grid("0,1,-1")
+
+
+def test_parse_grid_rejects_non_integer():
+    with pytest.raises(ValueError, match="invalid grid value"):
+        pc._parse_grid("0,foo,3")
+
+
+def test_parse_grid_rejects_empty():
+    with pytest.raises(ValueError, match="at least one value"):
+        pc._parse_grid("")
+
+
+# ---------------------------------------------------------------------------
+# Sweep with stubbed runner (no real inference)
+# ---------------------------------------------------------------------------
+
+
+def _write_fake_dump(dump_dir: Path, *, llm_calls: int, wall_clock: float, n_context: int) -> None:
+    """Materialise the dump artefacts the sweep aggregator reads."""
+    dump_dir.mkdir(parents=True, exist_ok=True)
+    merge = [
+        {"start": 0.0, "end": 1.0, "content": "хагінг фейсі бере новий релиз",
+         "speaker": "SPEAKER_00"},
+        {"start": 1.0, "end": 2.5, "content": "ще один сегмент достатньо довгий",
+         "speaker": "SPEAKER_01"},
+    ]
+    proof = [
+        {"start": 0.0, "end": 1.0, "content": "Hugging Face бере новий релиз",
+         "speaker": "SPEAKER_00"},
+        {"start": 1.0, "end": 2.5, "content": "ще один сегмент достатньо довгий",
+         "speaker": "SPEAKER_01"},
+    ]
+    (dump_dir / "04-merge.json").write_text(json.dumps(merge), encoding="utf-8")
+    (dump_dir / "05-proofread.json").write_text(json.dumps(proof), encoding="utf-8")
+    (dump_dir / "01-meta.json").write_text(json.dumps({
+        "path": "/fake.m4a",
+        "started_at": "2026-05-14T15:00:00",
+        "ended_at": "2026-05-14T15:00:03",
+        "duration_s": 3.0,
+        "source": "fake",
+        "stages": {
+            "proofread": {
+                "wall_clock_s": wall_clock,
+                "llm_calls": llm_calls,
+                "n_context": n_context,
+                "model": "test",
+            },
+        },
+    }), encoding="utf-8")
+
+
+def test_run_sweep_drives_runner_per_grid_point(tmp_path: Path):
+    audio = tmp_path / "fake.m4a"
+    audio.write_bytes(b"\x00")  # exist-check only
+    out_dir = tmp_path / "sweep"
+
+    invocations: list[list[str]] = []
+
+    def fake_runner(cmd: list[str], log_path: Path) -> int:
+        invocations.append(cmd)
+        # Extract the value of --proofread-context from the constructed command.
+        idx = cmd.index("--proofread-context")
+        n_ctx = int(cmd[idx + 1])
+        dump_dir_str = cmd[cmd.index("--dump-stages") + 1]
+        _write_fake_dump(
+            Path(dump_dir_str),
+            llm_calls=10 + n_ctx,
+            wall_clock=1.0 + 0.1 * n_ctx,
+            n_context=n_ctx,
+        )
+        return 0
+
+    overall = pc.run_sweep(
+        audio=audio,
+        context_values=[0, 2, 5],
+        output_dir=out_dir,
+        runner=fake_runner,
+    )
+
+    # Three invocations, with the expected --proofread-context value each time.
+    assert len(invocations) == 3
+    for cmd, expected in zip(invocations, [0, 2, 5]):
+        idx = cmd.index("--proofread-context")
+        assert cmd[idx + 1] == str(expected)
+        assert "--proofread" in cmd
+        assert "--dump-stages" in cmd
+
+    # The aggregate has one row per grid point with the expected fields.
+    rows = overall["rows"]
+    assert [r["n_context"] for r in rows] == [0, 2, 5]
+    for row in rows:
+        assert "hit_rate_pct" in row
+        assert "wall_clock_s" in row
+        assert "llm_calls" in row
+
+    # sweep-summary.{json,md} written.
+    assert (out_dir / "sweep-summary.json").exists()
+    summary_md = (out_dir / "sweep-summary.md").read_text(encoding="utf-8")
+    assert "Proofread context-size sweep" in summary_md
+    assert "| 0 |" in summary_md and "| 2 |" in summary_md and "| 5 |" in summary_md
+
+
+def test_run_sweep_aborts_when_runner_fails(tmp_path: Path):
+    audio = tmp_path / "fake.m4a"
+    audio.write_bytes(b"\x00")
+    out_dir = tmp_path / "sweep"
+
+    def failing_runner(cmd: list[str], log_path: Path) -> int:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text("simulated failure", encoding="utf-8")
+        return 7
+
+    with pytest.raises(SystemExit) as exc:
+        pc.run_sweep(
+            audio=audio,
+            context_values=[0],
+            output_dir=out_dir,
+            runner=failing_runner,
+        )
+    assert exc.value.code == 1
+
+
+# ---------------------------------------------------------------------------
+# compare-baseline
+# ---------------------------------------------------------------------------
+
+
+def test_diff_categories_computes_deltas():
+    baseline = {
+        "total": 90,
+        "unchanged": 71, "cosmetic": 3, "proper_noun_fix": 7,
+        "substantive_rewrite": 9, "hit_rate_pct": 21.1,
+    }
+    current = {
+        "total": 90,
+        "unchanged": 75, "cosmetic": 2, "proper_noun_fix": 9,
+        "substantive_rewrite": 4, "hit_rate_pct": 16.7,
+    }
+    out = pc.diff_categories(baseline=baseline, current=current)
+    assert out["baseline_total"] == 90
+    assert out["current_total"] == 90
+    assert out["baseline_hit_rate_pct"] == 21.1
+    assert out["current_hit_rate_pct"] == 16.7
+    assert out["deltas"] == {
+        "unchanged": 4,
+        "cosmetic": -1,
+        "proper_noun_fix": 2,
+        "substantive_rewrite": -5,
+    }

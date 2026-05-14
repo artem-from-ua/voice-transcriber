@@ -26,7 +26,7 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 CATEGORIES = ("unchanged", "cosmetic", "proper_noun_fix", "substantive_rewrite")
@@ -597,6 +597,194 @@ def _render_final_table(
 
 
 # ---------------------------------------------------------------------------
+# sweep subcommand — run a context-size grid and aggregate the result
+# ---------------------------------------------------------------------------
+
+
+def _parse_grid(spec: str) -> list[int]:
+    out: list[int] = []
+    for raw in spec.split(","):
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            value = int(raw)
+        except ValueError as e:
+            raise ValueError(f"invalid grid value {raw!r}: {e}") from e
+        if value < 0:
+            raise ValueError(f"grid values must be >= 0, got {value}")
+        out.append(value)
+    if not out:
+        raise ValueError("grid must contain at least one value")
+    return out
+
+
+def run_sweep(
+    *,
+    audio: Path,
+    context_values: list[int],
+    output_dir: Path,
+    extra_voice_args: list[str] | None = None,
+    runner: Callable[[list[str], Path], int] | None = None,
+) -> dict[str, Any]:
+    """Drive a `voice transcribe` run for each value in `context_values`.
+
+    For each value, produce ``output_dir/n_context-<N>/dump/`` with the full
+    stage dump, classify it, and aggregate everything into
+    ``output_dir/sweep-summary.{json,md}``. Returns the summary dict.
+
+    `runner` is the subprocess-launcher; pass a stub in tests to avoid
+    running real inference. The default uses `subprocess.run`.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if runner is None:
+        import subprocess
+
+        def runner(cmd: list[str], log_path: Path) -> int:  # type: ignore[misc]
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with log_path.open("wb") as f:
+                proc = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT)
+            return proc.returncode
+
+    rows: list[dict[str, Any]] = []
+    for n_ctx in context_values:
+        slot = output_dir / f"n_context-{n_ctx}"
+        dump_dir = slot / "dump"
+        log_path = slot / "run.log"
+        info(f"Sweep: running n_context={n_ctx} → {dump_dir}")
+        cmd = [
+            "uv", "run", "voice", "transcribe", str(audio),
+            "--proofread",
+            "--proofread-context", str(n_ctx),
+            "--dump-stages", str(dump_dir),
+            "--verbose",
+        ]
+        if extra_voice_args:
+            cmd.extend(extra_voice_args)
+        code = runner(cmd, log_path)
+        if code != 0:
+            die(
+                f"voice transcribe failed for n_context={n_ctx} (exit {code}); "
+                f"see {log_path}"
+            )
+
+        try:
+            pairs = load_pairs(dump_dir)
+        except SystemExit:
+            raise
+        summary = categorise(pairs)
+        stage_info = load_stage_meta(dump_dir, "proofread") or {}
+        summary["wall_clock_s"] = stage_info.get("wall_clock_s")
+        summary["llm_calls"] = stage_info.get("llm_calls")
+        summary["model"] = stage_info.get("model")
+        summary["n_context"] = n_ctx
+        (slot / "categories.json").write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8",
+        )
+        rows.append(summary)
+        tick(
+            f"  n_context={n_ctx}: hit_rate={summary['hit_rate_pct']}%, "
+            f"substantive={summary['substantive_rewrite']}, "
+            f"wall={summary['wall_clock_s']}s"
+        )
+
+    overall = {"audio": str(audio), "grid": context_values, "rows": rows}
+    (output_dir / "sweep-summary.json").write_text(
+        json.dumps(overall, ensure_ascii=False, indent=2), encoding="utf-8",
+    )
+    (output_dir / "sweep-summary.md").write_text(
+        _render_sweep_summary(overall), encoding="utf-8",
+    )
+    done(f"Sweep complete → {output_dir}")
+    return overall
+
+
+def _render_sweep_summary(overall: dict[str, Any]) -> str:
+    rows = overall["rows"]
+    lines: list[str] = [
+        "# Proofread context-size sweep",
+        "",
+        f"Audio: `{overall['audio']}`",
+        f"Grid: {overall['grid']}",
+        "",
+        "| n_context | total | unchanged | cosmetic | proper_noun_fix | substantive_rewrite | hit_rate_% | wall_clock_s | llm_calls |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for row in rows:
+        lines.append(
+            f"| {row['n_context']} | {row['total']} | {row['unchanged']} | "
+            f"{row['cosmetic']} | {row['proper_noun_fix']} | "
+            f"{row['substantive_rewrite']} | {row['hit_rate_pct']} | "
+            f"{row.get('wall_clock_s', '—')} | {row.get('llm_calls', '—')} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def cmd_sweep(args: argparse.Namespace) -> None:
+    audio = Path(args.audio).expanduser().resolve()
+    if not audio.exists():
+        die(f"audio not found: {audio}")
+    try:
+        grid = _parse_grid(args.context_values)
+    except ValueError as e:
+        die(str(e))
+    output_dir = Path(args.output_dir).expanduser().resolve()
+
+    info(f"Sweep audio: {audio}")
+    info(f"Sweep grid: {grid}")
+    overall = run_sweep(audio=audio, context_values=grid, output_dir=output_dir)
+    emit_summary({
+        "grid": grid,
+        "rows": [
+            {k: row.get(k) for k in (
+                "n_context", "total", "unchanged", "cosmetic",
+                "proper_noun_fix", "substantive_rewrite",
+                "hit_rate_pct", "wall_clock_s", "llm_calls",
+            )}
+            for row in overall["rows"]
+        ],
+    })
+
+
+# ---------------------------------------------------------------------------
+# compare-baseline subcommand — diff a new run's categories against a baseline
+# ---------------------------------------------------------------------------
+
+
+def diff_categories(
+    *, baseline: dict[str, Any], current: dict[str, Any],
+) -> dict[str, Any]:
+    """Compute per-bucket deltas between two `categories.json` payloads."""
+    buckets = ("unchanged", "cosmetic", "proper_noun_fix", "substantive_rewrite")
+    deltas = {b: int(current.get(b, 0)) - int(baseline.get(b, 0)) for b in buckets}
+    return {
+        "baseline_total": int(baseline.get("total", 0)),
+        "current_total": int(current.get("total", 0)),
+        "baseline_hit_rate_pct": baseline.get("hit_rate_pct"),
+        "current_hit_rate_pct": current.get("hit_rate_pct"),
+        "deltas": deltas,
+    }
+
+
+def cmd_compare_baseline(args: argparse.Namespace) -> None:
+    baseline_path = Path(args.baseline).expanduser().resolve()
+    current_path = Path(args.current).expanduser().resolve()
+    if not baseline_path.exists():
+        die(f"baseline not found: {baseline_path}")
+    if not current_path.exists():
+        die(f"current not found: {current_path}")
+    baseline = _load_json(baseline_path)
+    current = _load_json(current_path)
+    out = diff_categories(baseline=baseline, current=current)
+    info(f"baseline: {baseline_path}")
+    info(f"current:  {current_path}")
+    for bucket, delta in out["deltas"].items():
+        sign = "+" if delta > 0 else ""
+        tick(f"  {bucket}: {sign}{delta}")
+    emit_summary(out)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -620,6 +808,29 @@ def build_parser() -> argparse.ArgumentParser:
     c3.add_argument("--judge-marks", default=None, help="Optional judge-marks.json")
     c3.add_argument("--output", required=True, help="Path for final-table.md")
     c3.set_defaults(func=cmd_parse_marks)
+
+    c4 = sub.add_parser(
+        "sweep",
+        help="Run `voice transcribe` for each n_context value and aggregate the result.",
+    )
+    c4.add_argument("--audio", required=True, help="Audio file to transcribe")
+    c4.add_argument(
+        "--context-values", default="0,1,2,3,5,8",
+        help="Comma-separated list of n_context values (default: 0,1,2,3,5,8)",
+    )
+    c4.add_argument(
+        "--output-dir", required=True,
+        help="Directory to receive one subdir per n_context plus sweep-summary.{json,md}",
+    )
+    c4.set_defaults(func=cmd_sweep)
+
+    c5 = sub.add_parser(
+        "compare-baseline",
+        help="Diff a new categories.json against a baseline categories.json.",
+    )
+    c5.add_argument("--baseline", required=True, help="Baseline categories.json")
+    c5.add_argument("--current", required=True, help="Current categories.json to compare")
+    c5.set_defaults(func=cmd_compare_baseline)
 
     return p
 
