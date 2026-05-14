@@ -49,6 +49,10 @@ Total label dictionary: 31 prefixed labels + the project-relevant built-ins (`go
 - `enhancement` semantics split: user-visible new capability → `type:feature`; internal restructuring → `type:refactor`. A rename like `agc` → `autogain` is `type:refactor`, not `type:feature`.
 - Whisper `initial_prompt` is `stage:speech2text`, not `area:prompts`. `area:prompts` is exclusively for LLM system prompts.
 
+**Issue title format** is decided alongside the labels: `[CRITICAL ]<type>(<scope>): <functional subject>`. The title carries the same `type` word as the `type:*` label (`feat`, `fix`, `perf`, ...) plus `epic` and `research` modifiers that are title-only. Scope follows the **user-facing effect**, not the code location. The subject describes the outcome, not the implementation. Full rules and worked examples in [`docs/conventions.md`](../conventions.md#issue-title-format).
+
+Rationale: labels are stripped in email notifications, mobile views, GitHub search, and cross-repo references. Filtering uses labels; reading uses titles. Both need to work without the other.
+
 **Out of scope, decided explicitly:**
 
 - **No `status:*` axis.** GitHub's open/closed state, assignees, and milestones already cover workflow state. A `status:*` axis would have to be kept in sync with all three of those by hand. The marginal value (`status:blocked`, `status:needs-info`) doesn't pay back the upkeep on a project this size.

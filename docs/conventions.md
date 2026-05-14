@@ -117,3 +117,38 @@ These are the cases that cause repeated triage friction. Settle them once here.
 ## Scope
 
 This taxonomy applies to **issues only**. Pull requests are not labelled — `feat:`/`fix:`/`docs:` Conventional Commit prefixes in the title carry that signal. There is no `status:*` axis — GitHub's open/closed state plus milestones cover workflow state. Both choices are recorded in [ADR 0029](adr/0029-issue-label-taxonomy.md).
+
+## Issue title format
+
+A title must be self-describing without labels — labels are stripped in email notifications, mobile views, GitHub search results, and cross-repo references. The label set is for filtering; the title is for reading.
+
+**Format:**
+
+```
+[CRITICAL ]<type>(<scope>): <functional subject>
+```
+
+- `<type>` — same word as the `type:*` label without the prefix: `feat`, `fix`, `perf`, `docs`, `refactor`, `test`, `chore`. Plus `epic` for parent issues that group several trackers, and `research` for investigation/spike issues. `epic` and `research` are title-only; they do not have corresponding `type:*` labels (the underlying work is still classified by its base type label).
+- `<scope>` — the **stage where the effect lands for the user**, not the stage where the code change happens. A speedup whose code lives in shared `area:llm` but whose user-facing effect is on the proofread stage is `perf(proofread): ...`, not `perf(llm): ...`. Use `area:*` value when the effect is genuinely cross-stage (`cli`, `models`, `i18n`, etc.). One scope per title.
+- `<functional subject>` — what the user (or downstream reader) gets, not the implementation. "3x speedup via prompt cache reuse" beats "reuse mlx-lm prompt cache for proofread system prompt prefix". Implementation details go in the body, not the title.
+- `CRITICAL` — optional modifier prefix that mirrors `priority:critical`. Apply only for issues that block users right now. `CRITICAL fix(proofread): ...`.
+
+**Length:** target 60-80 characters. Soft limit — exceed when a longer title genuinely communicates better. GitHub trims around 70-80 in list views.
+
+**Language:** English. Repository artifacts (issues, PRs, commits, docs) are English even though spoken conversation is Ukrainian. Mixed-language quotes from real ASR output (e.g. `"корище цей"`, `"HugginsFace"`) are fine inside the title as evidence.
+
+**Avoid redundancy.** Do not repeat the scope word in the subject: `perf(proofread): proofread takes 3x less time` → `perf(proofread): 3x speedup via prompt cache reuse`. The scope is already in the parentheses.
+
+### Worked examples
+
+| Before | After | Why |
+| --- | --- | --- |
+| `perf(llm): reuse mlx-lm prompt cache for proofread system prompt prefix` | `perf(proofread): 3x speedup via prompt cache reuse` | Scope follows effect (proofread), not code location (llm). Subject states the user-facing outcome. |
+| `CRITICAL: proofread cannot recognise Ukrainian-phonetic English IT loanwords` | `CRITICAL fix(proofread): English IT terms come out broken (HugginsFace, Gradle)` | `CRITICAL` is now a modifier on the type, not a standalone prefix. Subject shows the broken output the user sees. |
+| `research(speech_structure): two-pass design — generate detailed sections first, then consolidate via second LLM pass` | `research(speech_structure): two-pass section detection for better boundaries` | Drops the implementation walkthrough; keeps the *what* and *why*. |
+| `Investigate Metal OOM during structure_dialog on 16 GB Macs` | `fix(speech_structure): Metal OOM on 16 GB Macs during long recordings` | "Investigate" reads as a status, not a title; replace with `fix(...)` and state the failure mode directly. |
+| `feature: CLI to install/remove project-supported LLM checkpoints for the local hardware` | `feat(cli): install/remove LLM checkpoints from the command line` | Standardise on `feat`, scope from area, drop "project-supported" / "for the local hardware" as inferable from context. |
+
+### `kb-grooming`-generated issues
+
+Issues created by the `kb-grooming` automation keep whatever title format the automation produces (typically `KB grooming report YYYY-MM-DD: ...`). Do not retro-rename them — the `kb-grooming` label is enough signal, and the original title preserves the run identity.

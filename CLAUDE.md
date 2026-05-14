@@ -179,6 +179,33 @@ Cross-stage concerns. Use `area:*` when the issue spans multiple stages or lives
 
 This taxonomy applies to **issues only**. PRs are not labelled — Conventional Commit prefixes in PR titles (`feat:`, `fix:`, `docs:`, `perf:`, `chore:`) carry the type signal.
 
+### Issue title format — MANDATORY
+
+Title must be self-describing without labels (labels are absent in email notifications, mobile views, search results, cross-repo references).
+
+**Format:** `[CRITICAL ]<type>(<scope>): <functional subject>`
+
+- `<type>` — bare word matching the `type:*` label: `feat`, `fix`, `perf`, `docs`, `refactor`, `test`, `chore`. Plus `epic` (parent issue grouping several trackers) and `research` (investigation/spike). `epic` and `research` are title-only; the underlying work is still classified by its base `type:*` label.
+- `<scope>` — the **stage where the effect lands for the user**, NOT where the code change happens. A speedup whose code lives in `area:llm` but whose user-facing effect is on proofread is `perf(proofread): ...`. Use `area:*` value (`cli`, `models`, `i18n`, ...) when the effect is genuinely cross-stage. One scope per title.
+- `<functional subject>` — what the user gets, NOT the implementation. "3x speedup via prompt cache reuse" beats "reuse mlx-lm prompt cache for proofread system prompt prefix". Implementation details go in the body.
+- `CRITICAL` — optional modifier mirroring `priority:critical`. Only for issues that block users right now. Format: `CRITICAL fix(proofread): ...`.
+
+**Length:** target 60-80 characters. Soft limit.
+
+**Language:** English. Mixed-language quotes from ASR output (e.g. `"корище цей"`, `"HugginsFace"`) are fine as evidence inside the title.
+
+**No redundancy:** never repeat the scope word in the subject. `perf(proofread): proofread is 3x faster` → `perf(proofread): 3x speedup via prompt cache reuse`.
+
+**Examples:**
+
+- `perf(proofread): 3x speedup via prompt cache reuse`
+- `CRITICAL fix(proofread): English IT terms come out broken (HugginsFace, Gradle)`
+- `fix(speech_structure): Metal OOM on 16 GB Macs during long recordings`
+- `research(speech_structure): two-pass section detection for better boundaries`
+- `feat(cli): install/remove LLM checkpoints from the command line`
+
+For full reference (more worked before/after pairs, `kb-grooming` exception) see [`docs/conventions.md`](docs/conventions.md#issue-title-format).
+
 ## Editing the architecture diagram
 
 `docs/architecture.md` has two PlantUML diagrams whose edges encode the actual data-flow:
