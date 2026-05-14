@@ -89,9 +89,18 @@ Color: all `area:*` use `#2da44e` (green).
 | `help wanted` | GitHub built-in | Project owner is actively soliciting outside help. |
 | `question` | GitHub built-in | Issue is a question rather than a task. Use in addition to `type:*`. |
 | `duplicate` / `invalid` / `wontfix` | GitHub built-in | Closing reasons; apply when closing. |
-| `kb-grooming` | Project | Findings produced by the `kb-grooming` automation. Use in addition to the standard 4 axes. |
 
 The GitHub built-ins `bug`, `enhancement`, `documentation` are intentionally not used by this project — they exist only for GitHub UI compatibility (they reappear after deletion). Use `type:bug`, `type:feature`, `type:docs` instead.
+
+### `by:*` — issue source (orthogonal axis, optional)
+
+Marks issues that originate from a non-human source — automation, periodic audits, bots. Orthogonal to the 4 main axes: a `by:*`-tagged issue still gets a full `type` + `priority` + `stage`/`area` set on top.
+
+| Label | Source | Issues come from |
+| --- | --- | --- |
+| `by:kb-grooming` | Project | The `kb-grooming` automation's periodic documentation-health audits. |
+
+The axis exists so we can add `by:dependabot`, `by:security-audit`, `by:lint-report` etc. later without re-engineering the taxonomy. If a `by:*` value applies, add it; the issue still needs the standard 4 axes.
 
 ## Disambiguation rules
 
@@ -103,7 +112,7 @@ These are the cases that cause repeated triage friction. Settle them once here.
 - **`area:models` vs `area:llm`.** `area:models` is broader: it covers all three model classes (ASR via `mlx-whisper`, diarization via `pyannote-audio`, LLM via `mlx-lm`). LLM-specific quantization or loader work is both `area:models` and `area:llm`. A Whisper quantization issue is `area:models` + `stage:speech2text`, not `area:llm`.
 - **`area:cli` vs `area:repo`.** `area:cli` is for issues that change what a user sees when running `voice transcribe` — flags, output, progress. `area:repo` is for issues about how *we* work with the repo — label schemes, ADR conventions, commit-message style, dev tooling, `scripts/` directory, kb-grooming reports. A `--dump-stages` flag tweak is `area:cli`. A new ADR frontmatter rule is `area:repo`. A convention for how `scripts/*.py` print status is `area:repo` (it's developer ergonomics, not end-user CLI). If in doubt, ask: "does this affect the end-user CLI experience?" → yes is `area:cli`, no is `area:repo`.
 - **Initial / MVP issues.** Retrospective issues that describe the first version of something (e.g. "Implementation: end-to-end pipeline" closed when the project was first stood up) are `type:feature` + `area:repo`, even though the implementation touches runtime code. `type:feature` because the issue introduced a user-visible capability; `area:repo` because the issue itself is project-bootstrapping, not a per-stage change you'd reopen to extend. Treat them as historical bookmarks, not active scope.
-- **`kb-grooming` issues** keep their `kb-grooming` label and also get the standard 4 axes — typically `type:docs` + `area:*` + `priority:low`.
+- **Automation-generated issues** carry a `by:*` label (e.g. `by:kb-grooming`) on top of the standard 4 axes. `by:*` marks the source; it does not replace `type`/`priority`/`stage`/`area`. A kb-grooming report issue is typically `type:docs` + `priority:low` + `area:*` + `by:kb-grooming`.
 - **Epic issues** spanning many stages: prefer `area:*` over listing 4+ `stage:*` labels. If only 2–3 stages are involved, list them; beyond that the issue is cross-stage by nature.
 
 ## Worked examples
@@ -112,7 +121,7 @@ These are the cases that cause repeated triage friction. Settle them once here.
 | --- | --- |
 | #122 `perf(llm): reuse mlx-lm prompt cache for proofread system prompt prefix` | `type:perf`, `priority:high`, `stage:proofread`, `area:llm` |
 | #137 `CRITICAL: proofread cannot recognise Ukrainian-phonetic English IT loanwords` | `type:bug`, `priority:critical`, `stage:proofread`, `area:i18n` |
-| #80 `KB grooming report 2026-05-12: stale docs from v0.13–v0.22 churn` | `type:docs`, `priority:low`, `area:cli`, `kb-grooming` (no `stage:*` — docs cover multiple stages) |
+| #80 `KB grooming report 2026-05-12: stale docs from v0.13–v0.22 churn` | `type:docs`, `priority:low`, `area:repo`, `by:kb-grooming` (no `stage:*` — docs cover multiple stages) |
 | #134 `epic: per-run user-provided topic hints across ASR + proofread stages` | `type:feature`, `priority:medium`, `stage:speech2text`, `stage:proofread`, `area:i18n` |
 | #78 `Investigate Metal OOM during structure_dialog on 16 GB Macs` | `type:bug`, `priority:high`, `stage:speech_structure`, `area:perf` |
 | #116 `feature: CLI to install/remove project-supported LLM checkpoints for the local hardware` | `type:feature`, `priority:medium`, `area:cli`, `area:models` |
@@ -154,6 +163,6 @@ A title must be self-describing without labels — labels are stripped in email 
 | `Investigate Metal OOM during structure_dialog on 16 GB Macs` | `fix(speech_structure): Metal OOM on 16 GB Macs during long recordings` | "Investigate" reads as a status, not a title; replace with `fix(...)` and state the failure mode directly. |
 | `feature: CLI to install/remove project-supported LLM checkpoints for the local hardware` | `feat(cli): install/remove LLM checkpoints from the command line` | Standardise on `feat`, scope from area, drop "project-supported" / "for the local hardware" as inferable from context. |
 
-### `kb-grooming`-generated issues
+### Automation-generated issues (`by:*`)
 
-Issues created by the `kb-grooming` automation keep whatever title format the automation produces (typically `KB grooming report YYYY-MM-DD: ...`). Do not retro-rename them — the `kb-grooming` label is enough signal, and the original title preserves the run identity.
+Issues created by automation — `by:kb-grooming` and any future `by:*` source — keep whatever title format the automation produces (e.g. `KB grooming report YYYY-MM-DD: ...`). Do not retro-rename them — the `by:*` label is enough provenance signal, and the original title preserves the run identity.

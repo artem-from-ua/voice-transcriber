@@ -168,7 +168,7 @@ Cross-stage concerns. Use `area:*` when the issue spans multiple stages or lives
 - **`area:models` vs `area:llm`**: `area:models` covers all three model classes; `area:llm` is LLM-specific. Whisper quantization is `area:models` + `stage:speech2text`, not `area:llm`.
 - **`area:cli` vs `area:repo`**: `area:cli` = end-user `voice transcribe` runtime (flags, output, progress). `area:repo` = how we maintain the repo (labels, ADRs, conventions, dev tooling, `scripts/` directory, kb-grooming reports). Ask "does this affect the end-user CLI?" — yes is `area:cli`, no is `area:repo`. Do NOT default to `area:cli` for issues about repo housekeeping or `scripts/` just because the word "CLI" or "command" appears.
 - **Initial / MVP issues**: retrospective "Implementation: ..." issues that bootstrap the project are `type:feature` + `area:repo` (historical bookmark, not active scope).
-- **`kb-grooming` issues**: keep the `kb-grooming` label AND apply the standard 4 axes (typically `type:docs` + `area:*` + `priority:low`).
+- **Automation-generated issues** carry a `by:*` label (currently only `by:kb-grooming`) on top of the standard 4 axes. `by:*` marks the source; it does NOT replace `type`/`priority`/`stage`/`area`. A kb-grooming report is typically `type:docs` + `priority:low` + `area:repo` (or `area:*` for the topic) + `by:kb-grooming`.
 - **Built-in `bug`, `enhancement`, `documentation`**: do not use. GitHub restores them after deletion for UI compatibility, but this project uses `type:bug`, `type:feature`, `type:docs` exclusively.
 
 ### When creating an issue
@@ -209,7 +209,7 @@ Title must be self-describing without labels (labels are absent in email notific
 - `research(speech_structure): two-pass section detection for better boundaries`
 - `feat(cli): install/remove LLM checkpoints from the command line`
 
-For full reference (more worked before/after pairs, `kb-grooming` exception) see [`docs/conventions.md`](docs/conventions.md#issue-title-format).
+For full reference (more worked before/after pairs, `by:*` axis, automation-generated issue exceptions) see [`docs/conventions.md`](docs/conventions.md#issue-title-format).
 
 ## Editing the architecture diagram
 
