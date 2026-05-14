@@ -32,5 +32,6 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | ~~26~~  | ~~[Proofread stage: default off, opt-in via `--proofread`](0026-proofread-default-off.md)~~ | accepted (superseded by 0028) |
 | 27  | [`prompt_cache_session()`: amortise the system-prompt KV across LLM-stage loops](0027-prompt-cache-llm-stages.md) | accepted                     |
 | 28  | [Proofread stage: default on again after the iteration-2.1 rework](0028-proofread-default-on-after-rework.md) | accepted (supersedes 0026)   |
+| 29  | [Issue label taxonomy: 4 axes (type, priority, stage, area)](0029-issue-label-taxonomy.md) | accepted                     |
 
 New decisions land here as `NNNN-kebab-case-title.md` with the same frontmatter (`status`, `date`, optional `supersedes` / `superseded_by`).
