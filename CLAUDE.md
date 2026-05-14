@@ -153,11 +153,12 @@ Cross-stage concerns. Use `area:*` when the issue spans multiple stages or lives
 
 - `area:llm` — shared LLM stack (`llm.py`, prompt cache, token accounting). Affects all five LLM-driven stages.
 - `area:audio` — audio preprocessing in general (`transcode`, `silence`, `clear_speech`, loudness work).
-- `area:cli` — command-line surface (`cli.py`, flags, progress reporting).
+- `area:cli` — **runtime** command-line surface of `voice transcribe` (`cli.py`, flags, progress reporting). NOT for repo housekeeping — use `area:repo`.
 - `area:perf` — cross-stage performance infrastructure (benchmarks, profiling, memory budgets). NOT used for per-stage speedups — those use `type:perf` + `stage:*`.
 - `area:models` — model lifecycle across the project: download, quantization, swap (ASR + diarization + LLM).
 - `area:prompts` — LLM system prompts only. Does NOT include Whisper `initial_prompt` — that goes under `stage:speech2text`.
 - `area:i18n` — language behaviour: Ukrainian/English code-switching, IT loanwords, transliteration.
+- `area:repo` — repository housekeeping that does NOT affect the runtime: label/issue conventions, ADR flow, dev tooling, GitHub config, CI metadata, kb-grooming reports, commit-message conventions.
 
 ### Disambiguation rules (settled — do not re-derive)
 
@@ -165,6 +166,7 @@ Cross-stage concerns. Use `area:*` when the issue spans multiple stages or lives
 - **`type:feature` vs `type:refactor`**: only `type:feature` if a user can observe the change. Internal restructuring → `type:refactor`. Renames (`agc` → `autogain`) are `type:refactor`, not `type:feature`.
 - **Whisper `initial_prompt`** issues → `stage:speech2text` (+ `area:i18n` if about language). Never `area:prompts`.
 - **`area:models` vs `area:llm`**: `area:models` covers all three model classes; `area:llm` is LLM-specific. Whisper quantization is `area:models` + `stage:speech2text`, not `area:llm`.
+- **`area:cli` vs `area:repo`**: `area:cli` = end-user `voice transcribe` runtime (flags, output, progress). `area:repo` = how we maintain the repo (labels, ADRs, conventions, dev tooling). Ask "does this affect the end-user CLI?" — yes is `area:cli`, no is `area:repo`. Do NOT default to `area:cli` for issues about repo housekeeping just because the word "CLI" appears.
 - **`kb-grooming` issues**: keep the `kb-grooming` label AND apply the standard 4 axes (typically `type:docs` + `area:*` + `priority:low`).
 - **Built-in `bug`, `enhancement`, `documentation`**: do not use. GitHub restores them after deletion for UI compatibility, but this project uses `type:bug`, `type:feature`, `type:docs` exclusively.
 
@@ -190,16 +192,18 @@ Title must be self-describing without labels (labels are absent in email notific
 - `<functional subject>` — what the user gets, NOT the implementation. "3x speedup via prompt cache reuse" beats "reuse mlx-lm prompt cache for proofread system prompt prefix". Implementation details go in the body.
 - `CRITICAL` — optional modifier mirroring `priority:critical`. Only for issues that block users right now. Format: `CRITICAL fix(proofread): ...`.
 
-**Length:** target 60-80 characters. Soft limit.
+**Length:** target 60-80 characters. Soft limit — exceed when a longer title genuinely communicates better.
+
+**Self-containment beats brevity.** Labels are absent in email notifications, mobile views, GitHub search results, and cross-repo references. If trimming a word from the subject makes the title ambiguous *without* reading labels, keep the word — even if the title exceeds the 60-80 char target. Length is a guideline; self-containment is mandatory.
 
 **Language:** English. Mixed-language quotes from ASR output (e.g. `"корище цей"`, `"HugginsFace"`) are fine as evidence inside the title.
 
-**No redundancy:** never repeat the scope word in the subject. `perf(proofread): proofread is 3x faster` → `perf(proofread): 3x speedup via prompt cache reuse`.
+**No redundancy with the scope** (not with the labels): never repeat the scope word in the subject — `perf(proofread): proofread is 3x faster` → `perf(proofread): 3x speedup via prompt cache reuse`. But do NOT trim a word just because a label encodes it: context that lives only in labels disappears in notifications and mobile views.
 
 **Examples:**
 
 - `perf(proofread): 3x speedup via prompt cache reuse`
-- `CRITICAL fix(proofread): English IT terms come out broken (HugginsFace, Gradle)`
+- `CRITICAL fix(proofread): English IT terms in Ukrainian speech come out broken (HugginsFace, Gradle)`
 - `fix(speech_structure): Metal OOM on 16 GB Macs during long recordings`
 - `research(speech_structure): two-pass section detection for better boundaries`
 - `feat(cli): install/remove LLM checkpoints from the command line`

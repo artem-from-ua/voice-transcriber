@@ -72,11 +72,12 @@ Cross-stage concerns. Use `area:*` when the issue spans multiple stages or lives
 | --- | --- |
 | `area:llm` | Shared LLM stack: `llm.py`, prompt cache, token accounting, model loading. Affects all five LLM-driven stages. |
 | `area:audio` | Audio preprocessing in general: `transcode`, `silence`, `clear_speech`, loudness work. |
-| `area:cli` | Command-line surface: `cli.py`, flags, progress reporting, terminal output, `_progress.py`. |
+| `area:cli` | **Runtime** command-line surface of `voice transcribe`: `cli.py`, flags, arguments, progress reporting, terminal output, `_progress.py`. NOT for repo housekeeping or dev tooling — use `area:repo`. |
 | `area:perf` | Cross-stage performance infrastructure: benchmarks, profiling, memory budgets, GPU contention. |
 | `area:models` | Model lifecycle across the project: download, quantization, swap (ASR + diarization + LLM). |
 | `area:prompts` | LLM system prompts in `src/voice/prompts/` and prompt-engineering work. Does NOT include Whisper `initial_prompt`. |
 | `area:i18n` | Language behaviour: Ukrainian/English code-switching, IT loanwords, transliteration, localized output. |
+| `area:repo` | Repository housekeeping that does NOT affect the runtime: label/issue conventions, ADR flow, dev tooling, GitHub config, CI metadata, kb-grooming reports, commit-message conventions. Use this for issues like "introduce label taxonomy", "align ADR frontmatter", "standardise commit-message style". |
 
 Color: all `area:*` use `#2da44e` (green).
 
@@ -100,6 +101,7 @@ These are the cases that cause repeated triage friction. Settle them once here.
 - **`type:feature` vs `type:refactor`.** An issue is `type:feature` only if it adds a user-visible capability — new flag, new output, new behaviour the user can observe. Internal restructuring without behaviour change is `type:refactor`. "Rename clearspeech effect `agc` to `autogain`" is `type:refactor` (or `type:chore`), not `type:feature`, even though it touches the CLI.
 - **`area:prompts` scope.** `area:prompts` is only for LLM system prompts (`src/voice/prompts/`, `_prompts.py`). The Whisper `initial_prompt` is a different mechanism and belongs to `stage:speech2text`, optionally with `area:i18n` if the prompt content is about language/loanwords.
 - **`area:models` vs `area:llm`.** `area:models` is broader: it covers all three model classes (ASR via `mlx-whisper`, diarization via `pyannote-audio`, LLM via `mlx-lm`). LLM-specific quantization or loader work is both `area:models` and `area:llm`. A Whisper quantization issue is `area:models` + `stage:speech2text`, not `area:llm`.
+- **`area:cli` vs `area:repo`.** `area:cli` is for issues that change what a user sees when running `voice transcribe` — flags, output, progress. `area:repo` is for issues about how *we* work with the repo — label schemes, ADR conventions, commit-message style, dev tooling. A `--dump-stages` flag tweak is `area:cli`. A new ADR frontmatter rule is `area:repo`. If in doubt, ask: "does this affect the end-user CLI experience?" → yes is `area:cli`, no is `area:repo`.
 - **`kb-grooming` issues** keep their `kb-grooming` label and also get the standard 4 axes — typically `type:docs` + `area:*` + `priority:low`.
 - **Epic issues** spanning many stages: prefer `area:*` over listing 4+ `stage:*` labels. If only 2–3 stages are involved, list them; beyond that the issue is cross-stage by nature.
 
@@ -135,16 +137,18 @@ A title must be self-describing without labels — labels are stripped in email 
 
 **Length:** target 60-80 characters. Soft limit — exceed when a longer title genuinely communicates better. GitHub trims around 70-80 in list views.
 
+**Self-containment beats brevity.** Labels are absent in email notifications, mobile views, GitHub search results, and cross-repo references. If trimming a word from the subject makes the title ambiguous *without* reading the labels, keep the word — even if the title exceeds the 60-80 char target. Example: `CRITICAL fix(proofread): English IT terms in Ukrainian speech come out broken (HugginsFace, Gradle)` is 87 chars but self-describing; trimming "in Ukrainian speech" would lose the actual context (code-switching), which `area:i18n` only hints at. Length target is a guideline; self-containment is mandatory.
+
 **Language:** English. Repository artifacts (issues, PRs, commits, docs) are English even though spoken conversation is Ukrainian. Mixed-language quotes from real ASR output (e.g. `"корище цей"`, `"HugginsFace"`) are fine inside the title as evidence.
 
-**Avoid redundancy.** Do not repeat the scope word in the subject: `perf(proofread): proofread takes 3x less time` → `perf(proofread): 3x speedup via prompt cache reuse`. The scope is already in the parentheses.
+**Avoid redundancy with the scope, not with the labels.** Do not repeat the scope word in the subject: `perf(proofread): proofread takes 3x less time` → `perf(proofread): 3x speedup via prompt cache reuse` — the scope is already in the parentheses. But do NOT trim a word just because a label covers it: labels are not visible in many surfaces, so context labels-only-encode must stay in the subject.
 
 ### Worked examples
 
 | Before | After | Why |
 | --- | --- | --- |
 | `perf(llm): reuse mlx-lm prompt cache for proofread system prompt prefix` | `perf(proofread): 3x speedup via prompt cache reuse` | Scope follows effect (proofread), not code location (llm). Subject states the user-facing outcome. |
-| `CRITICAL: proofread cannot recognise Ukrainian-phonetic English IT loanwords` | `CRITICAL fix(proofread): English IT terms come out broken (HugginsFace, Gradle)` | `CRITICAL` is now a modifier on the type, not a standalone prefix. Subject shows the broken output the user sees. |
+| `CRITICAL: proofread cannot recognise Ukrainian-phonetic English IT loanwords` | `CRITICAL fix(proofread): English IT terms in Ukrainian speech come out broken (HugginsFace, Gradle)` | `CRITICAL` is now a modifier on the type, not a standalone prefix. Subject shows the broken output the user sees. "in Ukrainian speech" stays because the bug is specific to code-switching, not English ASR in general — that context lives only in `area:i18n` which is not visible in notifications. |
 | `research(speech_structure): two-pass design — generate detailed sections first, then consolidate via second LLM pass` | `research(speech_structure): two-pass section detection for better boundaries` | Drops the implementation walkthrough; keeps the *what* and *why*. |
 | `Investigate Metal OOM during structure_dialog on 16 GB Macs` | `fix(speech_structure): Metal OOM on 16 GB Macs during long recordings` | "Investigate" reads as a status, not a title; replace with `fix(...)` and state the failure mode directly. |
 | `feature: CLI to install/remove project-supported LLM checkpoints for the local hardware` | `feat(cli): install/remove LLM checkpoints from the command line` | Standardise on `feat`, scope from area, drop "project-supported" / "for the local hardware" as inferable from context. |
