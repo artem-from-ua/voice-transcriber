@@ -57,3 +57,40 @@ The result is bound to a local `effective_language` variable in `pipeline.run()`
 - **Two-stage detect: Whisper-large-v3 first, fall back to SpeechBrain on low confidence.** A reasonable future escalation if real recordings show edge cases where `detect_language` on the longest turn is still wrong. Not warranted now — the reference recording resolves cleanly without a second tier.
 - **Keep `--language` default `"uk"` and add an opt-in `--language auto`.** Rejected because auto-detect produces correct behaviour for the common Ukrainian case (confidence 0.84+) and adds correctness for non-Ukrainian users by default. Making auto-detect opt-in would keep the toxic forced-uk default for any English / mixed-language user who didn't read the docs.
 - **Detect on the raw WAV before diarize, in a separate pre-stage.** Possible, but pyannote's turn boundaries are exactly the signal we want (a "rich" stretch of speech without inter-speaker boundaries), so reusing diarize's output is both correct and cheap. Running detect before diarize would mean blind windowing again.
+
+## Postscript — 2026-05-14: multi-attempt probe on the reference recording
+
+**Question raised.** The reference recording's longest pyannote turn is 23.4 s, i.e. < Whisper's 30-second classifier window. Whisper still classifies it correctly (uk top-1) but the input is silence-padded for the last ~7 s. Could we improve robustness by using more of the available speech — either by concatenating multiple turns to fill the 30 s window, or by running multiple independent attempts and aggregating?
+
+**Probed two hypotheses on the same reference fixture** (`scripts/lang-detect-fill-probe.py`, identical Whisper-large-v3-MLX, sequential CPU/GPU runs on M1/16 GB):
+
+1. **Greedy-fill** — concatenate the longest turn with the next-longest same-speaker turns until the input reaches 30 s of real speech. On the reference: 23.4 s + 10.2 s = 33.6 s, trimmed to 30 s, both from SPEAKER_01.
+2. **Per-long-turn detection** — run `detect_language()` independently on every pyannote turn longer than 10 s (4 turns on the reference: 23.4 s, 10.8 s, 10.2 s, 10.1 s), tabulate top-3 probabilities per turn.
+
+**Results.** Margin is `uk_prob / ru_prob`:
+
+| Input | Speech in window | uk | ru | margin |
+|---|---|---|---|---|
+| Baseline (longest turn, silence-padded) | 23.4 s | 0.735 | 0.238 | **3.09×** |
+| Greedy-fill (2 same-speaker turns, no silence) | 30.0 s | 0.549 | 0.422 | 1.30× |
+| Single turn SPEAKER_01 [219.5–242.9] | 23.4 s | 0.735 | 0.238 | 3.09× |
+| Single turn SPEAKER_00 [173.3–184.2] | 10.8 s | 0.488 | 0.483 | 1.01× |
+| Single turn SPEAKER_01 [254.2–264.5] | 10.2 s | 0.551 | 0.415 | 1.33× |
+| Single turn SPEAKER_01 [295.2–305.3] | 10.1 s | 0.896 | 0.097 | 9.25× |
+
+**Findings.**
+
+- **Greedy-fill is empirically worse than the silence-padded baseline** (1.30× vs 3.09×). Filling the window with a second turn brings new lexical content that diluted the classifier's confidence rather than reinforcing it; silence is apparently a more neutral filler than additional speech with different lexical context.
+- **Single-turn margin does not correlate with turn duration.** The 10.1 s turn produced a 9.25× margin; the 10.8 s turn produced 1.01× (essentially a coin flip). Picking "the longest turn" leaves the strongest individual signals on the table.
+- **Top-1 agreement across attempts is the useful signal**, not probability averaging. All four turns voted `uk` top-1 — independent confirmation that the recording really is Ukrainian. Averaging the four probability vectors gives uk=0.611 / ru=0.361 (margin 1.69×), worse than the baseline because weak attempts pull the average down.
+
+**Decisions for the next iteration** (to be implemented as a follow-up — this postscript records the experimental result, the next ADR will record the design choice):
+
+1. **Reject greedy-fill.** Concatenating turns into one input is a worse use of compute than running multiple independent detections.
+2. **Keep "single Whisper detection" as the inference unit**, but run it more than once and use the votes for confidence.
+3. **Two attempts by default**, with the second attempt picked structurally (longest turn of a different speaker if ≥2 speakers; second-longest turn of the same speaker if 1 speaker).
+4. **AGREE/DISAGREE gate, not probability averaging.** When attempts agree on top-1, accept the most-confident attempt's probabilities as the result. When they disagree, either escalate (third attempt) or fall back to the hard-coded `FALLBACK_LANGUAGE` with a log hint asking the user to pass `--language` explicitly. The CLI flag `--language` remains a hard pre-stage override that bypasses lang_detect entirely (unchanged from this ADR's main body).
+
+**Reproducer.** `scripts/lang-detect-fill-probe.py` — runs against the cached pyannote output `~/Downloads/two-speakers-diar-test-ukr.diarize.json` and the cached 16 kHz WAV. Re-running it requires only the Whisper model already used by the ASR stage; no new dependencies.
+
+**Status of this postscript.** Records empirical results that constrain the design space for a future change. The lang_detect code itself is unchanged at the time of writing — the main body of this ADR still describes current behaviour.

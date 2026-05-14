@@ -137,7 +137,7 @@ def patched_pipeline(monkeypatch, tmp_path):
 
     monkeypatch.setattr(
         pipeline_module.lang_detect_module,
-        "detect_language_on_longest_turn",
+        "detect_language",
         fake_lang_detect,
     )
 

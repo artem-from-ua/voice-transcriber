@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.32.0] — 2026-05-14
+
+### Changed
+
+- **`[4] lang_detect` now runs two attempts and reports their agreement.** Closes the open question raised in the 2026-05-14 postscript of [ADR 0022](docs/adr/0022-asr-language-autodetect.md). Empirical probe (`scripts/lang-detect-fill-probe.py`) showed that single-turn `detect_language()` margin varies from 1.01× to 9.25× with no correlation to turn duration; running a second independent attempt on a different turn turns that variance into a usable agreement signal.
+
+  Behaviour:
+  - Attempt 1 — longest pyannote turn overall (unchanged from v0.31.0).
+  - Attempt 2 — longest turn of a *different* speaker if at least two speakers exist; otherwise the second-longest turn of the same speaker.
+  - When attempts AGREE on top-1: the more-confident attempt's probabilities are reported; the Markdown header now shows e.g. `🌐 Мова: uk (auto-detected=0.74, ru=0.24, 2/2 agree)`.
+  - When attempts DISAGREE: the more-confident attempt still wins; the header shows `..., 2/2 disagree, picked higher prob` so users can see when the detector was uncertain.
+  - Single-attempt path (only one eligible turn ≥ 2 s) preserved with the original header format and `agreement="single"`.
+
+  The two attempts share one Whisper-large-v3 load, so the additional cost is ~1 s per pipeline run (the second `detect_language()` call). The CLI flag `--language` continues to bypass this stage entirely.
+
+  Internal API: `LangDetectResult` gained two backward-compatible fields (`agreement: str`, `attempts: tuple[AttemptInfo, ...]`); `detect_language_on_longest_turn` was renamed to `detect_language` since "longest turn" no longer fully describes the function.
+
 ## [0.31.0] — 2026-05-14
 
 ### Changed
