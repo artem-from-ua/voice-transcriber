@@ -79,7 +79,7 @@ Cross-stage concerns. Use `area:*` when the issue spans multiple stages or lives
 | `area:i18n` | Language behaviour: Ukrainian/English code-switching, IT loanwords, transliteration, localized output. |
 | `area:repo` | Repository housekeeping that does NOT affect the runtime: label/issue conventions, ADR flow, dev tooling, GitHub config, CI metadata, kb-grooming reports, commit-message conventions. Use this for issues like "introduce label taxonomy", "align ADR frontmatter", "standardise commit-message style". |
 
-Color: all `area:*` use `#2da44e` (green).
+Color: all `area:*` use `#74a892` (muted sage green). Saturated green (`#2da44e`) was tried first but competed too much with `stage:*` blue and `type:bug` red for attention; areas are categorisation, not alarm, so a calmer hue works better.
 
 ### `reason:*` — closing reasons (orthogonal axis, optional, only on closed issues)
 
