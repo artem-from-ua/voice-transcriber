@@ -169,7 +169,8 @@ Cross-stage concerns. Use `area:*` when the issue spans multiple stages or lives
 - **`area:cli` vs `area:repo`**: `area:cli` = end-user `voice transcribe` runtime (flags, output, progress). `area:repo` = how we maintain the repo (labels, ADRs, conventions, dev tooling, `scripts/` directory, kb-grooming reports). Ask "does this affect the end-user CLI?" — yes is `area:cli`, no is `area:repo`. Do NOT default to `area:cli` for issues about repo housekeeping or `scripts/` just because the word "CLI" or "command" appears.
 - **Initial / MVP issues**: retrospective "Implementation: ..." issues that bootstrap the project are `type:feature` + `area:repo` (historical bookmark, not active scope).
 - **Automation-generated issues** carry a `by:*` label (currently only `by:kb-grooming`) on top of the standard 4 axes. `by:*` marks the source; it does NOT replace `type`/`priority`/`stage`/`area`. A kb-grooming report is typically `type:docs` + `priority:low` + `area:repo` (or `area:*` for the topic) + `by:kb-grooming`.
-- **Built-in `bug`, `enhancement`, `documentation`**: do not use. GitHub restores them after deletion for UI compatibility, but this project uses `type:bug`, `type:feature`, `type:docs` exclusively.
+- **Closing-reason labels** (`reason:duplicate`, `reason:invalid`, `reason:wontfix`) are optional and applied only when closing. They live alongside GitHub's native close-reason mechanism and add the specific *why* when "not planned" needs disambiguation. All `reason:*` are grey.
+- **GitHub built-in labels are NOT used.** All nine (`bug`, `enhancement`, `documentation`, `duplicate`, `invalid`, `wontfix`, `question`, `good first issue`, `help wanted`) were deleted from this repo. If GitHub silently re-creates any of them, delete again.
 
 ### When creating an issue
 

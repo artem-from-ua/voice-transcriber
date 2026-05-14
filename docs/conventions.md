@@ -29,7 +29,7 @@ The full rationale is recorded in [ADR 0029](adr/0029-issue-label-taxonomy.md). 
 | `type:test` | Adding, fixing, or restructuring tests. |
 | `type:chore` | Tooling, build, dependencies, repo hygiene, CI, label/issue housekeeping. |
 
-Color: all `type:*` use `#cccccc` (neutral grey). The prefix carries the meaning; the color carries the axis.
+Color: all `type:*` use `#cccccc` (neutral grey), with one exception — `type:bug` uses `#d73a4a` (red) so broken-functionality issues stand out in lists. The prefix carries the meaning; the color carries the axis.
 
 ### `priority:*` (exactly one)
 
@@ -62,7 +62,7 @@ One label per pipeline stage from [`pipeline.md`](pipeline.md), keyed on the mod
 | `stage:speech_summary` | `speech_summary.py` |
 | `stage:render` | `render.py`, `speaker_emojis.py` |
 
-Color: blue gradient from `#cfe2ff` (upstream stages) to `#0a2a5e` (downstream stages). Order in the gradient matches pipeline order.
+Color: all `stage:*` share `#0052cc` (saturated blue). A per-stage gradient was tried first but made label chips visually noisy when an issue carried multiple stages; one color is calmer to read.
 
 ### `area:*` (at least one of `stage:*` or `area:*`)
 
@@ -81,16 +81,23 @@ Cross-stage concerns. Use `area:*` when the issue spans multiple stages or lives
 
 Color: all `area:*` use `#2da44e` (green).
 
-### Special labels (no prefix, optional, any count)
+### `reason:*` — closing reasons (orthogonal axis, optional, only on closed issues)
 
-| Label | Source | Use when |
-| --- | --- | --- |
-| `good first issue` | GitHub built-in | Issue is a reasonable entry point for a new contributor. |
-| `help wanted` | GitHub built-in | Project owner is actively soliciting outside help. |
-| `question` | GitHub built-in | Issue is a question rather than a task. Use in addition to `type:*`. |
-| `duplicate` / `invalid` / `wontfix` | GitHub built-in | Closing reasons; apply when closing. |
+GitHub's native close reasons (`completed`, `not planned`, `duplicate`) cover most cases at the issue-state level. `reason:*` labels add the specific *why* when "not planned" needs disambiguation, and keep the signal searchable in `gh issue list` filters.
 
-The GitHub built-ins `bug`, `enhancement`, `documentation` are intentionally not used by this project — they exist only for GitHub UI compatibility (they reappear after deletion). Use `type:bug`, `type:feature`, `type:docs` instead.
+| Label | Apply when closing as |
+| --- | --- |
+| `reason:duplicate` | Already tracked in another issue (use alongside GitHub's `duplicate` close reason). Link the canonical issue in the close comment. |
+| `reason:invalid` | Out of scope, misunderstanding, or otherwise not a real issue. |
+| `reason:wontfix` | Acknowledged but explicitly decided not to fix. The decision should be in the close comment. |
+
+Color: all `reason:*` use `#cccccc` (neutral grey).
+
+### GitHub built-in labels are NOT used
+
+All nine GitHub built-in labels were deleted from this repo: `bug`, `enhancement`, `documentation`, `duplicate`, `invalid`, `wontfix`, `question`, `good first issue`, `help wanted`. The first three are replaced by `type:*`; the next three are replaced by `reason:*` plus GitHub's native close-reason mechanism; the last three (`question`, `good first issue`, `help wanted`) are not used at all (`question` issues should use `type:*` + the body to clarify; `good first issue` / `help wanted` are community-recruitment signals not relevant to this solo project).
+
+If GitHub silently re-creates any of them after a UI action: delete again. They are not part of the taxonomy.
 
 ### `by:*` — issue source (orthogonal axis, optional)
 
@@ -101,6 +108,8 @@ Marks issues that originate from a non-human source — automation, periodic aud
 | `by:kb-grooming` | Project | The `kb-grooming` automation's periodic documentation-health audits. |
 
 The axis exists so we can add `by:dependabot`, `by:security-audit`, `by:lint-report` etc. later without re-engineering the taxonomy. If a `by:*` value applies, add it; the issue still needs the standard 4 axes.
+
+Color: all `by:*` use `#cccccc` (neutral grey) — provenance is metadata, not a primary signal.
 
 ## Disambiguation rules
 
