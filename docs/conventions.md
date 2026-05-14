@@ -35,7 +35,7 @@ Color: all `type:*` use `#cccccc` (neutral grey), with one exception — `type:b
 
 | Label | When to use | Color |
 | --- | --- | --- |
-| `priority:critical` | The project is in a broken state for users right now, or about to be. Fix before anything else. | `#b60205` |
+| `priority:critical` | The project is in a broken state for users right now, or about to be. Fix before anything else. | `#d73a4a` (same red as `type:bug`) |
 | `priority:high` | Should land in the next release cycle. Blocks something the user cares about. | `#d93f0b` |
 | `priority:medium` | Default for most work. Worth doing; no specific deadline. | `#fbca04` |
 | `priority:low` | Nice to have. Often labelled and then closed without action. | `#cccccc` |
