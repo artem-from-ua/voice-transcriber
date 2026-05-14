@@ -29,15 +29,15 @@ The full rationale is recorded in [ADR 0029](adr/0029-issue-label-taxonomy.md). 
 | `type:test` | Adding, fixing, or restructuring tests. |
 | `type:chore` | Tooling, build, dependencies, repo hygiene, CI, label/issue housekeeping. |
 
-Color: all `type:*` use `#cccccc` (neutral grey), with one exception — `type:bug` uses `#d73a4a` (red) so broken-functionality issues stand out in lists. The prefix carries the meaning; the color carries the axis.
+Color: all `type:*` use `#cccccc` (neutral grey), with one exception — `type:bug` uses `#b60205` (deep red, same as `priority:critical`) so broken-functionality issues stand out in lists. The prefix carries the meaning; the color carries the axis.
 
 ### `priority:*` (exactly one)
 
 | Label | When to use | Color |
 | --- | --- | --- |
-| `priority:critical` | The project is in a broken state for users right now, or about to be. Fix before anything else. | `#d73a4a` (same red as `type:bug`) |
-| `priority:high` | Should land in the next release cycle. Blocks something the user cares about. | `#d93f0b` |
-| `priority:medium` | Default for most work. Worth doing; no specific deadline. | `#fbca04` |
+| `priority:critical` | The project is in a broken state for users right now, or about to be. Fix before anything else. | `#b60205` (same red as `type:bug`) |
+| `priority:high` | Should land in the next release cycle. Blocks something the user cares about. | `#e8814a` (orange) |
+| `priority:medium` | Default for most work. Worth doing; no specific deadline. | `#bfd62c` (lime) |
 | `priority:low` | Nice to have. Often labelled and then closed without action. | `#cccccc` |
 
 Default if unsure: `priority:medium`. Do not leave priority unset.
@@ -79,7 +79,7 @@ Cross-stage concerns. Use `area:*` when the issue spans multiple stages or lives
 | `area:i18n` | Language behaviour: Ukrainian/English code-switching, IT loanwords, transliteration, localized output. |
 | `area:repo` | Repository housekeeping that does NOT affect the runtime: label/issue conventions, ADR flow, dev tooling, GitHub config, CI metadata, kb-grooming reports, commit-message conventions. Use this for issues like "introduce label taxonomy", "align ADR frontmatter", "standardise commit-message style". |
 
-Color: all `area:*` use `#74a892` (muted sage green). Saturated green (`#2da44e`) was tried first but competed too much with `stage:*` blue and `type:bug` red for attention; areas are categorisation, not alarm, so a calmer hue works better.
+Color: all `area:*` use `#52a373` (mid-green, slightly muted). Fully saturated green (`#2da44e`) competed too much with `stage:*` blue and `type:bug` red for attention; areas are categorisation, not alarm, so a slightly calmer hue works better.
 
 ### `reason:*` — closing reasons (orthogonal axis, optional, only on closed issues)
 
