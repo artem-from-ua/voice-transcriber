@@ -166,7 +166,8 @@ Cross-stage concerns. Use `area:*` when the issue spans multiple stages or lives
 - **`type:feature` vs `type:refactor`**: only `type:feature` if a user can observe the change. Internal restructuring → `type:refactor`. Renames (`agc` → `autogain`) are `type:refactor`, not `type:feature`.
 - **Whisper `initial_prompt`** issues → `stage:speech2text` (+ `area:i18n` if about language). Never `area:prompts`.
 - **`area:models` vs `area:llm`**: `area:models` covers all three model classes; `area:llm` is LLM-specific. Whisper quantization is `area:models` + `stage:speech2text`, not `area:llm`.
-- **`area:cli` vs `area:repo`**: `area:cli` = end-user `voice transcribe` runtime (flags, output, progress). `area:repo` = how we maintain the repo (labels, ADRs, conventions, dev tooling). Ask "does this affect the end-user CLI?" — yes is `area:cli`, no is `area:repo`. Do NOT default to `area:cli` for issues about repo housekeeping just because the word "CLI" appears.
+- **`area:cli` vs `area:repo`**: `area:cli` = end-user `voice transcribe` runtime (flags, output, progress). `area:repo` = how we maintain the repo (labels, ADRs, conventions, dev tooling, `scripts/` directory, kb-grooming reports). Ask "does this affect the end-user CLI?" — yes is `area:cli`, no is `area:repo`. Do NOT default to `area:cli` for issues about repo housekeeping or `scripts/` just because the word "CLI" or "command" appears.
+- **Initial / MVP issues**: retrospective "Implementation: ..." issues that bootstrap the project are `type:feature` + `area:repo` (historical bookmark, not active scope).
 - **`kb-grooming` issues**: keep the `kb-grooming` label AND apply the standard 4 axes (typically `type:docs` + `area:*` + `priority:low`).
 - **Built-in `bug`, `enhancement`, `documentation`**: do not use. GitHub restores them after deletion for UI compatibility, but this project uses `type:bug`, `type:feature`, `type:docs` exclusively.
 
