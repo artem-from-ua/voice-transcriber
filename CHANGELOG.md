@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.36.1] — 2026-05-18
+
+### Added
+
+- **`VOICE_DIARIZE_DEVICE` environment override** for `voice.diarize_speakers.diarize()`. When set to `cpu` or `mps`, forces the device instead of auto-detecting. Default behaviour is unchanged (auto-detect MPS → CPU fallback). Used by `scripts/diarize-device-bench.py` to A/B pyannote on CPU vs MPS for [issue #163](https://github.com/artem-from-ua/voice-transcriber/issues/163); kept in tree as a permanent escape hatch for future regressions. See [`docs/benchmarks/diarize-mps-vs-cpu.md`](docs/benchmarks/diarize-mps-vs-cpu.md).
+
 ## [0.36.0] — 2026-05-17
 
 ### Added
