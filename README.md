@@ -54,6 +54,7 @@ uv run voice transcribe a.m4a --language uk            # skip auto-detect; pin l
 uv run voice transcribe a.m4a --names "Artem,Ostap"    # override speaker names
 uv run voice transcribe a.m4a --no-tldr --no-structure # plain dialogue only
 uv run voice transcribe a.m4a --safe-speech-topics health,drugs  # redact sensitive utterances
+uv run voice transcribe a.m4a --user-context "Phone interview between two software engineers about ML deployments"  # seed every LLM stage with a per-run context line (ADR 0033)
 uv run voice transcribe a.m4a --llm-proofread-model …  # smaller model on proofread, default on the rest
 uv run voice transcribe a.m4a --verbose                # progress logs to stderr (also turns on per-LLM-call memory lines)
 ```

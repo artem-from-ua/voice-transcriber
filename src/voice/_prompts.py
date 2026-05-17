@@ -128,6 +128,34 @@ def render(name: str, **values: Any) -> str:
     return load_prompt(name).render(**values)
 
 
+_USER_CONTEXT_PREFIX_UK = "Ця розмова описана користувачем як:"
+_USER_CONTEXT_PREFIX_EN = "The user described this conversation as:"
+
+
+def with_user_context(
+    system_text: str,
+    user_context: str | None,
+    *,
+    language: str,
+) -> str:
+    """Prepend a per-run user-supplied context block to a rendered system prompt.
+
+    When `user_context` is `None` or blank, returns `system_text` unchanged so
+    the call site stays a no-op for the default case. Otherwise prepends a
+    short header (Ukrainian for `language="uk"`, English for everything else)
+    followed by the trimmed context and a blank line.
+
+    See ADR 0033 for the rationale (prefix-outside vs `<<placeholder>>`-inside).
+    """
+    if user_context is None:
+        return system_text
+    text = user_context.strip()
+    if not text:
+        return system_text
+    prefix = _USER_CONTEXT_PREFIX_UK if language == "uk" else _USER_CONTEXT_PREFIX_EN
+    return f"{prefix}\n{text}\n\n{system_text}"
+
+
 _LLM_PARAM_KEYS = frozenset({
     "temperature", "max_tokens", "top_p", "repetition_penalty",
 })

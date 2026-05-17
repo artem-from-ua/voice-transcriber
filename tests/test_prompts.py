@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from voice._prompts import call_kwargs, list_placeholders, load_prompt, render
+from voice._prompts import (
+    call_kwargs,
+    list_placeholders,
+    load_prompt,
+    render,
+    with_user_context,
+)
 
 
 def test_render_strips_frontmatter():
@@ -130,3 +136,47 @@ def test_load_prompt_parses_yaml_style_list():
     even though `language` is not quoted (which fails ast.literal_eval)."""
     p = load_prompt("structure_system")
     assert "language" in p.placeholders
+
+
+# ---------------------------------------------------------------------------
+# with_user_context (ADR 0032)
+
+
+def test_with_user_context_none_returns_input_unchanged():
+    assert with_user_context("SYSTEM", None, language="uk") == "SYSTEM"
+    assert with_user_context("SYSTEM", None, language="en") == "SYSTEM"
+
+
+@pytest.mark.parametrize("blank", ["", "   ", "\n\t  \n"])
+def test_with_user_context_blank_is_noop(blank):
+    assert with_user_context("SYSTEM", blank, language="uk") == "SYSTEM"
+    assert with_user_context("SYSTEM", blank, language="en") == "SYSTEM"
+
+
+def test_with_user_context_uk_prefix():
+    out = with_user_context("SYSTEM", "interview about MLX", language="uk")
+    assert out.startswith("Ця розмова описана користувачем як:\n")
+    assert "interview about MLX" in out
+    assert out.endswith("\n\nSYSTEM")
+
+
+def test_with_user_context_en_prefix():
+    out = with_user_context("SYSTEM", "interview about MLX", language="en")
+    assert out.startswith("The user described this conversation as:\n")
+    assert "interview about MLX" in out
+    assert out.endswith("\n\nSYSTEM")
+
+
+def test_with_user_context_unknown_language_defaults_to_en():
+    """Anything other than 'uk' uses the English prefix — current LLM stages
+    only ship Ukrainian and English prompt variants, so 'en' is the safe
+    default for any other ISO code the language detector might surface."""
+    out = with_user_context("SYSTEM", "hello", language="de")
+    assert out.startswith("The user described this conversation as:\n")
+
+
+def test_with_user_context_strips_whitespace_around_value():
+    out = with_user_context("SYSTEM", "  padded  \n", language="uk")
+    assert "padded" in out
+    assert "\n  padded" not in out
+    assert "padded  \n\n\nSYSTEM" not in out

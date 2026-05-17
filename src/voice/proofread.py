@@ -24,7 +24,7 @@ from typing import Callable, Iterable, Sequence
 import Levenshtein
 
 from ._progress import NullProgress, ProgressReporter
-from ._prompts import call_kwargs, render as render_prompt
+from ._prompts import call_kwargs, render as render_prompt, with_user_context
 from .llm import LLMError, MlxLLM
 from .types import Segment
 
@@ -116,6 +116,7 @@ def fix_segment(
     language: str,
     context_before: str = "",
     context_after: str = "",
+    user_context: str | None = None,
 ) -> tuple[str, bool]:
     """Return ``(corrected_text, called)``.
 
@@ -138,7 +139,14 @@ def fix_segment(
         context_after=context_after,
     )
     messages = [
-        {"role": "system", "content": render_prompt("proofread_system", language=language)},
+        {
+            "role": "system",
+            "content": with_user_context(
+                render_prompt("proofread_system", language=language),
+                user_context,
+                language=language,
+            ),
+        },
         {"role": "user", "content": render_prompt("proofread_user", content=content)},
     ]
     try:
@@ -159,6 +167,7 @@ def fix_asr_errors(
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
     progress: "ProgressReporter | None" = None,
     n_context: int = DEFAULT_N_CONTEXT,
+    user_context: str | None = None,
 ) -> tuple[list[Segment], dict]:
     """Return ``(new_segments, telemetry)``.
 
@@ -191,7 +200,11 @@ def fix_asr_errors(
     reporter = progress if progress is not None else NullProgress()
     system_msg = {
         "role": "system",
-        "content": render_prompt("proofread_system", language=language),
+        "content": with_user_context(
+            render_prompt("proofread_system", language=language),
+            user_context,
+            language=language,
+        ),
     }
     with llm.prompt_cache_session(prefix_messages=[system_msg]), reporter.task(
         "[8/13] Proofread", total=len(segs)
@@ -211,6 +224,7 @@ def fix_asr_errors(
                 language=language,
                 context_before=before,
                 context_after=after,
+                user_context=user_context,
             )
             if called:
                 llm_calls += 1

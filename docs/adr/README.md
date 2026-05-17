@@ -36,5 +36,6 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | 30  | [Section-based TL;DR with recursive aggregation](0030-section-based-tldr.md) | accepted                     |
 | 31  | [Chunk Whisper ASR in Python for long recordings](0031-chunked-asr.md) | accepted                     |
 | 32  | [Dedicated chunked-mode prompt + snap-to-speaker-boundary for `speech_structure`](0032-structure-chunk-prompt-and-snap.md) | accepted (extends 0018) |
+| 33  | [`--user-context` injected as a prefix to every LLM stage's system prompt](0033-user-context-system-prompt-prefix.md) | accepted                     |
 
 New decisions land here as `NNNN-kebab-case-title.md` with the same frontmatter (`status`, `date`, optional `supersedes` / `superseded_by`).

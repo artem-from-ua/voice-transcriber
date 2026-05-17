@@ -45,6 +45,10 @@ class PipelineOptions:
     unknown_speaker: str = "ask"           # "ask" | "keep"
     names_override: list[str] | None = None
     datetime_override: datetime | None = None
+    # Free-text per-run context prepended to the system prompt of every LLM
+    # stage (proofread, identify_speakers, speech_structure, safe_speech,
+    # speech_summary). None or empty → no-op (default behaviour). See ADR 0033.
+    user_context: str | None = None
     llm_model: str | None = None
     llm_proofread_model: str | None = None
     llm_identify_model: str | None = None
@@ -425,6 +429,7 @@ def run(options: PipelineOptions) -> str:
                             log=log,
                             progress=progress,
                             n_context=options.proofread_n_context,
+                            user_context=options.user_context,
                         )
                     stage_meta["proofread"] = {
                         "wall_clock_s": round(stage_timings["proofread"], 2),
@@ -456,6 +461,7 @@ def run(options: PipelineOptions) -> str:
                         llm=identify_llm,
                         unknown_policy=options.unknown_speaker,  # type: ignore[arg-type]
                         names_override=options.names_override,
+                        user_context=options.user_context,
                         log=log,
                         progress=progress,
                     )
@@ -490,6 +496,7 @@ def run(options: PipelineOptions) -> str:
                     with _timed("speech_structure"):
                         dialog = speech_structure_module.structure_dialog(
                             segments, llm=llm, language=effective_language,
+                            user_context=options.user_context,
                             log=log, progress=progress,
                         )
                     free_mlx(log)
@@ -521,6 +528,7 @@ def run(options: PipelineOptions) -> str:
                             topics=effective_topics,
                             policy=options.safe_speech_policy,  # type: ignore[arg-type]
                             language=effective_language,
+                            user_context=options.user_context,
                             log=log,
                             progress=progress,
                         )
@@ -542,6 +550,7 @@ def run(options: PipelineOptions) -> str:
                         tldr_text = speech_summary_module.generate_tldr(
                             dialog, llm=llm, language=effective_language,
                             include_silence=options.tldr_include_silence,
+                            user_context=options.user_context,
                             log=log, progress=progress,
                         )
                     free_mlx(log)

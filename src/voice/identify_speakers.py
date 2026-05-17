@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import Callable, Iterable, Literal
 
 from ._progress import NullProgress, ProgressReporter
-from ._prompts import call_kwargs, render as render_prompt
+from ._prompts import call_kwargs, render as render_prompt, with_user_context
 from .llm import LLMError, MlxLLM
 from .types import Segment
 
@@ -71,9 +71,17 @@ def _ask_llm_for_name(
     llm: MlxLLM,
     snippet: str,
     language: str,
+    user_context: str | None = None,
 ) -> tuple[str | None, str]:
     messages = [
-        {"role": "system", "content": render_prompt("identify_system", language=language)},
+        {
+            "role": "system",
+            "content": with_user_context(
+                render_prompt("identify_system", language=language),
+                user_context,
+                language=language,
+            ),
+        },
         {"role": "user", "content": render_prompt("identify_user", snippet=snippet)},
     ]
     try:
@@ -139,6 +147,7 @@ def identify_speakers(
     llm: MlxLLM | None = None,
     unknown_policy: Policy = "ask",
     names_override: list[str] | None = None,
+    user_context: str | None = None,
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
     read_input: Callable[[str], str] = input,
     progress: "ProgressReporter | None" = None,
@@ -173,7 +182,7 @@ def identify_speakers(
                 if not snippet:
                     advance(1)
                     continue
-                name, confidence = _ask_llm_for_name(llm, snippet, language)
+                name, confidence = _ask_llm_for_name(llm, snippet, language, user_context)
                 if name and confidence != "low":
                     candidates[cluster] = (name, confidence)
                     log(f"identify: {cluster} → {name} ({confidence})")
