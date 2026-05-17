@@ -34,5 +34,6 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | 28  | [Proofread stage: default on again after the iteration-2.1 rework](0028-proofread-default-on-after-rework.md) | accepted (supersedes 0026)   |
 | 29  | [Issue label taxonomy: 4 axes (type, priority, stage, area)](0029-issue-label-taxonomy.md) | accepted                     |
 | 30  | [Section-based TL;DR with recursive aggregation](0030-section-based-tldr.md) | accepted                     |
+| 31  | [Chunk Whisper ASR in Python for long recordings](0031-chunked-asr.md) | accepted                     |
 
 New decisions land here as `NNNN-kebab-case-title.md` with the same frontmatter (`status`, `date`, optional `supersedes` / `superseded_by`).

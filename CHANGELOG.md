@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.34.0] — 2026-05-17
+
+### Fixed
+
+- **`[6] speech2text` (Whisper ASR) no longer SIGKILLs the host on long recordings.** Closes [#147](https://github.com/artem-from-ua/voice-transcriber/issues/147). The MLX peak inside one `mlx_whisper.transcribe()` call scales with audio duration — 7.17 GB on a 6-minute clip, kernel-kill on a 48-minute clip before any LLM stage could run. We now slice audio in Python at `ASR_CHUNK_THRESHOLD_S = 600 s`, call Whisper per 8-minute chunk with 5 s overlap, and stitch segments back together (timestamps shifted by chunk-start, overlap deduplicated structurally). Short recordings keep the single-pass path verbatim.
+
+  Per-call MLX peaks are logged (`whisper_asr: <label> mlx_peak=…GB`) so a future regression surfaces as a number, not a reboot.
+
+  See [ADR 0031](docs/adr/0031-chunked-asr.md) for the measurement that drove the fix and the knob defaults.
+
+### Added
+
+- **MLX memory instrumentation around `mlx_whisper.transcribe`** — pre/peak GB plus elapsed seconds per call. The numbers go through the standard pipeline log channel, so when `--verbose` is set they land in the persistent `<input>.log` next to the audio (added in v0.33.0).
+
 ## [0.33.0] — 2026-05-17
 
 ### Fixed
