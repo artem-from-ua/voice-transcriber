@@ -84,20 +84,23 @@ Run order (sequentially — no parallel inference per CLAUDE.md):
 ```bash
 for cfg in cpu mps mps-trace; do
   uv run python scripts/diarize-device-bench.py \
-    --wav <path>/short-6min.wav \
-    --config $cfg \
-    --num-speakers 2 \
-    2>&1 | tee /tmp/diarize-163-$cfg-6min.log
+    --wav <local>/short-6min.wav --label short \
+    --config $cfg --num-speakers 2 \
+    2>&1 | tee /tmp/diarize-163-$cfg-short.log
 done
 
 for cfg in cpu mps mps-trace; do
   uv run python scripts/diarize-device-bench.py \
-    --wav <path>/long-48min.wav \
-    --config $cfg \
-    --num-speakers 2 \
-    2>&1 | tee /tmp/diarize-163-$cfg-48min.log
+    --wav <local>/long-48min.wav --label long \
+    --config $cfg --num-speakers 2 \
+    2>&1 | tee /tmp/diarize-163-$cfg-long.log
 done
 ```
+
+`--label` is required and becomes the only audio identifier written to
+the JSON artefact and to its filename. Use a fictional short name
+(e.g. `short` / `long`) — never the real wav stem, which on private
+recordings carries company / person names that must not enter git.
 
 ## 6. Result and decision
 

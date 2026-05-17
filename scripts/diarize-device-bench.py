@@ -40,6 +40,9 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--wav", required=True, type=Path, help="Path to input .wav (16 kHz mono).")
     p.add_argument("--config", required=True, choices=CONFIGS, help="Device configuration to measure.")
+    p.add_argument("--label", required=True,
+                   help="Fictional short name used in result filename and JSON instead of the "
+                        "actual wav path (real names/companies must not enter git).")
     p.add_argument("--out-dir", type=Path, default=Path("docs/measurements/163"),
                    help="Where to write the JSON result. Default: docs/measurements/163")
     p.add_argument("--num-speakers", type=int, default=None,
@@ -60,6 +63,17 @@ def apply_env(config: str) -> None:
     elif config == "mps-trace":
         os.environ["VOICE_DIARIZE_DEVICE"] = "mps"
         os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+
+
+def _probe_duration(wav: Path) -> float:
+    """Read duration via ffprobe; rounded to 0.1s."""
+    import subprocess  # noqa: PLC0415
+    out = subprocess.check_output(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=nw=1:nk=1", str(wav)],
+        text=True,
+    ).strip()
+    return round(float(out), 1)
 
 
 def peak_rss_bytes() -> int:
@@ -104,9 +118,15 @@ def run_measurement(args: argparse.Namespace) -> dict[str, Any]:
         m = FALLBACK_RE.search(msg)
         op_counts[m.group(1) if m else "<unparsed>"] += 1
 
+    try:
+        audio_duration_s = _probe_duration(args.wav)
+    except Exception:  # noqa: BLE001
+        audio_duration_s = None
+
     return {
         "config": args.config,
-        "wav": str(args.wav),
+        "label": args.label,
+        "audio_duration_s": audio_duration_s,
         "num_speakers": args.num_speakers,
         "turns_count": len(turns),
         "load_elapsed_s": round(load_elapsed, 3),
@@ -152,7 +172,7 @@ def main() -> int:
         return 0
 
     apply_env(args.config)
-    print(f"== diarize-device-bench: config={args.config} wav={args.wav.name} ==", flush=True)
+    print(f"== diarize-device-bench: config={args.config} label={args.label} ==", flush=True)
     print(f"   env VOICE_DIARIZE_DEVICE={os.environ.get('VOICE_DIARIZE_DEVICE', '<unset>')}", flush=True)
     print(f"   env PYTORCH_ENABLE_MPS_FALLBACK={os.environ.get('PYTORCH_ENABLE_MPS_FALLBACK', '<unset>')}", flush=True)
 
@@ -162,7 +182,7 @@ def main() -> int:
     result["actually_on_gpu"] = (args.config != "cpu" and not failures)
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = args.out_dir / f"{args.config}-{args.wav.stem}.json"
+    out_path = args.out_dir / f"{args.config}-{args.label}.json"
     out_path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n")
     print(f"\n-- result written: {out_path}")
     print(f"   diarize {result['diarize_elapsed_s']}s, load {result['load_elapsed_s']}s, "
