@@ -540,7 +540,7 @@ def run(options: PipelineOptions) -> str:
                     stage_models["speech_summary"] = tldr_model
                     with _timed("speech_summary"):
                         tldr_text = speech_summary_module.generate_tldr(
-                            dialog.segments, llm=llm, language=effective_language,
+                            dialog, llm=llm, language=effective_language,
                             include_silence=options.tldr_include_silence,
                             log=log, progress=progress,
                         )

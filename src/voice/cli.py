@@ -3,10 +3,72 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+from contextlib import contextmanager
 from datetime import datetime
+from pathlib import Path
+from typing import IO, Iterator, TextIO
 
 from .pipeline import PipelineOptions, run
+
+
+class _Tee:
+    """File-like wrapper that mirrors writes to two underlying streams and
+    fsyncs the on-disk one after every line. Used so the persistent
+    `<input>.log` survives a hard reboot mid-run (see issue #146)."""
+
+    def __init__(self, primary: TextIO, mirror: IO[str]) -> None:
+        self._primary = primary
+        self._mirror = mirror
+        self._buf = ""
+
+    def write(self, s: str) -> int:
+        n = self._primary.write(s)
+        self._mirror.write(s)
+        self._buf += s
+        if "\n" in s:
+            self._buf = ""
+            self._mirror.flush()
+            try:
+                os.fsync(self._mirror.fileno())
+            except (OSError, ValueError):
+                pass
+        return n
+
+    def flush(self) -> None:
+        self._primary.flush()
+        self._mirror.flush()
+
+    def isatty(self) -> bool:
+        return self._primary.isatty()
+
+    def __getattr__(self, name: str):
+        return getattr(self._primary, name)
+
+
+@contextmanager
+def _persistent_stderr_log(audio_path: str) -> Iterator[Path]:
+    """Mirror sys.stderr to `<audio>.log` for the lifetime of the block.
+
+    Replaces (not appends to) any previous log for the same input so the
+    file always reflects the latest run. Each line is fsynced so a kernel
+    reboot mid-run leaves a usable log behind."""
+    log_path = Path(audio_path).with_suffix(Path(audio_path).suffix + ".log")
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    mirror = open(log_path, "w", encoding="utf-8", buffering=1)
+    original = sys.stderr
+    sys.stderr = _Tee(original, mirror)  # type: ignore[assignment]
+    try:
+        yield log_path
+    finally:
+        sys.stderr = original
+        mirror.flush()
+        try:
+            os.fsync(mirror.fileno())
+        except (OSError, ValueError):
+            pass
+        mirror.close()
 
 
 def _parse_datetime(s: str) -> datetime:
@@ -382,11 +444,20 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     if args.cmd == "transcribe":
-        try:
-            out = run(_opts_from_args(args))
-        except Exception as exc:
-            print(f"error: {exc}", file=sys.stderr)
-            return 1
+        if args.verbose:
+            with _persistent_stderr_log(args.audio) as log_path:
+                print(f"voice: stderr mirrored to {log_path}", file=sys.stderr)
+                try:
+                    out = run(_opts_from_args(args))
+                except Exception as exc:
+                    print(f"error: {exc}", file=sys.stderr)
+                    return 1
+        else:
+            try:
+                out = run(_opts_from_args(args))
+            except Exception as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                return 1
         print(out)
         return 0
     if args.cmd == "download-whisper":

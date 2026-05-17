@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.0] — 2026-05-17
+
+### Fixed
+
+- **`[12] speech_summary` (TL;DR) no longer feeds the entire transcript to the LLM in one prompt.** Closes [#146](https://github.com/artem-from-ua/voice-transcriber/issues/146). On a 48-minute Ukrainian recording the single-prompt path exhausted wired memory on a 16 GB M1 Mac and **rebooted the host** (no `.ips` was produced — kernel died before it could write a dump). After the fix `voice transcribe` completes end-to-end on the same input.
+
+  TL;DR is now built recursively, one LLM call per section, using three new prompt pairs (`tldr_section_{uk,en}`, `tldr_aggregate_{uk,en}`, `tldr_final_{uk,en}`):
+  - **level 0** — one TL;DR per section (input: raw segments of that section);
+  - **level k** (only triggers when there are more than `TLDR_FANOUT=7` blocks) — re-summarise groups of TL;DRs into one combined TL;DR (input: previous level's outputs; the aggregate prompt explicitly tells the model the input is already-compressed);
+  - **final** — produce the canonical TL;DR format the renderer consumes.
+
+  All three levels reuse `MlxLLM.prompt_cache_session` ([ADR 0027](docs/adr/0027-prompt-cache-llm-stages.md)) so the system prompt KV is amortised across each level's calls. Realistic inputs (≤ 7 sections from `speech_structure`) skip the aggregate level entirely.
+
+  See [ADR 0030](docs/adr/0030-section-based-tldr.md) for the full rationale.
+
+### Changed
+
+- **`--no-structure` now also skips TL;DR (with a logged warning).** When `speech_structure` is bypassed, the synthetic single-section fallback would collapse the new pipeline straight back to the OOM-prone single-prompt path. Users who want a TL;DR must re-run without `--no-structure`. This is a documented behaviour change, not a regression — the v0.32.0 behaviour was the bug.
+
+- **`speech_summary.generate_tldr` signature changed**: it now takes a `StructuredDialog` (not `list[Segment]`) so it can iterate sections. Internal API; the CLI surface is unchanged.
+
+### Added
+
+- **Per-call MLX memory instrumentation in TL;DR.** Each LLM call logs `mlx_active_before=…GB peak=…GB` so future regressions surface as numbers instead of reboots. The peak resets between calls so per-section figures are real, not cumulative.
+
+- **Persistent verbose log next to the input audio.** When `--verbose` is set, `voice transcribe` mirrors `stderr` to `<input>.log` (e.g. `myrecording.wav.log`), line-buffered with `fsync` after every newline so a kernel reboot mid-run leaves a usable log behind. The CLAUDE.md `tee` convention still applies for live progress; the persistent log is the *backup* the v0.32.0 incident taught us to need.
+
 ## [0.32.0] — 2026-05-14
 
 ### Changed

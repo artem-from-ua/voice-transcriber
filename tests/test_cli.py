@@ -246,3 +246,48 @@ def test_download_whisper_subcommand_custom_repo():
     assert ns.cmd == "download-whisper"
     assert ns.repo_id == "foo/bar"
     assert ns.verbose is True
+
+
+# ---------------------------------------------------------------------------
+# Persistent stderr log next to the input audio (#146).
+# ---------------------------------------------------------------------------
+
+import sys
+from pathlib import Path
+
+from voice.cli import _persistent_stderr_log
+
+
+def test_persistent_stderr_log_creates_file_next_to_audio(tmp_path: Path):
+    audio = tmp_path / "rec.wav"
+    audio.write_bytes(b"fake audio")
+    with _persistent_stderr_log(str(audio)) as log_path:
+        print("stage 1 done", file=sys.stderr)
+        print("stage 2 done", file=sys.stderr)
+    assert log_path == audio.with_suffix(audio.suffix + ".log")
+    contents = log_path.read_text(encoding="utf-8")
+    assert "stage 1 done" in contents
+    assert "stage 2 done" in contents
+
+
+def test_persistent_stderr_log_restores_stderr_on_exit(tmp_path: Path):
+    audio = tmp_path / "rec.wav"
+    audio.write_bytes(b"fake")
+    saved = sys.stderr
+    with _persistent_stderr_log(str(audio)):
+        assert sys.stderr is not saved  # replaced inside the block
+    assert sys.stderr is saved  # restored on exit
+
+
+def test_persistent_stderr_log_replaces_previous_log(tmp_path: Path):
+    audio = tmp_path / "rec.wav"
+    audio.write_bytes(b"fake")
+    log_path = audio.with_suffix(audio.suffix + ".log")
+    log_path.write_text("stale content from previous run\n", encoding="utf-8")
+
+    with _persistent_stderr_log(str(audio)):
+        print("fresh line", file=sys.stderr)
+
+    fresh = log_path.read_text(encoding="utf-8")
+    assert "stale content" not in fresh
+    assert "fresh line" in fresh
