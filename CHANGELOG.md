@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.35.0] — 2026-05-17
+
+### Fixed
+
+- **`[10] speech_structure` chunked-mode no longer rejects most chunks.** Closes [#151](https://github.com/artem-from-ua/voice-transcriber/issues/151). Two root causes were fixed together:
+
+  - The single `structure_system.md` prompt was telling the LLM "2 to 7 sections, first one starts at 0 ms" — wrong for the chunked path, where the validator caps at 4 sections and `total_start_ms ≠ 0` for every non-leading chunk. New dedicated prompts `structure_chunk_system.md` / `structure_chunk_user.md` say "1 to 4 sections, use the supplied `total_start_ms`". The single-pass path keeps `structure_system` unchanged.
+  - `_chunk_segments` now snaps the cut to the next speaker change (up to `max_snap_extension=5` extra segments) so chunks no longer split a single speaker's monologue in half.
+
+  On the 48-min reference recording acceptance went from 4/17 = **24%** to 9/15 = **60%**, the ~25-minute "AI skills" mega-section split into three more specific topics, and per-stage wall-clock dropped ~12% from emitting fewer chunks (snap consolidates near-boundary slices).
+
+  See [ADR 0032](docs/adr/0032-structure-chunk-prompt-and-snap.md) for the measurement, the rejected alternatives (capslock "NEVER 5" prompt, bumping `CHUNK_MAX_SECTIONS` to 5), and the remaining tuning question tracked in [#152](https://github.com/artem-from-ua/voice-transcriber/issues/152).
+
+### Changed
+
+- **`_chunk_segments` signature**: added `snap_to_speaker_boundary: bool = True` and `max_snap_extension: int = 5` parameters. Default-on so the pipeline benefits without an opt-in. Internal API; the CLI surface is unchanged.
+
 ## [0.34.0] — 2026-05-17
 
 ### Fixed
