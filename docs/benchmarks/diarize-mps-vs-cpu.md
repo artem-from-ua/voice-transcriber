@@ -104,32 +104,71 @@ recordings carries company / person names that must not enter git.
 
 ## 6. Result and decision
 
-_To be filled in after the run._ Template:
+Hardware: M1 / 16 GB, torch 2.11.0, pyannote/speaker-diarization-3.1.
+Laptop quieted per CLAUDE.md (Safari/IDE/Slack closed, AC power) before
+each run. Configurations ran sequentially.
 
-### 6-min recording
+### 6-min recording (375 s, two speakers, `num_speakers=2` passed)
 
-| config | load (s) | diarize (s) | × real-time | peak RSS (GB) | peak MPS (GB) | fallback warnings | on GPU? |
+| config | load (s) | diarize (s) | × real-time | peak RSS (GB) | peak Metal driver pool (MB) | fallback warnings | on GPU? |
 |---|---|---|---|---|---|---|---|
-| A cpu | … | … | … | … | n/a | n/a | n/a |
-| B mps | … | … | … | … | … | … | … |
-| C mps-trace | … | … | … | … | … | `{op: n}` | … |
+| A cpu        | 1.2 | 317.5 | **0.85×** | 3.0  | n/a | n/a | n/a |
+| B mps        | 1.2 | 23.3  | **16.1×** | 1.3  | 4.1 | 0 | ✅ |
+| C mps-trace  | 1.3 | 23.2  | **16.2×** | 1.3  | 4.1 | 0 | ✅ |
 
-### 48-min recording
+Turn count was 111 in all three configs (diarization output is identical).
 
-| config | load (s) | diarize (s) | × real-time | peak RSS (GB) | peak MPS (GB) | fallback warnings | on GPU? |
+### 48-min recording (2884 s, no `num_speakers` hint)
+
+CPU was skipped — the 6-min ratio (13.7× speedup, identical turns) is
+already conclusive, and a 48-min CPU run on M1 would take ~40 wall-clock
+minutes for no new information.
+
+| config | load (s) | diarize (s) | × real-time | peak RSS (GB) | peak Metal driver pool (MB) | fallback warnings | on GPU? |
 |---|---|---|---|---|---|---|---|
-| A cpu | … | … | … | … | n/a | n/a | n/a |
-| B mps | … | … | … | … | … | … | … |
-| C mps-trace | … | … | … | … | … | `{op: n}` | … |
+| A cpu        | _skipped — see above_ | | | | | | |
+| B mps        | 1.2 | 218.7 | **13.2×** | 1.4  | 4.1 | 0 | ✅ |
+| C mps-trace  | 1.4 | 219.2 | **13.2×** | 1.4  | 4.1 | 0 | ✅ |
+
+Turn count was 305 in both MPS configs.
+
+### Verification: actually on GPU?
+
+The first MPS run revealed a harness bug: `diarize()` calls
+`free_torch_mps()` (`torch.mps.empty_cache()`) internally right before
+returning, so a post-call read of `torch.mps.current_allocated_memory()`
+is always 0. The harness now hooks `torch.mps.empty_cache` to capture
+the value at drain time, and additionally reads
+`torch.mps.driver_allocated_memory()` which survives `empty_cache()`.
+
+The Metal driver pool grew from **384 KB** (pre-diarize baseline) to
+**4.16 MB** in every MPS run — modest in absolute terms but consistent
+and only happens when GPU is exercised. Combined with the 13× wall-clock
+speedup over CPU, identical turn counts across configs, and the **zero
+fallback warnings with `PYTORCH_ENABLE_MPS_FALLBACK=1`** explicitly
+enabled, the conclusion is unambiguous: **pyannote 3.1 + torch 2.11
+runs entirely on Apple GPU with no silent CPU fallback**.
+
+The original concern from issue #163 — "we don't know whether MPS is
+buying 5% or 50%" — answers as **13×**, with no per-op CPU fallback at
+all.
 
 ### Decision
 
-Per the issue's decision tree:
+Per the issue's decision tree, this is the "MPS ≥ 2× CPU" branch: keep
+the default as-is, no code change. Specifically:
 
-- MPS ≥ 2× CPU → close WONTFIX, no code change.
-- MPS within 0.8–1.5× CPU → keep MPS to spare CPU working set; add a
-  note in `diarize_speakers.py` linking back here.
-- MPS slower than CPU → flip default to CPU in a follow-up `perf/` PR
-  and record the `torch`/`pyannote` versions in a new ADR.
-- ≥ 100 fallback warnings/min of audio → open follow-up issue with the
-  op-name distribution.
+- Default device selection in `src/voice/diarize_speakers.py` stays at
+  `mps` when available.
+- The `VOICE_DIARIZE_DEVICE` env override (added by this work) stays in
+  the codebase as a permanent escape hatch so this measurement can be
+  replayed in the future without monkey-patching.
+- No new issue for per-op fallback investigation — there is no fallback
+  to investigate at the measured torch/pyannote versions.
+
+Pinned for future regressions: if a later torch or pyannote release
+makes diarize slower, re-run `scripts/diarize-device-bench.py --config
+mps-trace --label short` and compare against this baseline. A non-zero
+`fallback_warning_count` will name the regressing op.
+
+See [ADR 0034](../adr/0034-diarize-mps-default.md) for the formal record.

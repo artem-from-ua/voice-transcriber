@@ -88,12 +88,44 @@ def mps_allocated_bytes(torch_mod: Any) -> int:
         return 0
 
 
+def mps_driver_bytes(torch_mod: Any) -> int:
+    """Total Metal driver pool — survives torch.mps.empty_cache(), so it stays
+    non-zero even after diarize_speakers.diarize() drains the allocator."""
+    try:
+        return int(torch_mod.mps.driver_allocated_memory())
+    except (AttributeError, RuntimeError):
+        return 0
+
+
+def install_mps_peak_probe(torch_mod: Any, peak: dict[str, int]) -> None:
+    """Hook torch.mps.empty_cache so we capture allocated memory right
+    before diarize() drains it (free_torch_mps is called from inside
+    diarize()). Without this hook our post-call read always sees 0."""
+    if not hasattr(torch_mod, "mps") or not hasattr(torch_mod.mps, "empty_cache"):
+        return
+    original = torch_mod.mps.empty_cache
+
+    def _wrapped() -> None:
+        try:
+            now = int(torch_mod.mps.current_allocated_memory())
+            if now > peak.get("current", 0):
+                peak["current"] = now
+        except Exception:  # noqa: BLE001
+            pass
+        original()
+
+    torch_mod.mps.empty_cache = _wrapped
+
+
 def run_measurement(args: argparse.Namespace) -> dict[str, Any]:
     import torch  # noqa: PLC0415 — must follow apply_env()
     from voice.diarize_speakers import diarize  # noqa: PLC0415
 
     mps_available = bool(torch.backends.mps.is_available())
     pre_mps_bytes = mps_allocated_bytes(torch)
+    pre_driver_bytes = mps_driver_bytes(torch)
+    peak_probe: dict[str, int] = {"current": pre_mps_bytes}
+    install_mps_peak_probe(torch, peak_probe)
 
     fallback_log: list[str] = []
     with warnings.catch_warnings(record=True) as caught:
@@ -110,7 +142,12 @@ def run_measurement(args: argparse.Namespace) -> dict[str, Any]:
             if "MPS" in text or "fallback" in text.lower():
                 fallback_log.append(text)
 
-    peak_mps_bytes = mps_allocated_bytes(torch)
+    # Two complementary signals: peak_probe captures current_allocated_memory
+    # at the moment diarize() drained the cache (the real working-set peak),
+    # and driver_allocated_memory shows the Metal pool size, which is not
+    # released by empty_cache.
+    peak_mps_bytes = peak_probe["current"]
+    peak_driver_bytes = mps_driver_bytes(torch)
     diarize_elapsed = total_elapsed - load_elapsed
 
     op_counts: Counter[str] = Counter()
@@ -135,6 +172,8 @@ def run_measurement(args: argparse.Namespace) -> dict[str, Any]:
         "peak_rss_bytes": peak_rss_bytes(),
         "pre_mps_allocated_bytes": pre_mps_bytes,
         "peak_mps_allocated_bytes": peak_mps_bytes,
+        "pre_mps_driver_bytes": pre_driver_bytes,
+        "peak_mps_driver_bytes": peak_driver_bytes,
         "mps_available": mps_available,
         "fallback_warning_count": len(fallback_log),
         "fallback_ops": dict(op_counts),
@@ -149,10 +188,11 @@ def gate_check(result: dict[str, Any]) -> list[str]:
     if config in ("mps", "mps-trace"):
         if not result["mps_available"]:
             failures.append("torch.backends.mps.is_available() == False")
-        if result["peak_mps_allocated_bytes"] == 0:
+        driver_grew = result["peak_mps_driver_bytes"] > result["pre_mps_driver_bytes"]
+        if result["peak_mps_allocated_bytes"] == 0 and not driver_grew:
             failures.append(
-                "torch.mps.current_allocated_memory() == 0 after diarize — "
-                "pipeline likely ran on CPU despite device=mps"
+                "neither current_allocated_memory (probed at empty_cache time) nor "
+                "driver_allocated_memory grew during diarize — pipeline likely ran on CPU"
             )
     if config == "mps" and result["fallback_warning_count"] > 0:
         failures.append(

@@ -1,0 +1,21 @@
+{
+  "config": "mps-trace",
+  "label": "long",
+  "audio_duration_s": 2884.3,
+  "num_speakers": null,
+  "turns_count": 305,
+  "load_elapsed_s": 1.439,
+  "diarize_elapsed_s": 219.215,
+  "total_elapsed_s": 220.654,
+  "peak_rss_bytes": 1519763456,
+  "pre_mps_allocated_bytes": 0,
+  "peak_mps_allocated_bytes": 0,
+  "pre_mps_driver_bytes": 393216,
+  "peak_mps_driver_bytes": 4259840,
+  "mps_available": true,
+  "fallback_warning_count": 0,
+  "fallback_ops": {},
+  "torch_version": "2.11.0",
+  "gate_failures": [],
+  "actually_on_gpu": true
+}
