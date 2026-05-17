@@ -116,6 +116,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Override recording start time (ISO 8601, e.g. 2026-05-10T15:44:02).",
     )
     t.add_argument(
+        "--user-context", dest="user_context", type=str, default=None, metavar="TEXT",
+        help=(
+            "Free-text description of the recording, injected as a prefix into "
+            "the system prompt of all five LLM stages (proofread, "
+            "identify_speakers, speech_structure, safe_speech, speech_summary). "
+            "Default: none (each stage's system prompt is unchanged). Empty "
+            "string is treated as none. ASR (Whisper initial_prompt) is NOT "
+            "affected by this flag. See ADR 0033."
+        ),
+    )
+    t.add_argument(
         "--llm-model", default=None,
         help=(
             "Path to a local MLX model directory used as the default for all "
@@ -389,6 +400,14 @@ def _parse_topics(raw: str | None) -> list[str] | None:
     return parts
 
 
+def _normalize_user_context(raw: str | None) -> str | None:
+    """Treat None and whitespace-only --user-context the same: no-op."""
+    if raw is None:
+        return None
+    stripped = raw.strip()
+    return stripped if stripped else None
+
+
 def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
     return PipelineOptions(
         audio_path=args.audio,
@@ -397,6 +416,7 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
         unknown_speaker=args.unknown_speaker,
         names_override=args.names,
         datetime_override=args.datetime_override,
+        user_context=_normalize_user_context(args.user_context),
         llm_model=args.llm_model,
         llm_proofread_model=args.llm_proofread_model,
         llm_identify_model=args.llm_identify_model,

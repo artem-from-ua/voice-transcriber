@@ -19,7 +19,7 @@ import sys
 from typing import Callable, Iterable
 
 from ._progress import NullProgress, ProgressReporter
-from ._prompts import call_kwargs, render as render_prompt
+from ._prompts import call_kwargs, render as render_prompt, with_user_context
 from .llm import LLMError, MlxLLM
 from .types import Section, Segment, StructuredDialog
 
@@ -274,13 +274,18 @@ def _structure_single_pass(
     total_start_ms: int,
     total_end_ms: int,
     on_token: Callable[[int], None] | None = None,
+    user_context: str | None = None,
 ) -> list[Section] | None:
     """One LLM call for the whole dialogue. Returns validated sections or None."""
     script = _build_script(speech, PAUSE_GAP_S)
     messages = [
         {
             "role": "system",
-            "content": render_prompt("structure_system", language=language),
+            "content": with_user_context(
+                render_prompt("structure_system", language=language),
+                user_context,
+                language=language,
+            ),
         },
         {
             "role": "user",
@@ -310,6 +315,7 @@ def _structure_chunk(
     llm: MlxLLM,
     language: str,
     on_token: Callable[[int], None] | None = None,
+    user_context: str | None = None,
 ) -> list[Section] | None:
     """One LLM call for a sub-range. Returns sections covering the chunk."""
     if not chunk:
@@ -326,7 +332,11 @@ def _structure_chunk(
     messages = [
         {
             "role": "system",
-            "content": render_prompt("structure_chunk_system", language=language),
+            "content": with_user_context(
+                render_prompt("structure_chunk_system", language=language),
+                user_context,
+                language=language,
+            ),
         },
         {
             "role": "user",
@@ -362,6 +372,7 @@ def structure_dialog(
     *,
     llm: MlxLLM | None = None,
     language: str = "uk",
+    user_context: str | None = None,
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
     progress: "ProgressReporter | None" = None,
 ) -> StructuredDialog:
@@ -391,6 +402,7 @@ def structure_dialog(
                     total_start_ms=total_start_ms,
                     total_end_ms=total_end_ms,
                     on_token=advance,
+                    user_context=user_context,
                 )
         except LLMError as exc:
             log(f"structure: LLM error — {exc}; falling back to single section")
@@ -423,7 +435,11 @@ def structure_dialog(
     # (see issue #151).
     structure_system_msg = {
         "role": "system",
-        "content": render_prompt("structure_chunk_system", language=language),
+        "content": with_user_context(
+            render_prompt("structure_chunk_system", language=language),
+            user_context,
+            language=language,
+        ),
     }
     try:
         with llm.prompt_cache_session(
@@ -433,7 +449,10 @@ def structure_dialog(
         ) as advance:
             for idx, chunk in enumerate(chunks, start=1):
                 try:
-                    sections = _structure_chunk(chunk, llm=llm, language=language)
+                    sections = _structure_chunk(
+                        chunk, llm=llm, language=language,
+                        user_context=user_context,
+                    )
                 except LLMError as exc:
                     log(f"structure: chunk {idx}/{len(chunks)} LLM error — {exc}")
                     advance(1, suffix=f"chunk {idx} failed")

@@ -34,7 +34,7 @@ from typing import Callable
 import mlx.core as mx
 
 from ._progress import NullProgress, ProgressReporter
-from ._prompts import call_kwargs, render as render_prompt
+from ._prompts import call_kwargs, render as render_prompt, with_user_context
 from .llm import LLMError, MlxLLM
 from .silence import extract_silence_events
 from .types import Section, Segment, StructuredDialog
@@ -174,6 +174,7 @@ def _per_section_tldrs(
     include_silence: bool,
     progress: ProgressReporter,
     log: Callable[[str], None],
+    user_context: str | None = None,
 ) -> list[tuple[str, str]]:
     """Level 0: one TL;DR per real section. Returns (title, body) pairs.
 
@@ -181,7 +182,12 @@ def _per_section_tldrs(
     a `prompt_cache_session` and only the per-section user content varies.
     """
     prompt_name = _pick_prompt_name(language, "section")
-    system_msg = {"role": "system", "content": render_prompt(prompt_name)}
+    system_msg = {
+        "role": "system",
+        "content": with_user_context(
+            render_prompt(prompt_name), user_context, language=language,
+        ),
+    }
 
     results: list[tuple[str, str]] = []
     total = len(dialog.sections)
@@ -213,12 +219,18 @@ def _aggregate_level(
     language: str,
     progress: ProgressReporter,
     log: Callable[[str], None],
+    user_context: str | None = None,
 ) -> list[tuple[str, str]]:
     """One recursion step. Groups `blocks` into chunks of TLDR_FANOUT and
     produces one aggregated TL;DR per group. Singleton groups pass through
     unchanged — re-summarising a single TL;DR adds no information."""
     prompt_name = _pick_prompt_name(language, "aggregate")
-    system_msg = {"role": "system", "content": render_prompt(prompt_name)}
+    system_msg = {
+        "role": "system",
+        "content": with_user_context(
+            render_prompt(prompt_name), user_context, language=language,
+        ),
+    }
 
     out: list[tuple[str, str]] = []
     groups = [
@@ -250,10 +262,16 @@ def _final_pass(
     language: str,
     progress: ProgressReporter,
     log: Callable[[str], None],
+    user_context: str | None = None,
 ) -> str:
     """Produce the canonical-format TL;DR that the renderer consumes."""
     prompt_name = _pick_prompt_name(language, "final")
-    system_msg = {"role": "system", "content": render_prompt(prompt_name)}
+    system_msg = {
+        "role": "system",
+        "content": with_user_context(
+            render_prompt(prompt_name), user_context, language=language,
+        ),
+    }
     user_content = _format_blocks(blocks)
     body = _llm_call(
         llm=llm, system_msg=system_msg, user_content=user_content,
@@ -269,6 +287,7 @@ def generate_tldr(
     llm: MlxLLM,
     language: str = "uk",
     include_silence: bool = False,
+    user_context: str | None = None,
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
     progress: "ProgressReporter | None" = None,
 ) -> str:
@@ -300,6 +319,7 @@ def generate_tldr(
         llm=llm, language=language,
         include_silence=include_silence,
         progress=reporter, log=log,
+        user_context=user_context,
     )
     if not blocks:
         return ""
@@ -311,6 +331,7 @@ def generate_tldr(
             blocks, level=level,
             llm=llm, language=language,
             progress=reporter, log=log,
+            user_context=user_context,
         )
         if not blocks:
             return ""
@@ -325,4 +346,5 @@ def generate_tldr(
     return _final_pass(
         blocks, llm=llm, language=language,
         progress=reporter, log=log,
+        user_context=user_context,
     )

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.36.0] — 2026-05-17
+
+### Added
+
+- **`--user-context "..."` CLI flag** seeds every LLM stage with a one-line, per-run description of the recording. Partial implementation of epic [#134](https://github.com/artem-from-ua/voice-transcriber/issues/134) — the common plumbing shared by all five LLM-driven stages (proofread, identify_speakers, speech_structure, safe_speech, speech_summary). The string is prepended to each stage's system prompt as `"The user described this conversation as: ..."` (or the Ukrainian equivalent for `uk` prompts) and then short-circuits to a no-op when the flag is absent or empty, so default behaviour is byte-identical to v0.35.0. ASR (Whisper `initial_prompt`) is intentionally not affected — that work is tracked separately in [#135](https://github.com/artem-from-ua/voice-transcriber/issues/135); the proofread quality-vs-cost measurement remains [#136](https://github.com/artem-from-ua/voice-transcriber/issues/136). See [ADR 0033](docs/adr/0033-user-context-system-prompt-prefix.md) for the prefix-outside vs `<<placeholder>>`-inside decision and the rationale for one shared flag across five stages.
+
+### Changed
+
+- **Public signatures of the five LLM stage entry points gained an optional `user_context: str | None = None` keyword argument**: `proofread.fix_asr_errors`, `proofread.fix_segment`, `identify_speakers.identify_speakers`, `speech_structure.structure_dialog`, `safe_speech.redact_dialog`, `speech_summary.generate_tldr`. Defaults preserve current behaviour; in-tree callers updated to thread `PipelineOptions.user_context` through. External callers that pinned positional argument order are unaffected (the new parameter is keyword-only).
+
 ## [0.35.0] — 2026-05-17
 
 ### Fixed

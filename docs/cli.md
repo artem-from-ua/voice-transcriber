@@ -20,6 +20,7 @@ voice transcribe <audio> [options]
 | `--unknown-speaker` | `{ask,keep}` | `ask` | What to do when self-intro is missing. `ask` prompts on stdin; `keep` leaves `SPEAKER_XX`. |
 | `--names` | `"A,B,..."` | – | Override automatic naming. Mapped to clusters in order of first appearance. Skips the LLM identify step. |
 | `--datetime` | ISO 8601 | – | Override recording start time. Defaults to `ffprobe creation_time`, then `stat birthtime`, then `stat mtime`. |
+| `--user-context` | str | – | Free-text description of the recording (e.g. `"Phone interview between two software engineers about ML deployments"`). Prepended as a short header (`"The user described this conversation as: ..."` / `"Ця розмова описана користувачем як: ..."`) to the system prompt of every LLM stage: proofread, identify_speakers, speech_structure, safe_speech, speech_summary. ASR is **not** affected. Empty string is treated as unset. Default: unset (no-op — stages behave exactly as before). See [ADR 0033](adr/0033-user-context-system-prompt-prefix.md). |
 | `--llm-model` | path or HF repo-id | `mlx-community/Qwen2.5-7B-Instruct-4bit` | Hugging Face `org/repo` id **or** a filesystem path to an MLX model directory, used as the default for all four LLM stages. Repo ids are resolved via `huggingface_hub.try_to_load_from_cache`; missing repos fail fast with the `huggingface-cli download` command to run. See [ADR 0020](adr/0020-default-llm-qwen25-7b.md). |
 | `--llm-temperature` | float | `0.7` (Qwen2.5 rec) | Sampling temperature applied to all LLM stages. Overrides the per-prompt frontmatter value. When switching `--llm-model`, also pass this and the other sampling flags to match that model's recommendation — see `docs/models.md`. |
 | `--llm-top-p` | float | `0.8` (Qwen2.5 rec) | Nucleus-sampling cutoff applied globally. |
@@ -52,6 +53,12 @@ uv run voice transcribe call.m4a --names "Artem,Ostap"
 
 # 3) Force English transcript (skip the [4] lang_detect probe)
 uv run voice transcribe interview.wav --language en
+
+# 3a) Seed every LLM stage with a per-run context line (helps the LLM stages
+# disambiguate jargon, paper titles, internal codenames specific to *this*
+# recording — see ADR 0033)
+uv run voice transcribe interview.wav \
+  --user-context "Phone interview between two software engineers about ML deployments"
 
 # 4) Minimal output (plain dialogue), no TL;DR, no sectioning
 uv run voice transcribe quick.mp3 --no-tldr --no-structure --unknown-speaker keep

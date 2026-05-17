@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import Callable, Literal
 
 from ._progress import NullProgress, ProgressReporter
-from ._prompts import call_kwargs, render as render_prompt
+from ._prompts import call_kwargs, render as render_prompt, with_user_context
 from .llm import LLMError, MlxLLM
 from .types import Segment, Section, StructuredDialog
 
@@ -163,6 +163,7 @@ def redact_dialog(
     topics: list[str],
     policy: Literal["placeholder", "drop"] = "placeholder",
     language: str = "uk",
+    user_context: str | None = None,
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
     progress: "ProgressReporter | None" = None,
 ) -> tuple[StructuredDialog, list[Decision]]:
@@ -178,7 +179,11 @@ def redact_dialog(
     reporter = progress if progress is not None else NullProgress()
     prompt_name = _pick_prompt_name(language)
     topics_text = _topics_text(topics, language)
-    system_prompt = render_prompt(prompt_name, topics=topics_text)
+    system_prompt = with_user_context(
+        render_prompt(prompt_name, topics=topics_text),
+        user_context,
+        language=language,
+    )
 
     # Work on a deep copy so the caller's original is never mutated
     dialog = copy.deepcopy(dialog)

@@ -4,7 +4,7 @@
 
 ## Stages
 
-The component diagram below shows the same thirteen stages as boxes with their data-flow edges: solid orange = audio, solid blue = metadata, solid green = transcript text, dashed = optional CLI overrides. The table that follows it mirrors the diagram one row per box, naming the upstream stage for every input so the dependency graph reads off the rows.
+The component diagram below shows the same thirteen stages as boxes with their data-flow edges: solid orange = audio, solid blue = metadata, solid green = transcript text, dashed blue = optional CLI overrides (including `--language`, `--names`, `--safe-speech-topics`, and `--user-context`, which seeds the system prompt of every LLM stage — see ADR 0033). The table that follows it mirrors the diagram one row per box, naming the upstream stage for every input so the dependency graph reads off the rows.
 
 ```plantuml
 @startuml
@@ -47,6 +47,12 @@ User -[#3B82F6,dashed]-> LangDet : <color:#404040>  speech language</color>\n<co
 User -[#3B82F6,dashed]-> Ident : <color:#404040>  speaker names</color>\n<color:#404040>  (optional override)</color>
 User -[#3B82F6,dashed]-> Safe : <color:#404040>  sensitive topics</color>\n<color:#404040>  (optional override)</color>
 
+User -[#3B82F6,dashed]-> Post : <color:#404040>  user context</color>\n<color:#404040>  (optional override)</color>
+User -[#3B82F6,dashed]-> Ident : <color:#404040>  user context</color>\n<color:#404040>  (optional override)</color>
+User -[#3B82F6,dashed]-> Struct : <color:#404040>  user context</color>\n<color:#404040>  (optional override)</color>
+User -[#3B82F6,dashed]-> Safe : <color:#404040>  user context</color>\n<color:#404040>  (optional override)</color>
+User -[#3B82F6,dashed]-> TLDR : <color:#404040>  user context</color>\n<color:#404040>  (optional override)</color>
+
 WAV -[#FF6B35]-> Diar : <color:#404040>  16 kHz</color>\n<color:#404040>  mono WAV</color>
 WAV -[#FF6B35]-> LangDet : <color:#404040>  16 kHz</color>\n<color:#404040>  mono WAV</color>
 WAV -[#FF6B35]-> CS : <color:#404040>  16 kHz</color>\n<color:#404040>  mono WAV</color>
@@ -80,7 +86,7 @@ end legend
 @enduml
 ```
 
-![Pipeline stages](https://www.plantuml.com/plantuml/svg/jPVzJkD64C3_zrECZdzQ5GT887p8iewFH4K2wGhNtX_N26tiILXXxrgx6pYkgjI-m-aUvXxddgIpkyw7Wvq6IWaWpCxyPdPcFBFxLXkcp2JF0iDDXd0lUOAXKKpeHF4XAlZ-rnSeU84P5mWaFKOTw3ik2gPO3edC2obGc6lpIEeA4yF4ECC5aMEbvCFxMvxS2TGQsWjB6OvHf2TIfQXEPIOLECkqICIdSYov6oiv4QcNtUYvho28j3KU1m2fJ2OvwS8Vz01moTIO2sZlqTEVzCCIGtf-xOBsC_TgTr5-ppsyOsdAnHYyShHL6Wayv0rzc8PVDQeWc4K1taJ3-EFEmEyZaIb6MyFuTn7nE1gDyWB7SRJ5OwVwuVWtsiA1_Im3sWDWavJBcnmDMoGKIWvnZkZtcmYT0QISAVuPRtI1x0wLddEAHoQ4D1Ww8p6K4g7NO8PB4NPQEpCpP_H_s3ZOF-trZvSDxGuWeupVf6WeztCRUVOfVBZbX5OnVF1_X1d55yFxpenyGQfdQ63ZSBlNEznUXkyD8CcGARi7J6xdT6shOCGf7nGe8yUC2yii5nDUFCOGwNZ8H5emJLlNSTrweL2ZIB2wNYRA2gGe9DVOf4zbY_UeXjDrjwVJwwQaT0VWDz8s-EdPiJg-lcgAq_u0SYHnYtIob_QfoOs30L0ToP52bbQToF8OVdb0qMxjXViduRdGHariLaiNtabDkUhtJq-xtMNguG0uXSlmqMDDoQr3FxVgJVYTxMdmRhpQHE7pyDVkiP5FBwrc8tnIQckXIR4Ht9uxFibpfXwVntv_SNRLoARNd5ebbU4iyrVkSPRwm3Oe23yIe7lIsHk4iMqQHn0bjeKURUnksqyClj-0VQMYBRTcNLmM-k61tMz2lileLz61LglrurIwnf1jSF-dfSx9GRlVtKoPliNK6fnsangZFWEkLKtOUALbMTW6o3AGz6ehgkarBFlIhRThtmGGB4VzsbPTsTKPHQ6vuVS8HXOyUQdTm2Qmab4t26eCxdJXxkVFAypaKaXR3pFs4_IAtBq2dNhogu1T06Qf-FUQixbVmJSyHtj8q2iCrBl-4lRKrGhUJfKQlX_dcAumiFmk1UHf9UWDQ3lHnKgown3pChGS0dTxXxsTlWNxwLQ3fkEd70iwzAoY-zdR6Ez6-4j27dXQnNitH6lurYzuuEPsrZGoDiHi3dEA5LHZst7pFRG3lhfThr1Xb6DnbKChjbpRtshDDFIgbnif7Qyahz6AxOFK5nFRx1OGLhpYffks_wsbAiofbwRp6g21Mt6o7D4DzQlSfIDb1ZTN64adoftJPrQSuvMjD9lv2MOdaLAxbAtekx5J5yloSbYOLhwmItz7i-61XB9FroA0Q4XNjgFova2gGCSK-W-TdUdmK-KUdrEtJJ4xWeLRo9Hk3qDpd3y3hukhdBZhSFvejIxkuk9o6LEA-iONV__oj_t--cqgLeEhDBWbZA-JjJ3sTaY5mXf8FfLhaUOvXIU1ibdroGtUqgz9dlq3)
+![Pipeline stages](https://www.plantuml.com/plantuml/svg/lLXjJoCt4Fw-ls9qV6bLDa02uKNHwe1BL2IGhd3jVRX6oDcT18jTUsLxuRYgKliVJlqn_JdtIpgsDoyRTjE0u0X4R3ppFECP-_4uRxLXoXHP6XXkKeGxoMCCZM92nugFKC6tlxv2pdDCkK0WwmdgGDzoaJF5CeXbbak1mboP1t9N61ic9Yakc1mh9Uy_tF3uLg3Mq5uOId628ZcHAa5rAbEfm37J824-jcFnxKJ9GYJUTgFlVeAWforv500aCYuoyeK_w07WWga95z3UewS_wO_5Xlpys3dDPnxLxgBzddjupvA4YmbuvzvMIH9ua3VqOXf-rQY2O9O5UDCRHPzsXduUiKomjpMAVXSz7lN6uop7ITJRuf5p_NZy6qtXmBwM0Tf3O4N2vNM6XYqYv4gES0un63GXT8QGSARu5xpMER9RL7gEapym8QJ1q954K5g4teCPBaNOQUtCQDxHvx1ni7_Q7nml4-qE8QMANoTegFPpZYpz7DxVS89M4Npq_uGfvHV3kyuC-PnStw61ZSFjVlzmUnbyRmXnYapPEM1yCqVNTXMCETM34cNaX75XCSl1cESF4VHqD68YoPccgUkeRZnNg574M1ql2sKD4XIIQspofsMBTwX6qt4tfzEhfg9qX-0dqZRu-ScvEhwwRChJ_X0o97CBwMmlx5DJ60T3e7KanmfPKWqYpIBuvHv5kxKNxf-4Pq8RLTYgbY6ybvfgDHYSddQxowY7G-2KBiF73pLBRXtqC-lU1B-pFKtUjNSh53uD_iezDkBJfjLiZ8-MsbhGvDW8t9u7NcGPKmzFm_vm_kwo4PksEKabBSDPvI_TuwpqWHKe23yHGFUaipSC8oiQHz2BhOGURUnksrS4Nc_0RgdUbXkp8IuR_N3FxZOXssNqbdUWrMhzEBMk8R82zvfCdPE3zg2xcJ1zWuabdAf93QclW9EgWarMCilS2Y1BGTBMLhIcrs3sIxUUr-u442n3_TAiRjdLaQBGtF0x12Dp7Z-NjvdOwK0DSM4TOYcyl7sd5BycQQaPtvkreQwloUbavdKu0oi45MLm3KKDsKuNRd_-ie8caq9QNPbXFu9UeG4lW4vd-ui0kmJCol3_scKrP0M-uHdQPbEl8AWF_JdOqr0hyBOxgS7tRI4cAmYMDJcWI2j9Ru2sdQ5OYUnEclaoj3W4tEqVzdS65jXtIJNGT8sH4q7DyohqnHrHa-z6yEUaFF1ebUYRHDZ61VVStCmEdvIDC9s3ESSALAEskZunj8rYTRhUeOBHB9MpW5PCkVQShALfqCRdavI1LuhNo6BFKpfVOojs2n3Ml19cavm-uMXMc96M9lCrG8rR9SYorMjOlyfTNXDcS7C5IL8eTz-RiRZ0ArDffla9PXrjwLtQLlpTaLENo_9BXjoqieLP-hk-JG_4L7swNWFqHdJrFofleEGArExI9tG7eoQwYdjyHcgRO7e42xVPARfjgkTm_YwrBbpbvbO7vrlqTU7Epo-MOKfJBtpHjwz_szz__fsQrS1L16u9ng-JjM3ijmoqK5W3aY_bMaZpciAZHDcg-k86R-cjoDB_0000)
 
 
 | # | Stage | Input (from) | Action | Output |
