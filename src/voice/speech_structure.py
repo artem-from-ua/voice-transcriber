@@ -113,27 +113,53 @@ def _chunk_segments(
     *,
     chunk_size: int,
     overlap: int,
+    snap_to_speaker_boundary: bool = True,
+    max_snap_extension: int = 5,
 ) -> list[list[Segment]]:
     """Split into overlapping batches. Last batch absorbs the remainder.
 
     `overlap` segments are duplicated between adjacent chunks so the LLM
     sees the tail of the previous topic when judging section boundaries.
+
+    `snap_to_speaker_boundary` extends each chunk past `chunk_size` until
+    the next segment starts a new speaker turn (relative to the chunk's
+    last segment), so we never cut mid-monologue. The extension is capped
+    at `max_snap_extension` segments — very long monologues are still cut
+    if necessary, but most natural turns end well within the cap.
     """
     if chunk_size <= 0:
         raise ValueError(f"chunk_size must be positive, got {chunk_size}")
     if overlap < 0 or overlap >= chunk_size:
         raise ValueError(f"overlap must be in [0, chunk_size), got {overlap}")
+    if max_snap_extension < 0:
+        raise ValueError(
+            f"max_snap_extension must be non-negative, got {max_snap_extension}"
+        )
 
     chunks: list[list[Segment]] = []
     step = chunk_size - overlap
     i = 0
     n = len(speech)
     while i < n:
-        chunk = speech[i : i + chunk_size]
+        end = min(i + chunk_size, n)
+        if snap_to_speaker_boundary and end < n:
+            # Look at the speaker label of the would-be last segment;
+            # keep extending while the next segment is the same speaker
+            # (the cut would land mid-monologue) — up to max_snap_extension.
+            last_speaker = speech[end - 1].speaker
+            extension = 0
+            while (
+                end < n
+                and extension < max_snap_extension
+                and speech[end].speaker == last_speaker
+            ):
+                end += 1
+                extension += 1
+        chunk = speech[i:end]
         chunks.append(chunk)
-        if i + chunk_size >= n:
+        if end >= n:
             break
-        i += step
+        i = end - overlap
     return chunks
 
 
@@ -291,15 +317,21 @@ def _structure_chunk(
     chunk_start_ms = int(chunk[0].start * 1000)
     chunk_end_ms = int(chunk[-1].end * 1000)
     script = _build_script(chunk, PAUSE_GAP_S)
+    # Chunked path uses its own prompt — see issue #151 / ADR 0032. The
+    # single-pass `structure_system` told the LLM "2 to 7 sections, start at
+    # 0 ms" which is wrong for a non-leading chunk and over the
+    # CHUNK_MAX_SECTIONS cap. `structure_chunk_system` says "1 to 4 sections,
+    # use the supplied total_start_ms" so per-chunk acceptance jumps from
+    # ~24% to >80% on long inputs.
     messages = [
         {
             "role": "system",
-            "content": render_prompt("structure_system", language=language),
+            "content": render_prompt("structure_chunk_system", language=language),
         },
         {
             "role": "user",
             "content": render_prompt(
-                "structure_user",
+                "structure_chunk_user",
                 total_start_ms=chunk_start_ms,
                 total_end_ms=chunk_end_ms,
                 script=script,
@@ -309,7 +341,7 @@ def _structure_chunk(
     payload = llm.chat_json(
         messages,
         on_token=on_token,
-        **call_kwargs("structure_system"),
+        **call_kwargs("structure_chunk_system"),
     )
     # Per-chunk validator is more permissive: a chunk may legitimately
     # contain a single topic, and edges may drift by a few ms because the
@@ -384,9 +416,14 @@ def structure_dialog(
         f"splitting into {len(chunks)} chunks"
     )
     chunk_results: list[list[Section]] = []
+    # prompt_cache_session prefix MUST match what each per-chunk call
+    # sends as its system message — otherwise the cache fingerprint
+    # never matches and the session amortises nothing. We use the
+    # chunked prompt here for the same reason _structure_chunk does
+    # (see issue #151).
     structure_system_msg = {
         "role": "system",
-        "content": render_prompt("structure_system", language=language),
+        "content": render_prompt("structure_chunk_system", language=language),
     }
     try:
         with llm.prompt_cache_session(

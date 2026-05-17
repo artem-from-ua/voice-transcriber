@@ -153,9 +153,19 @@ def test_bounds_must_match_total_dialogue():
 
 
 def _long_segs(n: int) -> list[Segment]:
-    """Synthesise n contiguous 10-second segments."""
+    """Synthesise n contiguous 10-second segments, alternating speakers.
+
+    Alternating SPEAKER_00/SPEAKER_01 prevents the snap-to-speaker-boundary
+    logic in `_chunk_segments` from extending chunks past `chunk_size` (it
+    only extends when the cut would land mid-monologue). Tests that count
+    chunks rely on this — otherwise a 60-segment single-speaker dialog
+    would produce 3 chunks instead of 4 with the default knobs.
+    """
     return [
-        _seg(i * 10.0, (i + 1) * 10.0, f"line {i}")
+        _seg(
+            i * 10.0, (i + 1) * 10.0, f"line {i}",
+            speaker=f"SPEAKER_{i % 2:02d}",
+        )
         for i in range(n)
     ]
 
@@ -208,11 +218,73 @@ def test_long_dialog_above_threshold_uses_chunks():
 def test_chunk_segments_overlap():
     """Chunks must duplicate `overlap` segments at every internal boundary."""
     segs = _long_segs(80)
-    chunks = _chunk_segments(segs, chunk_size=30, overlap=2)
+    # snap_to_speaker_boundary=False because _long_segs uses a single speaker
+    # throughout, which would otherwise extend every chunk to the cap.
+    chunks = _chunk_segments(
+        segs, chunk_size=30, overlap=2, snap_to_speaker_boundary=False,
+    )
     assert len(chunks) >= 3
     # Each pair of adjacent chunks shares its last/first `overlap` segments.
     for prev, nxt in zip(chunks, chunks[1:]):
         assert prev[-2] is nxt[0] and prev[-1] is nxt[1], "overlap broken"
+
+
+def test_chunk_segments_snap_extends_past_chunk_size_on_same_speaker():
+    """When the cut would land mid-monologue, the chunk extends until the
+    next speaker change (up to max_snap_extension)."""
+    # 35 segments: first 30 are SPEAKER_00 (the monologue), then 5 of
+    # SPEAKER_01. With chunk_size=30, snap should extend the first chunk
+    # past index 30 because seg[29] and seg[30] would be same-speaker if
+    # we did not change speakers — but here the speaker change at index 30
+    # gives the snap a clean exit. Cover both shapes explicitly.
+    segs_with_boundary = [
+        _seg(i * 10.0, (i + 1) * 10.0, f"a{i}", speaker="SPEAKER_00")
+        for i in range(30)
+    ] + [
+        _seg((30 + i) * 10.0, (31 + i) * 10.0, f"b{i}", speaker="SPEAKER_01")
+        for i in range(5)
+    ]
+    chunks = _chunk_segments(
+        segs_with_boundary, chunk_size=30, overlap=2,
+        snap_to_speaker_boundary=True, max_snap_extension=5,
+    )
+    # Boundary at index 30 is *already* the natural cut → first chunk
+    # ends at 30 unchanged.
+    assert len(chunks[0]) == 30
+
+    # Now a monologue that extends past chunk_size: 35 segments of
+    # SPEAKER_00 then 1 of SPEAKER_01. First chunk must extend until
+    # speaker changes at index 35, but max_snap_extension=5 caps it
+    # at index 35 exactly.
+    monologue = [
+        _seg(i * 10.0, (i + 1) * 10.0, f"x{i}", speaker="SPEAKER_00")
+        for i in range(35)
+    ] + [
+        _seg(35 * 10.0, 36 * 10.0, "y", speaker="SPEAKER_01"),
+    ]
+    chunks = _chunk_segments(
+        monologue, chunk_size=30, overlap=2,
+        snap_to_speaker_boundary=True, max_snap_extension=5,
+    )
+    # First chunk should include all 35 SPEAKER_00 segments (extended by 5).
+    assert len(chunks[0]) == 35
+    assert chunks[0][-1].speaker == "SPEAKER_00"
+
+
+def test_chunk_segments_snap_respects_max_extension_cap():
+    """Past max_snap_extension, the cut happens even mid-monologue."""
+    # 50 segments, all one speaker — _long_segs alternates, so build manually.
+    segs = [
+        _seg(i * 10.0, (i + 1) * 10.0, f"x{i}", speaker="SPEAKER_00")
+        for i in range(50)
+    ]
+    chunks = _chunk_segments(
+        segs, chunk_size=30, overlap=2,
+        snap_to_speaker_boundary=True, max_snap_extension=5,
+    )
+    # First chunk capped at chunk_size + max_snap_extension = 35 even
+    # though the monologue continues.
+    assert len(chunks[0]) == 35
 
 
 def test_chunk_segments_rejects_bad_args():
