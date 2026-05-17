@@ -1,0 +1,21 @@
+{
+  "config": "mps",
+  "label": "short",
+  "audio_duration_s": 374.9,
+  "num_speakers": 2,
+  "turns_count": 111,
+  "load_elapsed_s": 1.185,
+  "diarize_elapsed_s": 23.301,
+  "total_elapsed_s": 24.486,
+  "peak_rss_bytes": 1412169728,
+  "pre_mps_allocated_bytes": 0,
+  "peak_mps_allocated_bytes": 0,
+  "pre_mps_driver_bytes": 393216,
+  "peak_mps_driver_bytes": 4259840,
+  "mps_available": true,
+  "fallback_warning_count": 0,
+  "fallback_ops": {},
+  "torch_version": "2.11.0",
+  "gate_failures": [],
+  "actually_on_gpu": true
+}

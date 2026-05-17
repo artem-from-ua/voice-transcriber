@@ -6,6 +6,7 @@ Returns `exclusive_diarization` (no overlapping turns) — that's what
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 from typing import Callable
@@ -43,7 +44,12 @@ def diarize(
     log("Loading pyannote pipeline...")
     t0 = time.perf_counter()
     pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", token=token)
-    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+    # VOICE_DIARIZE_DEVICE forces "cpu" or "mps" for benchmarking; unset = auto.
+    override = os.environ.get("VOICE_DIARIZE_DEVICE", "").strip().lower()
+    if override in ("cpu", "mps"):
+        device = torch.device(override)
+    else:
+        device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     try:
         pipeline.to(device)
     except Exception as exc:  # noqa: BLE001 — defensive fallback
