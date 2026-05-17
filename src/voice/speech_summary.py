@@ -1,26 +1,56 @@
-"""Generate a Markdown TL;DR for a dialogue.
+"""Generate a Markdown TL;DR for a structured dialogue.
 
-The function flattens the dialogue into `Name: text` lines and asks the LLM
-for a short summary + bullet list of key points + optional action items.
-On LLM failure it returns an empty string so the pipeline can omit the
-section gracefully.
+The TL;DR is built recursively, one LLM call per section, so that no single
+prompt ever contains the full transcript. This is what keeps the stage
+within the unified-memory budget on a 16 GB Mac — see issue #146 and
+ADR 0030 for why the old single-prompt path was abandoned.
+
+Pipeline shape (depth grows only for very long inputs):
+
+    level 0:  per section in dialog.sections    -> tldr_section_{lang}
+                                                   (input: raw segments)
+    level k:  groups of <= TLDR_FANOUT          -> tldr_aggregate_{lang}
+                                                   (input: previous TL;DRs)
+    final:    1..TLDR_FANOUT items left         -> tldr_final_{lang}
+                                                   (output: canonical TL;DR
+                                                   format the renderer wants)
+
+If `dialog.sections` is empty or is the single synthetic "Розмова" fallback
+that `speech_structure` produces under `--no-structure`, the stage logs a
+warning and returns an empty string instead of risking the OOM the new
+pipeline was designed to avoid.
+
+On any LLM failure for an individual section the stage drops that section
+and continues. If the final pass fails it returns "" so the renderer omits
+the section.
 """
 
 from __future__ import annotations
 
 import re
 import sys
-from typing import Callable, Iterable
+from typing import Callable
+
+import mlx.core as mx
 
 from ._progress import NullProgress, ProgressReporter
 from ._prompts import call_kwargs, render as render_prompt
 from .llm import LLMError, MlxLLM
 from .silence import extract_silence_events
-from .types import Segment
+from .types import Section, Segment, StructuredDialog
 
 
-def _pick_prompt_name(language: str) -> str:
-    return "tldr_system_en" if language.lower().startswith("en") else "tldr_system_uk"
+# Recursion knobs. TLDR_FANOUT mirrors speech_structure.MAX_SECTIONS so on a
+# realistic input (<= 7 sections) we go directly from per-section to final,
+# with no aggregate level in between.
+TLDR_FANOUT = 7
+TLDR_MAX_LEVELS = 4  # 7^4 = 2401 sections — pathological inputs only.
+
+
+def _pick_prompt_name(language: str, kind: str) -> str:
+    """`kind` is one of 'section', 'aggregate', 'final'."""
+    suffix = "en" if language.lower().startswith("en") else "uk"
+    return f"tldr_{kind}_{suffix}"
 
 
 # The prompt asks the LLM not to emit a "TL;DR" heading because the renderer
@@ -38,14 +68,13 @@ def _strip_leading_tldr_heading(text: str) -> str:
 
 
 def _format_dialogue(segments: list[Segment], include_silence: bool = False) -> str:
+    """Render speaker turns as `Name: text` lines, optionally with pauses."""
     lines: list[str] = []
+    silence_before: dict[int, str] = {}
 
     if include_silence:
-        # Build silence events once (use same threshold as render default).
         from .render import MIN_SILENCE_S
         silence_events = extract_silence_events(segments, MIN_SILENCE_S)
-        # Map: silence event -> index of the first speaker-seg after it.
-        silence_before: dict[int, str] = {}
         for ev in silence_events:
             for idx, seg in enumerate(segments):
                 if seg.speaker is not None and seg.start >= ev.end:
@@ -53,7 +82,7 @@ def _format_dialogue(segments: list[Segment], include_silence: bool = False) -> 
                     break
 
     for i, seg in enumerate(segments):
-        if include_silence and i in silence_before:
+        if i in silence_before:
             lines.append(silence_before[i])
         if seg.speaker is None:
             continue
@@ -65,8 +94,177 @@ def _format_dialogue(segments: list[Segment], include_silence: bool = False) -> 
     return "\n".join(lines)
 
 
+def _section_segments(dialog: StructuredDialog, section: Section) -> list[Segment]:
+    return [
+        seg for seg in dialog.segments
+        if section.start_ms <= int(seg.start * 1000) < section.end_ms
+    ]
+
+
+def _is_synthetic_fallback(dialog: StructuredDialog) -> bool:
+    """True if `dialog.sections` is the single synthetic section that
+    `speech_structure._fallback_section` emits under `--no-structure` —
+    i.e. one section spanning the full dialog. See `_fallback_section`
+    in `src/voice/speech_structure.py`.
+    """
+    if len(dialog.sections) != 1 or not dialog.segments:
+        return False
+    only = dialog.sections[0]
+    if only.title not in {"Розмова", "Conversation"}:
+        return False
+    expected_start = int(dialog.segments[0].start * 1000)
+    expected_end = int(dialog.segments[-1].end * 1000)
+    return only.start_ms == expected_start and only.end_ms == expected_end
+
+
+def _format_blocks(blocks: list[tuple[str, str]]) -> str:
+    """Render previously-computed TL;DRs as `### {title}\\n{body}` chunks."""
+    parts: list[str] = []
+    for title, body in blocks:
+        parts.append(f"### {title}")
+        parts.append(body.strip())
+        parts.append("")
+    return "\n".join(parts).rstrip()
+
+
+def _log_mlx_peak(log: Callable[[str], None], label: str, before_gb: float) -> None:
+    """Record per-call MLX memory peak in a format that survives a reboot
+    when paired with the persistent <input>.log mirror set up by the CLI."""
+    peak_gb = mx.get_peak_memory() / 1e9
+    log(
+        f"speech_summary: {label} mlx_active_before={before_gb:.2f}GB "
+        f"peak={peak_gb:.2f}GB"
+    )
+    mx.reset_peak_memory()
+
+
+def _llm_call(
+    *,
+    llm: MlxLLM,
+    system_msg: dict[str, str],
+    user_content: str,
+    prompt_name: str,
+    label: str,
+    progress: ProgressReporter,
+    log: Callable[[str], None],
+) -> str | None:
+    """One TL;DR LLM call with MLX peak logging. Returns None on LLMError."""
+    mx.clear_cache()
+    before_gb = mx.get_active_memory() / 1e9
+    try:
+        with progress.token_counter(label) as advance:
+            text = llm.chat(
+                [system_msg, {"role": "user", "content": user_content}],
+                on_token=advance,
+                **call_kwargs(prompt_name),
+            )
+    except LLMError as exc:
+        log(f"speech_summary: LLM error in {label} — {exc}; skipping")
+        _log_mlx_peak(log, label, before_gb)
+        return None
+    _log_mlx_peak(log, label, before_gb)
+    return _strip_leading_tldr_heading(text.strip())
+
+
+def _per_section_tldrs(
+    dialog: StructuredDialog,
+    *,
+    llm: MlxLLM,
+    language: str,
+    include_silence: bool,
+    progress: ProgressReporter,
+    log: Callable[[str], None],
+) -> list[tuple[str, str]]:
+    """Level 0: one TL;DR per real section. Returns (title, body) pairs.
+
+    The system prompt is identical for every section so we wrap the loop in
+    a `prompt_cache_session` and only the per-section user content varies.
+    """
+    prompt_name = _pick_prompt_name(language, "section")
+    system_msg = {"role": "system", "content": render_prompt(prompt_name)}
+
+    results: list[tuple[str, str]] = []
+    total = len(dialog.sections)
+    with llm.prompt_cache_session(prefix_messages=[system_msg]):
+        for idx, section in enumerate(dialog.sections, start=1):
+            section_segs = _section_segments(dialog, section)
+            if not section_segs:
+                continue
+            section_text = _format_dialogue(section_segs, include_silence=include_silence)
+            if not section_text:
+                continue
+            user_content = f"### {section.title}\n{section_text}"
+            label = f"[12/13] TL;DR section {idx}/{total} ({section.title})"
+            body = _llm_call(
+                llm=llm, system_msg=system_msg, user_content=user_content,
+                prompt_name=prompt_name, label=label,
+                progress=progress, log=log,
+            )
+            if body:
+                results.append((section.title, body))
+    return results
+
+
+def _aggregate_level(
+    blocks: list[tuple[str, str]],
+    *,
+    level: int,
+    llm: MlxLLM,
+    language: str,
+    progress: ProgressReporter,
+    log: Callable[[str], None],
+) -> list[tuple[str, str]]:
+    """One recursion step. Groups `blocks` into chunks of TLDR_FANOUT and
+    produces one aggregated TL;DR per group. Singleton groups pass through
+    unchanged — re-summarising a single TL;DR adds no information."""
+    prompt_name = _pick_prompt_name(language, "aggregate")
+    system_msg = {"role": "system", "content": render_prompt(prompt_name)}
+
+    out: list[tuple[str, str]] = []
+    groups = [
+        blocks[i : i + TLDR_FANOUT]
+        for i in range(0, len(blocks), TLDR_FANOUT)
+    ]
+    with llm.prompt_cache_session(prefix_messages=[system_msg]):
+        for gi, group in enumerate(groups, start=1):
+            if len(group) == 1:
+                out.append(group[0])
+                continue
+            agg_title = f"{group[0][0]} → {group[-1][0]}"
+            user_content = _format_blocks(group)
+            label = f"[12/13] TL;DR level{level} group {gi}/{len(groups)}"
+            body = _llm_call(
+                llm=llm, system_msg=system_msg, user_content=user_content,
+                prompt_name=prompt_name, label=label,
+                progress=progress, log=log,
+            )
+            if body:
+                out.append((agg_title, body))
+    return out
+
+
+def _final_pass(
+    blocks: list[tuple[str, str]],
+    *,
+    llm: MlxLLM,
+    language: str,
+    progress: ProgressReporter,
+    log: Callable[[str], None],
+) -> str:
+    """Produce the canonical-format TL;DR that the renderer consumes."""
+    prompt_name = _pick_prompt_name(language, "final")
+    system_msg = {"role": "system", "content": render_prompt(prompt_name)}
+    user_content = _format_blocks(blocks)
+    body = _llm_call(
+        llm=llm, system_msg=system_msg, user_content=user_content,
+        prompt_name=prompt_name, label="[12/13] TL;DR final",
+        progress=progress, log=log,
+    )
+    return body or ""
+
+
 def generate_tldr(
-    segments: Iterable[Segment],
+    dialog: StructuredDialog,
     *,
     llm: MlxLLM,
     language: str = "uk",
@@ -74,23 +272,57 @@ def generate_tldr(
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
     progress: "ProgressReporter | None" = None,
 ) -> str:
-    """Return a Markdown TL;DR string, or empty string on failure."""
-    transcript = _format_dialogue(list(segments), include_silence=include_silence)
-    if not transcript:
+    """Return a Markdown TL;DR string, or empty string when summarising is
+    not viable (no segments, synthetic-fallback section under --no-structure,
+    or the final LLM pass failed).
+
+    Memory profile: each LLM call sees one section's worth of text (level 0)
+    or up to `TLDR_FANOUT` short TL;DRs (level 1+ and final). No call ever
+    contains the full transcript, which is what keeps the stage within the
+    unified-memory budget on a 16 GB Mac — see ADR 0030.
+    """
+    reporter = progress if progress is not None else NullProgress()
+
+    if not dialog.segments:
         return ""
 
-    prompt_name = _pick_prompt_name(language)
-    messages = [
-        {"role": "system", "content": render_prompt(prompt_name)},
-        {"role": "user", "content": transcript},
-    ]
-    reporter = progress if progress is not None else NullProgress()
-    try:
-        with reporter.token_counter("[12/13] TL;DR") as advance:
-            text = llm.chat(
-                messages, on_token=advance, **call_kwargs(prompt_name),
-            )
-    except LLMError as exc:
-        log(f"tldr: LLM error — {exc}; skipping")
+    if not dialog.sections or _is_synthetic_fallback(dialog):
+        log(
+            "speech_summary: skipping TL;DR — the dialog has no real "
+            "sections (likely --no-structure). A single full-length prompt "
+            "would risk OOM on a 16 GB Mac; re-run without --no-structure "
+            "to get a TL;DR."
+        )
         return ""
-    return _strip_leading_tldr_heading(text.strip())
+
+    blocks = _per_section_tldrs(
+        dialog,
+        llm=llm, language=language,
+        include_silence=include_silence,
+        progress=reporter, log=log,
+    )
+    if not blocks:
+        return ""
+
+    level = 0
+    while len(blocks) > TLDR_FANOUT and level < TLDR_MAX_LEVELS:
+        level += 1
+        blocks = _aggregate_level(
+            blocks, level=level,
+            llm=llm, language=language,
+            progress=reporter, log=log,
+        )
+        if not blocks:
+            return ""
+
+    if len(blocks) > TLDR_FANOUT:
+        log(
+            f"speech_summary: TLDR_MAX_LEVELS={TLDR_MAX_LEVELS} reached "
+            f"with {len(blocks)} blocks remaining; final pass will see all "
+            f"of them (may exceed memory budget on huge inputs)."
+        )
+
+    return _final_pass(
+        blocks, llm=llm, language=language,
+        progress=reporter, log=log,
+    )
