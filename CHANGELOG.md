@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.38.0] — 2026-05-18
+
+### Changed
+
+- **Chunked-ASR dedup is now text-similarity with a SUPERSEDE branch, not structural.** Closes [#172](https://github.com/artem-from-ua/voice-transcriber/issues/172). `whisper_asr._dedup_overlap` no longer drops chunk N+1 segments by timestamp (`start < chunk_start + overlap_s`) — it now returns the full updated `accumulated` list after a three-case reconciliation:
+  1. **Plain duplicate** — pairwise max Jaccard against any tail segment ≥ 0.5 → drop incoming, keep tail.
+  2. **Superseding rewind** — pairwise stays low but incoming's audio span overlaps multiple tail segments AND its aggregate Jaccard against the union of those tail tokens ≥ 0.3 → **drop the superseded tail segments**, keep the (longer, context-richer) incoming. Catches Whisper's habit of re-emitting a single long, well-contextualised version of several short tail fragments — the short fragments would otherwise survive alongside the longer rewind in the rendered transcript as visible duplication (observed on the 48-min reference at B3/B4 in the first PR before SUPERSEDE was added).
+  3. **Legitimate continuation** — low pairwise, no audio overlap → keep incoming, stop scanning.
+
+  On the 48-min reference recording this drops `material_rate` from 0.50 (#156 baseline) to **0.167** — 2 of the 3 strict-baseline `missing` boundaries (B3 "catch myself on this sometimes" and B4 "does not survive without our scheduling") flip to `clean`, with no render-visible duplication. ASR wall-clock unchanged (~247 s). New tunables `ASR_DEDUP_OVERLAP_WINDOW_S = 30.0`, `ASR_DEDUP_JACCARD_THRESHOLD = 0.5`, `ASR_DEDUP_MIN_TOKEN_COUNT = 3`, `ASR_DEDUP_SUPERSEDE_AGG_THRESHOLD = 0.3`. `ASR_CHUNK_OVERLAP_S = 5.0` is unchanged — it still drives the audio slice geometry. See [ADR 0036](docs/adr/0036-text-similarity-asr-dedup.md) and [`docs/benchmarks/asr-text-dedup.md`](docs/benchmarks/asr-text-dedup.md). Remaining `material_rate = 0.167` is the B2-class boundary (no usable silence in window, Whisper-segmentation drop) tracked by [#171](https://github.com/artem-from-ua/voice-transcriber/issues/171).
+- **`_dedup_overlap` public signature changed.** Now returns the full updated accumulated list, not just kept incoming. The call-site in `transcribe()` rebinds `segments = _dedup_overlap(...)` (was: `segments.extend(_dedup_overlap(...))`). No external callers (`grep` confirms).
+
+### Added
+
+- **`scripts/asr-only-bench.py`** — reusable companion to `scripts/asr-chunk-boundary-quality.py`. Takes a `--dump-dir` containing `02b-clear_speech-*-autogain.wav` from a prior `voice transcribe` run, loads Whisper-large-v3-MLX once, runs only the ASR stage, and writes a fresh `03-asr.json`. Avoids the ~5 min upstream (diarize + lang_detect + clear_speech) + 4 LLM stages when iterating on `whisper_asr` itself. ~4 min wall-clock on the 48-min reference.
+
 ## [0.37.1] — 2026-05-18
 
 ### Added

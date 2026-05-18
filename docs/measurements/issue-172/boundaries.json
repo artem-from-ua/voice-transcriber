@@ -1,0 +1,410 @@
+[
+  {
+    "boundary_idx": 0,
+    "cutoff_s": 480.0,
+    "tail_segments": [
+      {
+        "start": 445.59999999999997,
+        "end": 451.76,
+        "content": "Okay. That's interesting. You know, the, the, so we're looking for a PM, right? For,"
+      },
+      {
+        "start": 453.03999999999996,
+        "end": 456.79999999999995,
+        "content": "for workforce management, but specifically for our forecasting product."
+      },
+      {
+        "start": 457.52,
+        "end": 466.91999999999996,
+        "content": "So, it's interesting. And the fact that you work closely with data teams, it's actually a good thing for us, right? Because, again, forecast is all about data anyways, right?"
+      },
+      {
+        "start": 466.91999999999996,
+        "end": 471.52,
+        "content": "And algorithms and all of that. So, yeah. Thank you for that."
+      },
+      {
+        "start": 475.0,
+        "end": 483.96,
+        "content": "interesting background. You did a lot of things. So you mentioned you co-founded a company. Is"
+      }
+    ],
+    "head_segments": [
+      {
+        "start": 483.96,
+        "end": 490.9,
+        "content": "that still going? Yeah, this is still going, but this is something which we do on the side."
+      },
+      {
+        "start": 491.64,
+        "end": 495.72,
+        "content": "So it's not something that will consume my energy and time."
+      },
+      {
+        "start": 496.34,
+        "end": 503.74,
+        "content": "Got it, got it. Okay. And so now I'm just going to go a little bit into product management,"
+      },
+      {
+        "start": 503.74,
+        "end": 511.34,
+        "content": "how you normally work, right? Just to get a sense of what your process is. So, given your experience"
+      },
+      {
+        "start": 511.34,
+        "end": 517.74,
+        "content": "and the places that you've worked with, how do you usually go from a problem or from a product?"
+      }
+    ],
+    "tail_text": "Okay. That's interesting. You know, the, the, so we're looking for a PM, right? For, for workforce management, but specifically for our forecasting product. So, it's interesting. And the fact that you work closely with data teams, it's actually a good thing for us, right? Because, again, forecast is all about data anyways, right? And algorithms and all of that. So, yeah. Thank you for that. interesting background. You did a lot of things. So you mentioned you co-founded a company. Is",
+    "head_text": "that still going? Yeah, this is still going, but this is something which we do on the side. So it's not something that will consume my energy and time. Got it, got it. Okay. And so now I'm just going to go a little bit into product management, how you normally work, right? Just to get a sense of what your process is. So, given your experience and the places that you've worked with, how do you usually go from a problem or from a product?",
+    "last_token": "is",
+    "first_token": "that",
+    "last_token_truncated_heuristic": false,
+    "first_token_truncated_heuristic": false,
+    "gap_s": 0.0,
+    "word_overlap_jaccard": 0.1827956989247312,
+    "rms_before": 0.0004109967561221541,
+    "rms_after": 0.00034330621735828505
+  },
+  {
+    "boundary_idx": 1,
+    "cutoff_s": 955.0,
+    "tail_segments": [
+      {
+        "start": 941.22,
+        "end": 946.22,
+        "content": "using the Amazon design system,"
+      },
+      {
+        "start": 946.3,
+        "end": 949.06,
+        "content": "which actually created the actual dashboard"
+      },
+      {
+        "start": 949.06,
+        "end": 949.9000000000001,
+        "content": "which we built."
+      },
+      {
+        "start": 950.86,
+        "end": 953.78,
+        "content": "So it was also a nice communication tool for me,"
+      },
+      {
+        "start": 953.78,
+        "end": 955.1600000000001,
+        "content": "for designers."
+      }
+    ],
+    "head_segments": [
+      {
+        "start": 955.0,
+        "end": 966.0,
+        "content": "I also like, if you noticed in my CV, before joining tech, I actually spent five years in production studio, like shooting ads."
+      },
+      {
+        "start": 966.0,
+        "end": 969.0,
+        "content": "So I know Photoshop, I know Figma a little bit."
+      },
+      {
+        "start": 969.0,
+        "end": 979.0,
+        "content": "So I mean, like, this is also like the wide scope of my personal interests, which are related to all things computers."
+      },
+      {
+        "start": 979.0,
+        "end": 980.0,
+        "content": "Right."
+      },
+      {
+        "start": 980.0,
+        "end": 986.68,
+        "content": "Yeah, as I said, usually I'm embedded with a team."
+      }
+    ],
+    "tail_text": "using the Amazon design system, which actually created the actual dashboard which we built. So it was also a nice communication tool for me, for designers.",
+    "head_text": "I also like, if you noticed in my CV, before joining tech, I actually spent five years in production studio, like shooting ads. So I know Photoshop, I know Figma a little bit. So I mean, like, this is also like the wide scope of my personal interests, which are related to all things computers. Right. Yeah, as I said, usually I'm embedded with a team.",
+    "last_token": "designers",
+    "first_token": "i",
+    "last_token_truncated_heuristic": false,
+    "first_token_truncated_heuristic": false,
+    "gap_s": -0.16000000000008185,
+    "word_overlap_jaccard": 0.08695652173913043,
+    "rms_before": 0.01191745982236891,
+    "rms_after": 0.010699198668438615
+  },
+  {
+    "boundary_idx": 2,
+    "cutoff_s": 1430.0,
+    "tail_segments": [
+      {
+        "start": 1394.22,
+        "end": 1400.06,
+        "content": "time unfortunately and uh yeah and again as the thing which i mentioned earlier so depending on"
+      },
+      {
+        "start": 1400.06,
+        "end": 1406.06,
+        "content": "the organization and so on like there could be different uh data points which you can use like"
+      },
+      {
+        "start": 1406.06,
+        "end": 1414.1399999999999,
+        "content": "i don't know whether it's a revenue target or like a cost efficiency target or or whatever"
+      },
+      {
+        "start": 1414.1399999999999,
+        "end": 1422.1399999999999,
+        "content": "a technical depth or latency. That's why I think that the RISE framework doesn't necessarily fit"
+      },
+      {
+        "start": 1422.1399999999999,
+        "end": 1429.9,
+        "content": "all of the cases, but some kind of a framing which helps you to rank all of the potential."
+      }
+    ],
+    "head_segments": [
+      {
+        "start": 1433.38,
+        "end": 1441.36,
+        "content": "of relevant targets is something which is helpful but of course like not just like you know like"
+      },
+      {
+        "start": 1441.36,
+        "end": 1447.06,
+        "content": "the numbers which you like the data backed numbers is one thing but there's also like the"
+      },
+      {
+        "start": 1447.06,
+        "end": 1454.02,
+        "content": "gut feeling the the human touch is also there should be there that's true that's absolutely"
+      },
+      {
+        "start": 1454.02,
+        "end": 1461.5,
+        "content": "true and and i i did have like very painful stakeholders to be honest like and i had"
+      },
+      {
+        "start": 1461.5,
+        "end": 1466.5,
+        "content": "experience where like early in my product management career because i also like sort"
+      }
+    ],
+    "tail_text": "time unfortunately and uh yeah and again as the thing which i mentioned earlier so depending on the organization and so on like there could be different uh data points which you can use like i don't know whether it's a revenue target or like a cost efficiency target or or whatever a technical depth or latency. That's why I think that the RISE framework doesn't necessarily fit all of the cases, but some kind of a framing which helps you to rank all of the potential.",
+    "head_text": "of relevant targets is something which is helpful but of course like not just like you know like the numbers which you like the data backed numbers is one thing but there's also like the gut feeling the the human touch is also there should be there that's true that's absolutely true and and i i did have like very painful stakeholders to be honest like and i had experience where like early in my product management career because i also like sort",
+    "last_token": "potential",
+    "first_token": "of",
+    "last_token_truncated_heuristic": false,
+    "first_token_truncated_heuristic": false,
+    "gap_s": 3.480000000000018,
+    "word_overlap_jaccard": 0.15306122448979592,
+    "rms_before": 0.058924401658762574,
+    "rms_after": 0.06739951009771299
+  },
+  {
+    "boundary_idx": 3,
+    "cutoff_s": 1905.0,
+    "tail_segments": [
+      {
+        "start": 1868.68,
+        "end": 1873.44,
+        "content": "And what are your weaknesses?"
+      },
+      {
+        "start": 1873.44,
+        "end": 1881.92,
+        "content": "Well, I mentioned one that like, sometimes, especially early when I join a project or"
+      },
+      {
+        "start": 1881.92,
+        "end": 1887.74,
+        "content": "a company, I might feel a little bit insecure, more insecure."
+      },
+      {
+        "start": 1887.74,
+        "end": 1894.22,
+        "content": "So I might overspend on, you know, like, just closing in myself into like, trying to learn"
+      },
+      {
+        "start": 1900.0,
+        "end": 1908.4,
+        "content": "people and asking questions and i need to catch myself on this sometimes um and and i think like"
+      }
+    ],
+    "head_segments": [
+      {
+        "start": 1908.4,
+        "end": 1916.88,
+        "content": "to somehow like partially related to this uh is when i'm not at my best like maybe mental state or"
+      },
+      {
+        "start": 1917.92,
+        "end": 1924.8,
+        "content": "i might um not ask for help in time so i had this actually this this is one of the learnings from"
+      },
+      {
+        "start": 1924.8,
+        "end": 1933.04,
+        "content": "my voice mode experience, my burnout year. So instead of actually being open with my manager"
+      },
+      {
+        "start": 1933.04,
+        "end": 1942.0,
+        "content": "and flagging directly, I tried to flag that I'm having some issues, but maybe I should have"
+      },
+      {
+        "start": 1942.0,
+        "end": 1948.88,
+        "content": "properly discussed this and maybe asked for help. Things could be different."
+      }
+    ],
+    "tail_text": "And what are your weaknesses? Well, I mentioned one that like, sometimes, especially early when I join a project or a company, I might feel a little bit insecure, more insecure. So I might overspend on, you know, like, just closing in myself into like, trying to learn people and asking questions and i need to catch myself on this sometimes um and and i think like",
+    "head_text": "to somehow like partially related to this uh is when i'm not at my best like maybe mental state or i might um not ask for help in time so i had this actually this this is one of the learnings from my voice mode experience, my burnout year. So instead of actually being open with my manager and flagging directly, I tried to flag that I'm having some issues, but maybe I should have properly discussed this and maybe asked for help. Things could be different.",
+    "last_token": "like",
+    "first_token": "to",
+    "last_token_truncated_heuristic": false,
+    "first_token_truncated_heuristic": false,
+    "gap_s": 0.0,
+    "word_overlap_jaccard": 0.13402061855670103,
+    "rms_before": 0.09209518963213117,
+    "rms_after": 0.08865851751203745
+  },
+  {
+    "boundary_idx": 4,
+    "cutoff_s": 2380.0,
+    "tail_segments": [
+      {
+        "start": 2364.66,
+        "end": 2366.66,
+        "content": "Are we paying less?"
+      },
+      {
+        "start": 2366.66,
+        "end": 2368.16,
+        "content": "Are we paying more, right?"
+      },
+      {
+        "start": 2368.16,
+        "end": 2370.18,
+        "content": "Doing all of those analyses."
+      },
+      {
+        "start": 2370.18,
+        "end": 2373.58,
+        "content": "So again, there's a lot of opportunity in Forecast"
+      },
+      {
+        "start": 2375.0,
+        "end": 2381.5,
+        "content": "especially with our ai products and against our forecast product does not survive without our"
+      }
+    ],
+    "head_segments": [
+      {
+        "start": 2381.5,
+        "end": 2386.94,
+        "content": "scheduling product so it's they go in hand so there's also like opportunities there as well"
+      },
+      {
+        "start": 2386.94,
+        "end": 2392.78,
+        "content": "and also for our reporting solutions so yeah okay and these forecasts usually like how far"
+      },
+      {
+        "start": 2392.78,
+        "end": 2402.34,
+        "content": "into the future are like are we forecasting uh so right now we are only doing one year"
+      },
+      {
+        "start": 2402.34,
+        "end": 2404.3,
+        "content": "because we have two years worth of data."
+      },
+      {
+        "start": 2404.4,
+        "end": 2405.28,
+        "content": "So we do one year."
+      }
+    ],
+    "tail_text": "Are we paying less? Are we paying more, right? Doing all of those analyses. So again, there's a lot of opportunity in Forecast especially with our ai products and against our forecast product does not survive without our",
+    "head_text": "scheduling product so it's they go in hand so there's also like opportunities there as well and also for our reporting solutions so yeah okay and these forecasts usually like how far into the future are like are we forecasting uh so right now we are only doing one year because we have two years worth of data. So we do one year.",
+    "last_token": "our",
+    "first_token": "scheduling",
+    "last_token_truncated_heuristic": false,
+    "first_token_truncated_heuristic": false,
+    "gap_s": 0.0,
+    "word_overlap_jaccard": 0.16176470588235295,
+    "rms_before": 0.11699775593390647,
+    "rms_after": 0.1312856492379439
+  },
+  {
+    "boundary_idx": 5,
+    "cutoff_s": 2855.0,
+    "tail_segments": [
+      {
+        "start": 2842.74,
+        "end": 2850.58,
+        "content": "the code. I mean, we're already using it a lot and my engineers are using it a lot and others as well,"
+      },
+      {
+        "start": 2850.0,
+        "end": 2852.16,
+        "content": "others as well, but still no targets."
+      },
+      {
+        "start": 2850.58,
+        "end": 2854.42,
+        "content": "but still no targets. So, hopefully it stays that way, but I don't know."
+      },
+      {
+        "start": 2852.36,
+        "end": 2853.96,
+        "content": "So hopefully it stays that way."
+      },
+      {
+        "start": 2854.16,
+        "end": 2856.04,
+        "content": "But I don't know. We'll see."
+      }
+    ],
+    "head_segments": [
+      {
+        "start": 2856.24,
+        "end": 2857.16,
+        "content": "Cool. Cool."
+      },
+      {
+        "start": 2857.36,
+        "end": 2859.32,
+        "content": "Yeah. All right."
+      },
+      {
+        "start": 2859.52,
+        "end": 2860.44,
+        "content": "All right."
+      },
+      {
+        "start": 2860.64,
+        "end": 2862.6,
+        "content": "So thank you for your time."
+      },
+      {
+        "start": 2862.6,
+        "end": 2863.72,
+        "content": "Most of it was very nice."
+      }
+    ],
+    "tail_text": "the code. I mean, we're already using it a lot and my engineers are using it a lot and others as well, others as well, but still no targets. but still no targets. So, hopefully it stays that way, but I don't know. So hopefully it stays that way. But I don't know. We'll see.",
+    "head_text": "Cool. Cool. Yeah. All right. All right. So thank you for your time. Most of it was very nice.",
+    "last_token": "see",
+    "first_token": "cool",
+    "last_token_truncated_heuristic": false,
+    "first_token_truncated_heuristic": false,
+    "gap_s": 0.1999999999998181,
+    "word_overlap_jaccard": 0.045454545454545456,
+    "rms_before": 0.060205162509261965,
+    "rms_after": 0.07735819007476116
+  }
+]
