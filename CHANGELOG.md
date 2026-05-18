@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.40.0] — 2026-05-18
+
+### Added
+
+- **Filler-bias and deadband refinements for `split_on_turn_boundary`** (#177). Two new opt-in CLI flags address the residual single-word-straddling case left by #175:
+  - `--merge-split-filler-bias-tie-ms N` + `--merge-split-filler-lang en`: when a known English filler (`yes`, `yeah`, `ok`, `sure`, `mhm`, ...) has its two top per-turn overlaps differ by less than N ms, the word is reassigned to the turn containing its `end` time — captures back-channel confirmations that Whisper timestamped across a turn boundary.
+  - `--merge-split-deadband-ms N`: any word whose centre lies within ±N ms of a pyannote boundary is reassigned to the downstream turn — recovers leading words of a turn that pyannote starts late.
+- Both refinements run during per-word owner assignment, **before** the snap step, then propagate through the existing `speaker_hint` path in `merge()`. Telemetry adds `filler_bias_applied`, `deadband_applied`, `filler_bias_tie_ms`, `filler_words_count`, `deadband_ms` under `01-meta.json.stages.merge.split`.
+- New module-level constant `voice.merge.DEFAULT_FILLER_WORDS` (frozenset of 14 English fillers; case-insensitive matching after punctuation strip). Selected via `--merge-split-filler-lang en`. Ukrainian filler support deferred until validated on a UA reference.
+
+### Notes
+
+- Default behaviour at all flags OFF (the default) is byte-identical to v0.39.0.
+- Validated on the first 12 min of the 48-min private reference: A+C combo applied with `--merge-split-filler-bias-tie-ms 120 --merge-split-filler-lang en --merge-split-deadband-ms 100` correctly recovered both the canonical `"so you know"` Ostap-leading case (deadband) and the `"yes"` back-channel case (filler-bias) with 0 regressions on the other 1404 words. Full-file validation in the PR body.
+
 ## [0.39.0] — 2026-05-18
 
 ### Added

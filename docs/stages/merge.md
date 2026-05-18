@@ -13,6 +13,8 @@ is an opt-in correction for known failure modes of that default.
 | ⭐⭐⭐ | When two people talk over each other, split the transcript line at the moment the second person joins in. CLI: `--merge-split-on-boundary`. | <pre>Alice: ...about the field<br>Bob:   (silent)<br>Alice: pretty well yes yes i<br>       am lucky…</pre> | <pre>Alice: ...about the field<br>Bob:   pretty well<br>Alice: yes yes i am lucky…</pre> |
 | ⭐⭐ | Diarization sometimes draws the speaker-change line one or two words off. Move it to the word the recogniser is least sure about — that is almost always where the speaker actually changes. CLI: `--merge-split-snap-window-ms 500`. | <pre>Alice: ...so yeah so you<br>       know<br>Bob:   the field pretty well<br>       yes<br>Alice: yes yes i am lucky…</pre> | <pre>Alice: ...so yeah<br>Bob:   so you know the field<br>       pretty well yes<br>Alice: yes yes i am lucky…</pre> |
 | ⭐ | Count how often two speakers overlap inside one transcript line. Helps decide whether the fixes above are worth turning on by default. Numbers only — does not change the transcript. | <pre>(no rendered difference —<br>telemetry-only)</pre> | <pre>(no rendered difference —<br>telemetry-only)</pre> |
+| ⭐⭐ | A back-channel "yes" / "okay" / "sure" sometimes lands on the previous speaker because Whisper put its timestamp half-and-half on both turns. When the word is a known filler and the overlap is near-tied, move it to the speaker who follows. CLI: `--merge-split-filler-bias-tie-ms 120 --merge-split-filler-lang en`. | <pre>Alice: ...the field pretty<br>       well yes<br>Bob:   yes yes i am lucky…</pre> | <pre>Alice: ...the field pretty<br>       well<br>Bob:   yes yes yes i am<br>       lucky…</pre> |
+| ⭐⭐ | Sometimes diarization marks the speaker change a beat late, so the new speaker's first word ("know", "the", ...) gets glued to the previous one. Words very close to a turn boundary (within ±100 ms) move forward to the next speaker. CLI: `--merge-split-deadband-ms 100`. | <pre>Alice: ...so yeah so you<br>       know<br>Bob:   the field pretty well</pre> | <pre>Alice: ...so yeah so you<br>Bob:   know the field<br>       pretty well</pre> |
 
 Legend: ⭐⭐⭐ visibly fixes a failure the user can point to in the
 rendered transcript · ⭐⭐ fixes a subset of the same family, leaves
@@ -110,6 +112,9 @@ a split-on run they reflect the residual rate, not the original one.
 | `--merge-split-threshold-ms` | 300 | A segment must overlap each of ≥2 speakers by more than this to qualify as boundary-crossing. |
 | `--merge-split-snap-window-ms` | 0 (off) | Cap on how far a cut may snap from its naive position. |
 | `--merge-split-snap-prob-threshold` | 0.7 | Snap only to words strictly below this `probability`. |
+| `--merge-split-filler-bias-tie-ms` | 0 (off) | Near-tie overlap (ms) at which a filler word is reassigned to its `word.end` turn. |
+| `--merge-split-filler-lang` | `none` | Which filler list to use. `en` → built-in English fillers; `none` disables. |
+| `--merge-split-deadband-ms` | 0 (off) | Any word whose centre is within ±N ms of a pyannote boundary is reassigned to the downstream turn. |
 
 ### Why the optimisation order matters
 
@@ -162,14 +167,16 @@ abstraction; consider whether it belongs upstream (`whisper_asr`,
   cross-boundary cases. Their speaker comes straight from pyannote;
   if pyannote put them on the wrong cluster, this stage has nothing
   to correct.
-- **Single straddling word at a clean turn change.** When a one-word
-  filler (`"yes"`, `"okay"`) has a Whisper timestamp that overlaps
-  both sides of a pyannote boundary by similar amounts and a high
-  `probability` (no snap signal), the word goes to whichever side has
-  the marginally larger overlap. Specific case: `[186.30-187.20] "yes"`
-  with pyannote A-turn ending at 186.55 and B-turn starting
-  at 187.02 ends up on A's side though acoustically it is B's
-  back-channel confirmation. Not currently addressed.
+- **Single straddling word at a clean turn change.** Addressed by the
+  filler-bias and deadband refinements above (#177). The original case
+  (`yes` back-channel) is fixed by `--merge-split-filler-bias-tie-ms`;
+  the related case of a leading content word ("know", "the") swallowed
+  by the previous turn is fixed by `--merge-split-deadband-ms`. Both
+  default OFF until validated on a Ukrainian reference recording.
+- **Non-filler content words at clean turn changes** that are *not*
+  near a pyannote boundary still rely on max-overlap. Whisper-level
+  tuning of `word_timestamps` granularity is the next lever — out of
+  scope here.
 
 ## Updating this document
 

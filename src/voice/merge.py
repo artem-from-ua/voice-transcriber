@@ -110,6 +110,112 @@ def _turn_at_time(t_s: float, turns: list[DiarTurn]) -> str | None:
     return None
 
 
+# English short fillers (back-channel confirmations). Case-insensitive
+# after stripping trailing punctuation. Used by the filler-bias step (#177);
+# only consulted when `filler_bias_tie_ms > 0`. Ukrainian fillers would
+# need a separate flag — left out until validated on a UA reference.
+DEFAULT_FILLER_WORDS: frozenset[str] = frozenset({
+    "yes", "yeah", "yep", "yup", "okay", "ok", "sure", "right",
+    "mhm", "uh-huh", "mm", "hmm", "uh", "um",
+})
+
+
+def _normalize_filler(text: str) -> str:
+    return text.strip(".,!?…").lower()
+
+
+def _next_turn_after(t_s: float, turns: list[DiarTurn]) -> DiarTurn | None:
+    """Return the first turn whose start >= t_s, else None.
+
+    Used by the filler-bias step (A) to resolve cases where a filler
+    word's end falls in a gap between turns — pick the downstream turn.
+    """
+    best: DiarTurn | None = None
+    for t in turns:
+        if t.start >= t_s and (best is None or t.start < best.start):
+            best = t
+    return best
+
+
+def _nearest_turn_boundary(t_s: float, turns: list[DiarTurn]) -> float | None:
+    """Return the time of the closest turn-start across all `turns` (excluding
+    the very first turn's start at 0). None if no turn starts past time 0.
+
+    Used by the deadband step (C) to decide whether a word's centre falls
+    within ±deadband_ms of any pyannote boundary.
+    """
+    best: float | None = None
+    best_dist = float("inf")
+    for t in turns[1:]:
+        d = abs(t_s - t.start)
+        if d < best_dist:
+            best_dist = d
+            best = t.start
+    return best
+
+
+def _downstream_turn_at(boundary_t: float, turns: list[DiarTurn]) -> str | None:
+    """Return the speaker of the turn that STARTS at `boundary_t`."""
+    for t in turns:
+        if abs(t.start - boundary_t) < 1e-6:
+            return t.speaker
+    return None
+
+
+def _argmax_turn_with_bias(
+    word: Word, turns: list[DiarTurn], *,
+    filler_bias_tie_ms: int = 0,
+    filler_words: frozenset[str] = frozenset(),
+    deadband_ms: int = 0,
+) -> str | None:
+    """Pick a word's owner with optional filler-bias and deadband refinements.
+
+    Defaults reproduce `_argmax_turn` exactly. When `filler_bias_tie_ms > 0`,
+    a filler word whose two top overlaps differ by < tie_ms is reassigned
+    to the turn containing its `end` time — captures back-channel
+    confirmations whose Whisper timestamps straddle a turn boundary
+    (#177). When `deadband_ms > 0`, ANY word whose centre lies within
+    ±deadband_ms of a pyannote boundary is reassigned to the downstream
+    turn — recovers leading words of a turn that pyannote starts late.
+
+    When both refinements are active, filler-bias is tried first; if it
+    does not flip the decision, deadband is consulted.
+    """
+    baseline = _argmax_turn(word.start, word.end, turns)
+
+    # --- A: filler-bias by word.end -----------------------------------------
+    if filler_bias_tie_ms > 0 and filler_words:
+        text = _normalize_filler(word.content)
+        if text in filler_words:
+            by_spk: dict[str, float] = defaultdict(float)
+            for t in turns:
+                ov = _overlap(word.start, word.end, t.start, t.end)
+                if ov > 0:
+                    by_spk[t.speaker] += ov
+            if len(by_spk) >= 2:
+                ranked = sorted(by_spk.values(), reverse=True)
+                if (ranked[0] - ranked[1]) * 1000.0 < filler_bias_tie_ms:
+                    end_owner = _turn_at_time(word.end, turns)
+                    if end_owner is None:
+                        nxt = _next_turn_after(word.end, turns)
+                        if nxt is not None:
+                            return nxt.speaker
+                    else:
+                        return end_owner
+
+    # --- C: deadband downstream --------------------------------------------
+    if deadband_ms > 0:
+        deadband_s = deadband_ms / 1000.0
+        w_center = (word.start + word.end) / 2.0
+        nearest = _nearest_turn_boundary(w_center, turns)
+        if nearest is not None and abs(w_center - nearest) <= deadband_s:
+            downstream = _downstream_turn_at(nearest, turns)
+            if downstream is not None:
+                return downstream
+
+    return baseline
+
+
 def _snap_split_index_to_low_prob(
     words: list[Word], naive_split_idx: int,
     *, window_ms: int, prob_threshold: float,
@@ -166,24 +272,49 @@ def _split_segment_by_words(
     min_segment_ms: int,
     snap_window_ms: int = 0,
     snap_prob_threshold: float = 0.7,
-) -> tuple[list[AsrSegment], int, int]:
-    """Word-level split. Returns (new_segments, fragments_skipped_below_min, snaps_applied).
+    filler_bias_tie_ms: int = 0,
+    filler_words: frozenset[str] = frozenset(),
+    deadband_ms: int = 0,
+) -> tuple[list[AsrSegment], int, int, int, int]:
+    """Word-level split. Returns
+    (new_segments, fragments_skipped_below_min, snaps_applied,
+     filler_bias_applied, deadband_applied).
 
     The naive cut points come from argmax-overlap turn assignment per word
-    (pyannote boundaries). When `snap_window_ms > 0`, each cut is then
-    snapped within ±`snap_window_ms` to the lowest-probability word whose
-    probability is below `snap_prob_threshold` — see
-    `_snap_split_index_to_low_prob`. Pass `snap_window_ms=0` (default) to
-    disable snapping and reproduce the pure pyannote-boundary behaviour.
+    (pyannote boundaries), optionally refined by filler-bias and deadband
+    (issue #177) — see `_argmax_turn_with_bias`. When `snap_window_ms > 0`,
+    each cut is then snapped within ±`snap_window_ms` to the lowest-
+    probability word whose probability is below `snap_prob_threshold` —
+    see `_snap_split_index_to_low_prob`. Pass `snap_window_ms=0` (default)
+    to disable snapping and reproduce the pure pyannote-boundary behaviour.
     """
     assert seg.words is not None
     if not seg.words:
-        return [seg], 0, 0
+        return [seg], 0, 0, 0, 0
 
-    # Assign each word to its argmax-overlap turn (or "None" speaker).
-    word_owner: list[str | None] = [
-        _argmax_turn(w.start, w.end, turns) for w in seg.words
-    ]
+    # Per-word owner assignment with optional filler-bias / deadband
+    # refinements. Count how many words each refinement actually shifts.
+    word_owner: list[str | None] = []
+    filler_bias_applied = 0
+    deadband_applied = 0
+    for w in seg.words:
+        baseline = _argmax_turn(w.start, w.end, turns)
+        refined = _argmax_turn_with_bias(
+            w, turns,
+            filler_bias_tie_ms=filler_bias_tie_ms,
+            filler_words=filler_words,
+            deadband_ms=deadband_ms,
+        )
+        if refined != baseline:
+            # Attribute the flip to whichever refinement applied. Filler-
+            # bias runs first inside _argmax_turn_with_bias, so check it
+            # in the same order to keep the counter accurate.
+            text_norm = _normalize_filler(w.content)
+            if filler_bias_tie_ms > 0 and filler_words and text_norm in filler_words:
+                filler_bias_applied += 1
+            else:
+                deadband_applied += 1
+        word_owner.append(refined)
 
     # Find naive split indices: positions where consecutive owners differ.
     naive_cuts = [
@@ -191,7 +322,7 @@ def _split_segment_by_words(
         if word_owner[i] != word_owner[i - 1]
     ]
     if not naive_cuts:
-        return [seg], 0, 0
+        return [seg], 0, 0, filler_bias_applied, deadband_applied
 
     # Snap each naive cut to a nearby low-probability word boundary.
     # IMPORTANT: snapping shifts a cut from index i to j; the words
@@ -235,7 +366,7 @@ def _split_segment_by_words(
     ]
 
     if len(groups) <= 1:
-        return [seg], 0, snaps_applied
+        return [seg], 0, snaps_applied, filler_bias_applied, deadband_applied
 
     # Per-group owner: majority-vote across the group's word_owner values.
     # After snap, word_owner has been rewritten so words on the side of
@@ -271,8 +402,8 @@ def _split_segment_by_words(
     if not out:
         # Skipping all fragments would silently drop the segment; keep
         # the original rather than lose its text.
-        return [seg], skipped, snaps_applied
-    return out, skipped, snaps_applied
+        return [seg], skipped, snaps_applied, filler_bias_applied, deadband_applied
+    return out, skipped, snaps_applied, filler_bias_applied, deadband_applied
 
 
 def _split_segment_by_chars(
@@ -333,6 +464,9 @@ def split_on_turn_boundary(
     threshold_ms: int = 300,
     snap_window_ms: int = 0,
     snap_prob_threshold: float = 0.7,
+    filler_bias_tie_ms: int = 0,
+    filler_words: frozenset[str] = frozenset(),
+    deadband_ms: int = 0,
 ) -> tuple[list[AsrSegment], dict[str, Any]]:
     """Cut ASR segments that cross pyannote turn boundaries.
 
@@ -347,6 +481,13 @@ def split_on_turn_boundary(
     the nearest low-`probability` word within the window — see
     `_snap_split_index_to_low_prob`. Off by default.
 
+    When `filler_bias_tie_ms > 0` AND `filler_words` is non-empty, a
+    near-tied filler word is reassigned to the turn containing its `end`
+    time (#177 A). When `deadband_ms > 0`, any word whose centre lies
+    within ±deadband_ms of a pyannote boundary is reassigned to the
+    downstream turn (#177 C). Both refinements run during per-word owner
+    assignment, BEFORE snap — see `_argmax_turn_with_bias`. Off by default.
+
     Returns `(new_asr_segments, telemetry)`.
     """
     threshold_s = threshold_ms / 1000.0
@@ -356,6 +497,8 @@ def split_on_turn_boundary(
     fallback_char_split = 0
     fragments_skipped_below_min = 0
     snaps_applied = 0
+    filler_bias_applied = 0
+    deadband_applied = 0
 
     for seg in asr_segments:
         n_speakers = _count_speakers_above_threshold(
@@ -366,13 +509,18 @@ def split_on_turn_boundary(
             continue
 
         if seg.words is not None:
-            new_segs, skipped, n_snaps = _split_segment_by_words(
+            new_segs, skipped, n_snaps, n_filler, n_deadband = _split_segment_by_words(
                 seg, turns,
                 min_segment_ms=min_segment_ms,
                 snap_window_ms=snap_window_ms,
                 snap_prob_threshold=snap_prob_threshold,
+                filler_bias_tie_ms=filler_bias_tie_ms,
+                filler_words=filler_words,
+                deadband_ms=deadband_ms,
             )
             snaps_applied += n_snaps
+            filler_bias_applied += n_filler
+            deadband_applied += n_deadband
         else:
             # Build turn-cut breakpoints inside the segment's time range.
             cuts: list[tuple[float, str | None]] = []
@@ -395,6 +543,13 @@ def split_on_turn_boundary(
             segments_split += 1
             new_segments_produced += len(new_segs)
             out.extend(new_segs)
+        elif len(new_segs) == 1 and new_segs[0].speaker_hint is not None:
+            # No structural split, but a per-word refinement (filler-bias
+            # or deadband) yielded a single fragment with a non-default
+            # owner hint — propagate the hint instead of dropping back to
+            # the original segment (whose max-overlap label would ignore
+            # the refinement).
+            out.extend(new_segs)
         else:
             out.append(seg)
 
@@ -411,5 +566,10 @@ def split_on_turn_boundary(
         "snap_window_ms": snap_window_ms,
         "snap_prob_threshold": snap_prob_threshold,
         "snaps_applied": snaps_applied,
+        "filler_bias_tie_ms": filler_bias_tie_ms,
+        "filler_words_count": len(filler_words),
+        "filler_bias_applied": filler_bias_applied,
+        "deadband_ms": deadband_ms,
+        "deadband_applied": deadband_applied,
     }
     return out, telemetry

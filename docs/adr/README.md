@@ -39,5 +39,6 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | 33  | [`--user-context` injected as a prefix to every LLM stage's system prompt](0033-user-context-system-prompt-prefix.md) | accepted                     |
 | 34  | [Keep `mps` as the diarization default; pyannote 3.1 runs fully on Apple GPU](0034-diarize-mps-default.md) | accepted                     |
 | 36  | [Text-similarity dedup for chunked ASR](0036-text-similarity-asr-dedup.md) | accepted (refines 0031 dedup) |
+| 37  | [Merge-stage optimisation pipeline order](0037-merge-split-optimisation-pipeline.md) | accepted |
 
 New decisions land here as `NNNN-kebab-case-title.md` with the same frontmatter (`status`, `date`, optional `supersedes` / `superseded_by`).
