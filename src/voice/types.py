@@ -26,6 +26,12 @@ class AsrSegment:
     end: float
     content: str
     words: list[Word] | None = None
+    # When set, `merge()` uses this speaker label as-is for this segment
+    # instead of recomputing it from time-overlap with pyannote turns.
+    # Set by `split_on_turn_boundary` to preserve a snap-derived owner
+    # whose word-level membership disagrees with the max-overlap label
+    # (issue #125 snap-to-low-prob fix).
+    speaker_hint: str | None = None
 
 
 @dataclass

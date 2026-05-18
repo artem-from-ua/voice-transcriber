@@ -253,6 +253,23 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     t.add_argument(
+        "--merge-split-snap-window-ms", type=int, default=None, metavar="MS",
+        help=(
+            "When >0, snap each --merge-split-on-boundary cut to the lowest-"
+            "probability word inside ±N ms of the pyannote boundary "
+            "(mitigates pyannote's ±200-500 ms boundary imprecision by leaning "
+            "on Whisper's per-word confidence). Default 0 (disabled)."
+        ),
+    )
+    t.add_argument(
+        "--merge-split-snap-prob-threshold", type=float, default=None,
+        metavar="P",
+        help=(
+            "When --merge-split-snap-window-ms is active, snap only to words "
+            "with probability strictly below this threshold (default 0.7)."
+        ),
+    )
+    t.add_argument(
         "--render-min-silence-s", type=float, default=None, metavar="SECONDS",
         help=(
             "Minimum silence duration (seconds) to show as --- in the transcript. "
@@ -471,6 +488,16 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
             args.merge_split_threshold_ms
             if args.merge_split_threshold_ms is not None
             else PipelineOptions.merge_split_threshold_ms
+        ),
+        merge_split_snap_window_ms=(
+            args.merge_split_snap_window_ms
+            if args.merge_split_snap_window_ms is not None
+            else PipelineOptions.merge_split_snap_window_ms
+        ),
+        merge_split_snap_prob_threshold=(
+            args.merge_split_snap_prob_threshold
+            if args.merge_split_snap_prob_threshold is not None
+            else PipelineOptions.merge_split_snap_prob_threshold
         ),
         run_tldr=not args.no_tldr,
         run_structure=not args.no_structure,

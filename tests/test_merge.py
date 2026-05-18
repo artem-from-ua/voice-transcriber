@@ -172,3 +172,140 @@ def test_split_char_fallback_no_words():
     assert out[0].content == "aaaaaaaa"
     assert out[1].content == "bbbbbbbb"
     assert all(s.words is None for s in out)
+
+
+# --- snap to low-probability word (#125 follow-up) --------------------------
+
+
+def _words_with_prob(items: list[tuple[float, float, str, float]]) -> list[Word]:
+    return [Word(start=s, end=e, content=c, probability=p) for s, e, c, p in items]
+
+
+def test_snap_moves_cut_to_low_prob_word_within_window():
+    # The same shape as the real "so yeah so you know the field pretty well yes yes ..."
+    # case: pyannote boundary lands between "know" and "the" at t=1.16, but the
+    # actual speaker change is one word earlier, at the low-prob "so" (p=0.45).
+    seg = AsrSegment(
+        start=0.0, end=2.0,
+        content="so yeah so you know the field",
+        words=_words_with_prob([
+            (0.00, 0.40, "so",     0.99),
+            (0.40, 1.04, "yeah",   0.99),
+            (1.04, 1.16, "so",     0.45),  # low-prob — true cut here
+            (1.16, 1.30, "you",    0.99),
+            (1.30, 1.42, "know",   0.99),
+            (1.42, 1.60, "the",    0.99),
+            (1.60, 1.88, "field",  0.99),
+        ]),
+    )
+    # pyannote draws the boundary AFTER "know" (t=1.42); naive cut is index 5.
+    turns = [
+        DiarTurn(start=0.0, end=1.42, speaker="SPK_A"),
+        DiarTurn(start=1.42, end=2.0, speaker="SPK_B"),
+    ]
+
+    # Without snap: cut lands between "know" and "the" → "the field" goes to SPK_B.
+    out_no_snap, tel_no = split_on_turn_boundary([seg], turns, snap_window_ms=0)
+    assert tel_no["snaps_applied"] == 0
+    assert out_no_snap[0].content == "so yeah so you know"
+    assert out_no_snap[1].content == "the field"
+
+    # With snap: cut snaps to the low-prob "so" (index 2) inside ±500 ms.
+    out_snap, tel_snap = split_on_turn_boundary(
+        [seg], turns, snap_window_ms=500, snap_prob_threshold=0.7,
+    )
+    assert tel_snap["snaps_applied"] == 1
+    assert out_snap[0].content == "so yeah"
+    assert out_snap[1].content == "so you know the field"
+
+
+def test_snap_leaves_cut_alone_when_no_low_prob_in_window():
+    # Boundary words all have high probability — snap is a no-op.
+    seg = AsrSegment(
+        start=0.0, end=2.0, content="alpha beta gamma delta",
+        words=_words_with_prob([
+            (0.00, 0.40, "alpha", 0.99),
+            (0.40, 0.80, "beta",  0.99),
+            (0.80, 1.20, "gamma", 0.99),
+            (1.20, 1.60, "delta", 0.99),
+        ]),
+    )
+    turns = [
+        DiarTurn(start=0.0, end=0.80, speaker="SPK_A"),
+        DiarTurn(start=0.80, end=2.0, speaker="SPK_B"),
+    ]
+    out, tel = split_on_turn_boundary(
+        [seg], turns, snap_window_ms=500, snap_prob_threshold=0.7,
+    )
+    assert tel["snaps_applied"] == 0
+    assert out[0].content == "alpha beta"
+    assert out[1].content == "gamma delta"
+
+
+def test_snap_ignores_low_prob_word_outside_window():
+    # Low-prob word exists but sits far outside the ±100 ms window.
+    seg = AsrSegment(
+        start=0.0, end=4.0, content="a b c d e",
+        words=_words_with_prob([
+            (0.00, 0.20, "a", 0.99),
+            (0.30, 0.45, "b", 0.30),  # low-prob, far from boundary 2.0
+            (1.80, 2.00, "c", 0.99),
+            (2.00, 2.20, "d", 0.99),
+            (2.20, 2.40, "e", 0.99),
+        ]),
+    )
+    turns = [
+        DiarTurn(start=0.0, end=2.0, speaker="SPK_A"),
+        DiarTurn(start=2.0, end=4.0, speaker="SPK_B"),
+    ]
+    out, tel = split_on_turn_boundary(
+        [seg], turns, snap_window_ms=100, snap_prob_threshold=0.7,
+    )
+    assert tel["snaps_applied"] == 0
+    # Pyannote boundary is at t=2.0 → cut between "c" (ends 2.00) and "d" (starts 2.00).
+    assert out[0].content == "a b c"
+    assert out[1].content == "d e"
+
+
+def test_snap_emits_speaker_hint_that_merge_respects():
+    # Same shape as the real failure case: snap moves the cut backwards
+    # into the speaker-A owned region, but the resulting middle fragment's
+    # *time span* now overlaps speaker-A's pyannote turn more than
+    # speaker-B's. The snap-derived owner (B, by word membership) should
+    # win via `speaker_hint`, not the time-overlap label (A).
+    seg = AsrSegment(
+        start=0.0, end=8.0, content="a b c d e f g h",
+        words=_words_with_prob([
+            (0.0, 1.0, "a", 0.99),
+            (1.0, 2.0, "b", 0.99),
+            (2.0, 3.0, "c", 0.40),  # low-prob — true speaker change here
+            (3.0, 3.2, "d", 0.99),
+            (3.2, 3.4, "e", 0.99),
+            (3.4, 4.6, "f", 0.99),
+            (4.6, 4.8, "g", 0.99),
+            (4.8, 5.0, "h", 0.99),
+        ]),
+    )
+    # pyannote draws boundary AFTER "f" at t=4.6 (mid-word naive cut idx=6).
+    # Naive split: "a b c d e f" → SPK_A (overlap 4.6s); "g h" → SPK_B.
+    # After snap to "c": left "a b" → SPK_A, right "c d e f g h" → SPK_B.
+    # Time-overlap of right fragment (2.0-5.0) with SPK_A turn (0.0-4.6)
+    # is 2.6 s vs SPK_B turn (4.6-8.0) only 0.4 s → max-overlap would say
+    # SPK_A. speaker_hint must override to SPK_B.
+    turns = [
+        DiarTurn(start=0.0, end=4.6, speaker="SPK_A"),
+        DiarTurn(start=4.6, end=8.0, speaker="SPK_B"),
+    ]
+    asr_split, tel = split_on_turn_boundary(
+        [seg], turns, snap_window_ms=3000, snap_prob_threshold=0.7,
+    )
+    assert tel["snaps_applied"] == 1
+    # The middle fragment got SPK_B as its speaker_hint despite being
+    # time-overlapped with SPK_A turn.
+    right = next(s for s in asr_split if s.content.startswith("c"))
+    assert right.speaker_hint == "SPK_B"
+
+    # And merge() honours the hint instead of recomputing max-overlap.
+    out, _ = merge(asr_split, turns)
+    right_seg = next(s for s in out if s.content.startswith("c"))
+    assert right_seg.speaker == "SPK_B"

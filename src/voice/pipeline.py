@@ -103,6 +103,10 @@ class PipelineOptions:
     merge_split_on_boundary: bool = False
     merge_split_min_segment_ms: int = 200
     merge_split_threshold_ms: int = 300
+    # Snap split cuts to low-probability word boundaries within ±N ms of
+    # the pyannote-derived cut. 0 disables (default; pure pyannote cut).
+    merge_split_snap_window_ms: int = 0
+    merge_split_snap_prob_threshold: float = 0.7
 
 
 def _log(verbose: bool) -> Callable[[str], None]:
@@ -452,6 +456,8 @@ def run(options: PipelineOptions) -> str:
                         asr_segments, turns,
                         min_segment_ms=options.merge_split_min_segment_ms,
                         threshold_ms=options.merge_split_threshold_ms,
+                        snap_window_ms=options.merge_split_snap_window_ms,
+                        snap_prob_threshold=options.merge_split_snap_prob_threshold,
                     )
                     dumper.write("04a-asr-split.json", asr_segments)
                 segments, merge_telemetry = merge(asr_segments, turns)
