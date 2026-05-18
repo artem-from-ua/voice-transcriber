@@ -7,11 +7,25 @@ from typing import Any
 
 
 @dataclass
+class Word:
+    """A single word with timing from Whisper's `word_timestamps=True` output.
+
+    Used by `merge.split_on_turn_boundary` to cut ASR segments along
+    pyannote speaker turn boundaries at word granularity (issue #125).
+    """
+    start: float
+    end: float
+    content: str
+    probability: float | None = None
+
+
+@dataclass
 class AsrSegment:
     """A raw segment from the ASR backend (Whisper-large-v3-MLX)."""
     start: float
     end: float
     content: str
+    words: list[Word] | None = None
 
 
 @dataclass

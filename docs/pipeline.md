@@ -42,38 +42,38 @@ component "<b>[12] speech_summary</b>\n<i><mlx-lm> Qwen2.5-7B-Instruct</i>" as T
 component "<b>[13] render</b>" as Render #E8E8E8
 
 User -[#FF6B35]-> FF : <color:#404040>  audio file</color>\n<color:#404040>  (wav, m4a, mp3 ...)</color>
-User -[#FF6B35]-> WAV : <color:#404040>  audio file</color>\n<color:#404040>  (wav, m4a, mp3 ...)</color>
+User -[#FF6B35,thickness=5]-> WAV : <color:#404040>  audio file</color>\n<color:#404040>  (wav, m4a, mp3 ...)</color>
 User -[#3B82F6,dashed]-> LangDet : <color:#404040>  speech language</color>\n<color:#404040>  (optional override)</color>
 User -[#3B82F6,dashed]-> Ident : <color:#404040>  speaker names</color>\n<color:#404040>  (optional override)</color>
 User -[#3B82F6,dashed]-> Safe : <color:#404040>  sensitive topics</color>\n<color:#404040>  (optional override)</color>
 
-User -[#3B82F6,dashed]-> Post : <color:#404040>  user context</color>\n<color:#404040>  (optional override)</color>
-User -[#3B82F6,dashed]-> Ident : <color:#404040>  user context</color>\n<color:#404040>  (optional override)</color>
-User -[#3B82F6,dashed]-> Struct : <color:#404040>  user context</color>\n<color:#404040>  (optional override)</color>
-User -[#3B82F6,dashed]-> Safe : <color:#404040>  user context</color>\n<color:#404040>  (optional override)</color>
-User -[#3B82F6,dashed]-> TLDR : <color:#404040>  user context</color>\n<color:#404040>  (optional override)</color>
+User -[#3B82F6,dashed]-> Post : <color:#404040>  user context</color>\n<color:#404040>  (optional)</color>
+User -[#3B82F6,dashed]-> Ident : <color:#404040>  user context</color>\n<color:#404040>  (optional)</color>
+User -[#3B82F6,dashed]-> Struct : <color:#404040>  user context</color>\n<color:#404040>  (optional)</color>
+User -[#3B82F6,dashed]-> Safe : <color:#404040>  user context</color>\n<color:#404040>  (optional)</color>
+User -[#3B82F6,dashed]-> TLDR : <color:#404040>  user context</color>\n<color:#404040>  (optional)</color>
 
-WAV -[#FF6B35]-> Diar : <color:#404040>  16 kHz</color>\n<color:#404040>  mono WAV</color>
+WAV -[#FF6B35,thickness=5]-> Diar : <color:#404040>  16 kHz</color>\n<color:#404040>  mono WAV</color>
 WAV -[#FF6B35]-> LangDet : <color:#404040>  16 kHz</color>\n<color:#404040>  mono WAV</color>
-WAV -[#FF6B35]-> CS : <color:#404040>  16 kHz</color>\n<color:#404040>  mono WAV</color>
+WAV -[#FF6B35,thickness=5]-> CS : <color:#404040>  16 kHz</color>\n<color:#404040>  mono WAV</color>
 Diar -[#3B82F6]-> LangDet : <color:#404040>  speaker</color>\n<color:#404040>  timecodes</color>
 Diar -[#3B82F6]-> CS : <color:#404040>  speaker</color>\n<color:#404040>  timecodes</color>
-LangDet -[#3B82F6]-> ASR : <color:#404040>  detected</color>\n<color:#404040>  language</color>
-CS -[#FF6B35]-> ASR : <color:#404040>  cleaned</color>\n<color:#404040>  audio</color>
+LangDet -[#3B82F6]-> ASR : <color:#404040>  speech</color>\n<color:#404040>  language</color>
+CS -[#FF6B35,thickness=5]-> ASR : <color:#404040>  cleaned</color>\n<color:#404040>  audio</color>
 
-ASR -[#6E9E1F]-> Merge : <color:#404040>  recognized</color>\n<color:#404040>  text</color>
-Diar -[#3B82F6]-> Merge : <color:#404040>  speaker</color>\n<color:#404040>  timecodes</color>
+ASR -[#6E9E1F,thickness=5]-> Merge : <color:#404040>  recognized</color>\n<color:#404040>  text</color>
+Diar -[#3B82F6,thickness=5]-> Merge : <color:#404040>  speaker</color>\n<color:#404040>  timecodes</color>
 
-Merge -[#6E9E1F]-> Post : <color:#404040>  text with speaker labels</color>
-Post -[#6E9E1F]-> Ident : <color:#404040>  proof-read text</color>
+Merge -[#6E9E1F,thickness=5]-> Post : <color:#404040>  text with</color>\n<color:#404040>  speaker labels</color>
+Post -[#6E9E1F,thickness=5]-> Ident : <color:#404040>  proof-read text</color>
 Ident -[#6E9E1F]-> Struct : <color:#404040>  text with</color>\n<color:#404040>  speaker names</color>
-Ident -[#6E9E1F]-> Safe : <color:#404040>  text with</color>\n<color:#404040>  speaker names</color>
+Ident -[#6E9E1F,thickness=5]-> Safe : <color:#404040>  text with</color>\n<color:#404040>  speaker names</color>
 Struct -[#3B82F6]-> Safe : <color:#404040>  topic sections</color>
-Safe -[#6E9E1F]-> TLDR : <color:#404040>  sensitive topics</color>\n<color:#404040>  removed</color>
+Safe -[#6E9E1F,thickness=5]-> TLDR : <color:#404040>  sensitive topics</color>\n<color:#404040>  removed</color>
 
 FF -[#3B82F6]-> Render : <color:#404040>  recording date,</color>\n<color:#404040>  duration</color>
-TLDR -[#6E9E1F]-> Render : <color:#404040>  + summary</color>
-Render -[#6E9E1F]-> User : <color:#404040>  transcript.md</color>
+TLDR -[#6E9E1F,thickness=5]-> Render : <color:#404040>  + summary</color>
+Render -[#6E9E1F,thickness=5]-> User : <color:#404040>  transcript.md</color>
 
 legend top center
   <back:#87CEFA>   </back> <i><color:#404040>AI model: diarization</color></i>
@@ -86,7 +86,7 @@ end legend
 @enduml
 ```
 
-![Pipeline stages](https://www.plantuml.com/plantuml/svg/lLXjJoCt4Fw-ls9qV6bLDa02uKNHwe1BL2IGhd3jVRX6oDcT18jTUsLxuRYgKliVJlqn_JdtIpgsDoyRTjE0u0X4R3ppFECP-_4uRxLXoXHP6XXkKeGxoMCCZM92nugFKC6tlxv2pdDCkK0WwmdgGDzoaJF5CeXbbak1mboP1t9N61ic9Yakc1mh9Uy_tF3uLg3Mq5uOId628ZcHAa5rAbEfm37J824-jcFnxKJ9GYJUTgFlVeAWforv500aCYuoyeK_w07WWga95z3UewS_wO_5Xlpys3dDPnxLxgBzddjupvA4YmbuvzvMIH9ua3VqOXf-rQY2O9O5UDCRHPzsXduUiKomjpMAVXSz7lN6uop7ITJRuf5p_NZy6qtXmBwM0Tf3O4N2vNM6XYqYv4gES0un63GXT8QGSARu5xpMER9RL7gEapym8QJ1q954K5g4teCPBaNOQUtCQDxHvx1ni7_Q7nml4-qE8QMANoTegFPpZYpz7DxVS89M4Npq_uGfvHV3kyuC-PnStw61ZSFjVlzmUnbyRmXnYapPEM1yCqVNTXMCETM34cNaX75XCSl1cESF4VHqD68YoPccgUkeRZnNg574M1ql2sKD4XIIQspofsMBTwX6qt4tfzEhfg9qX-0dqZRu-ScvEhwwRChJ_X0o97CBwMmlx5DJ60T3e7KanmfPKWqYpIBuvHv5kxKNxf-4Pq8RLTYgbY6ybvfgDHYSddQxowY7G-2KBiF73pLBRXtqC-lU1B-pFKtUjNSh53uD_iezDkBJfjLiZ8-MsbhGvDW8t9u7NcGPKmzFm_vm_kwo4PksEKabBSDPvI_TuwpqWHKe23yHGFUaipSC8oiQHz2BhOGURUnksrS4Nc_0RgdUbXkp8IuR_N3FxZOXssNqbdUWrMhzEBMk8R82zvfCdPE3zg2xcJ1zWuabdAf93QclW9EgWarMCilS2Y1BGTBMLhIcrs3sIxUUr-u442n3_TAiRjdLaQBGtF0x12Dp7Z-NjvdOwK0DSM4TOYcyl7sd5BycQQaPtvkreQwloUbavdKu0oi45MLm3KKDsKuNRd_-ie8caq9QNPbXFu9UeG4lW4vd-ui0kmJCol3_scKrP0M-uHdQPbEl8AWF_JdOqr0hyBOxgS7tRI4cAmYMDJcWI2j9Ru2sdQ5OYUnEclaoj3W4tEqVzdS65jXtIJNGT8sH4q7DyohqnHrHa-z6yEUaFF1ebUYRHDZ61VVStCmEdvIDC9s3ESSALAEskZunj8rYTRhUeOBHB9MpW5PCkVQShALfqCRdavI1LuhNo6BFKpfVOojs2n3Ml19cavm-uMXMc96M9lCrG8rR9SYorMjOlyfTNXDcS7C5IL8eTz-RiRZ0ArDffla9PXrjwLtQLlpTaLENo_9BXjoqieLP-hk-JG_4L7swNWFqHdJrFofleEGArExI9tG7eoQwYdjyHcgRO7e42xVPARfjgkTm_YwrBbpbvbO7vrlqTU7Epo-MOKfJBtpHjwz_szz__fsQrS1L16u9ng-JjM3ijmoqK5W3aY_bMaZpciAZHDcg-k86R-cjoDB_0000)
+![Pipeline stages](https://www.plantuml.com/plantuml/svg/lLXjJoCt4Fw-ls9qV6bLDa02uKNfwdYB3WcaArnx7wuHSdOdmSgklR8TEAwgrFw7KtzCVyxzaewzcxTb7G879H2nyVXvnZFZn-EyrOOfCyxIm72J8jnA7cDe51CwLhoF2hxzzHLodcFA1G9P3r47UiH5pXJB89PPBWKASsNkQRh2s30nJ77Ev50fUVVXXiSZWLf3SsuenI6Av4Yg1DMnJAK2nqo3XFZGZiMZeP9ZaHIsQwVk9mWwsf970K0Yut56S-4FUW2uO6h81JHtwEbF-cEneNd5s3cjP-RLzhpzZdjupvA4Yo4KapiR9KbGWBoX5zFmgqOL1DCem9jEF_gqrIlM4Si4Enlzw7VHuL5dCCXo74QT3HwvgHyFVwCbxDbN5Q3P0pPEkBpEqB1vX5p9FiuWkbqVGgi72MUAVy5hdICReT8pdFoU2I4DXeuaWj8YB6OmmwK8MusjASq9VGvhUxl7fzt3Aj5s3rBA-7M2Xd8_uyZIp-7T3ITe5S77ufymfVXYUDkQ8f_Jr1CqiBQ_UNgwlra5t-b1d29JTWqOtypGjQs20QTyKA2C738kB6Ov6FFyFeAEZlfC93dJj7GTrOtd2ZMA61V7oqHPWmI5v1fzywbiyHPLVpBkrdHyvKjAkmV5Gfe6FpyvLeTNbxuuxVOWGpAtaCxsmZxvtDZh0TMH72XaoQ8JQHR1BtSecesTSFSeF1FQgB7DQkd2UwafLztkyN6xNKNTxm6dS1a-kAyfkLNGp-nq7_pMvYHuryMqiSAdmL-vHoy-RLhD1lYWr5Q2febUuERCyN6MCNN_DEmFvoUNNcpQvYILL8RJp5-wnsdg0ojG47uYWFPHQwSNHbOq3g0JMmazMDlUjAy82hq1kwKw6sxCkbWr-k6EtQv3jiteBMz1ez7uSM9T8Let4sdzsP5QiNjDrjRHNhFRNa-Oli744awKfOQqo8QJhJ4RBcMMkHL3beAaRQwelbTWBigudjVk2X0iG_tIhAu4wqXHQ6xuBOAHEO-Vo-idTffGGpos4s8f2gbxdFHx8liANALQ_4zadkIz0fMJanUb2kpUzcvyrplKy6srOVJkonAcJ0ffPMFAiq3po1R_JlJg8kX8Vn4I5unfLXwNAIiNI_0Dpz3sc7e9GRthpy6UkBe0RviIhyGkWQ-ARq1-UiFl8R6jeS1a2OixNcQ5Qd68f7swVxhLhP8KBLCD3Trfv51G9xsCQNxRLBAmCj5paX8KQDvL-TJP-Wjtt2pBqUIyIbaVqncbW_GIUZNQjPoXxJaNWrLCcE8jrzwdkBrmp5Pfgcxx5FZvXEKY5dQBbyKUpNHKnrPRvo2ikTTbdv8_uSHNcD5HdyogYNh31OVBRjApAvIx7oVCuFeIacIit9Look8SzoxBJ_aJJ1le4gcqzMAvKx0ktkNt6xbfP7EhBxvci663cAg5RlO0dJwBHmVbvPUc0dNQz0bT_wX_NyGzF2F5Jp0zWBcBz0JTzlCpkE8QjohSmgMn3gwu7QmATtv-KOKfJGlvZRvz_Tl-_lFlnAm6Ra5QAp15_Qm4Ox_We09Y7gGYhIiXpN8A3m9bireaDtXBR-Ci_Gy0)
 
 
 | # | Stage | Input (from) | Action | Output |

@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ._memory import free_mlx
-from .types import AsrSegment
+from .types import AsrSegment, Word
 
 
 WHISPER_REPO_ID = "mlx-community/whisper-large-v3-mlx"
@@ -100,11 +100,40 @@ def _verify_model_cached(repo_id: str = WHISPER_REPO_ID) -> None:
         )
 
 
+def _parse_words(seg_words: Any) -> list[Word] | None:
+    """Convert mlx-whisper's per-segment `words` list to list[Word] | None.
+
+    mlx-whisper emits `words=[{"word": " hello", "start": .., "end": ..,
+    "probability": ..}, ...]` when called with `word_timestamps=True`.
+    Returns None when the field is absent (back-compat with payloads from
+    runs without word-level timestamps).
+    """
+    if not seg_words:
+        return None
+    out: list[Word] = []
+    for w in seg_words:
+        text = (w.get("word") or w.get("text") or "").strip()
+        if not text:
+            continue
+        out.append(Word(
+            start=float(w.get("start", 0.0)),
+            end=float(w.get("end", 0.0)),
+            content=text,
+            probability=(
+                float(w["probability"]) if w.get("probability") is not None else None
+            ),
+        ))
+    return out or None
+
+
 def _parse_segments(result: dict) -> list[AsrSegment]:
     """Convert mlx-whisper's `{text, segments, language}` payload to AsrSegment[].
 
     Whisper has no speaker-prediction head; speaker labels are assigned
-    downstream by `merge.py` via max-overlap with pyannote turns.
+    downstream by `merge.py` via max-overlap with pyannote turns. When
+    `word_timestamps=True` was passed to mlx_whisper.transcribe, each
+    segment carries `words=[Word, ...]`; `merge.split_on_turn_boundary`
+    uses them to split segments at diarization boundaries (issue #125).
     """
     segments: list[AsrSegment] = []
     for seg in result.get("segments", []):
@@ -115,6 +144,7 @@ def _parse_segments(result: dict) -> list[AsrSegment]:
             start=float(seg.get("start", 0.0)),
             end=float(seg.get("end", 0.0)),
             content=content,
+            words=_parse_words(seg.get("words")),
         ))
     return segments
 
@@ -162,6 +192,7 @@ def _call_mlx_whisper(
         path_or_hf_repo=WHISPER_REPO_ID,
         language=language,
         condition_on_previous_text=False,
+        word_timestamps=True,
     )
     elapsed = time.perf_counter() - t0
     peak_gb = mx.get_peak_memory() / 1e9
@@ -175,10 +206,28 @@ def _call_mlx_whisper(
 def _shift_segments(segments: list[AsrSegment], offset_s: float) -> list[AsrSegment]:
     if offset_s == 0.0:
         return segments
-    return [
-        AsrSegment(start=s.start + offset_s, end=s.end + offset_s, content=s.content)
-        for s in segments
-    ]
+    shifted: list[AsrSegment] = []
+    for s in segments:
+        shifted_words = (
+            [
+                Word(
+                    start=w.start + offset_s,
+                    end=w.end + offset_s,
+                    content=w.content,
+                    probability=w.probability,
+                )
+                for w in s.words
+            ]
+            if s.words is not None
+            else None
+        )
+        shifted.append(AsrSegment(
+            start=s.start + offset_s,
+            end=s.end + offset_s,
+            content=s.content,
+            words=shifted_words,
+        ))
+    return shifted
 
 
 # Lowercase alphanumerics, Cyrillic + Latin + digits. Mirrors the regex

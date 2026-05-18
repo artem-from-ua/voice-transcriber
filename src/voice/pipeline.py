@@ -98,6 +98,11 @@ class PipelineOptions:
     verbose: bool = False
     render_min_silence_s: float | None = None
     tldr_include_silence: bool = False
+    # Issue #125 research knobs. Default OFF until the benchmark settles
+    # whether to flip it on by default.
+    merge_split_on_boundary: bool = False
+    merge_split_min_segment_ms: int = 200
+    merge_split_threshold_ms: int = 300
 
 
 def _log(verbose: bool) -> Callable[[str], None]:
@@ -440,7 +445,20 @@ def run(options: PipelineOptions) -> str:
             with progress.spinner(
                 "[7/13] Merge", stage_num="7/13", stage_id="merge",
             ):
-                segments: list[Segment] = merge(asr_segments, turns)
+                split_telemetry: dict[str, Any] | None = None
+                if options.merge_split_on_boundary:
+                    from .merge import split_on_turn_boundary
+                    asr_segments, split_telemetry = split_on_turn_boundary(
+                        asr_segments, turns,
+                        min_segment_ms=options.merge_split_min_segment_ms,
+                        threshold_ms=options.merge_split_threshold_ms,
+                    )
+                    dumper.write("04a-asr-split.json", asr_segments)
+                segments, merge_telemetry = merge(asr_segments, turns)
+            stage_meta["merge"] = {
+                **merge_telemetry,
+                **({"split": split_telemetry} if split_telemetry is not None else {}),
+            }
             dumper.write("04-merge.json", segments)
 
             # LLM stages may use different models per stage (--llm-{stage}-model).
