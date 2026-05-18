@@ -56,8 +56,9 @@ def test_spinner_set_state_renders_step_and_percent_in_heartbeat(capsys):
     assert "diarize_speakers/embeddings: 27% (12/45)" in captured, captured
 
 
-def test_spinner_set_state_renders_unknown_total_as_question_marks(capsys):
-    """When pyannote does not report total/completed, show `?% (?/?)`."""
+def test_spinner_set_state_omits_percent_when_total_unknown(capsys):
+    """When pyannote does not report total/completed, show just the step
+    name — no `?% (?/?)` noise."""
     p = _silent_reporter(heartbeat_interval_s=0.1)
     with p:
         with p.spinner(
@@ -66,7 +67,8 @@ def test_spinner_set_state_renders_unknown_total_as_question_marks(capsys):
             set_state("segmentation")
             time.sleep(0.25)
     captured = capsys.readouterr().err
-    assert "diarize_speakers/segmentation: ?% (?/?)" in captured, captured
+    assert "diarize_speakers/segmentation" in captured, captured
+    assert "?%" not in captured, captured
 
 
 def test_token_counter_accepts_deltas():

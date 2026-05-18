@@ -345,8 +345,22 @@ class ProgressReporter:
         snapshot = read_memory_snapshot()
         memory_part = snapshot.format()
         suffix = f" · {memory_part}" if memory_part else ""
-        prefix = f"[{active.stage_num}]" if active.stage_num else f"[{active.label}]"
-        line = f"--> ⏳ {prefix} {active.state_fn()}{suffix}"
+        # Prefix: [stage_num] when known, else [stage_id], else [label].
+        # When both stage_num AND stage_id exist, the stage_id is rendered
+        # after the bracket so stages with no per-step progress still read
+        # as "[6/13] speech2text: elapsed 0:43" instead of "[6/13] elapsed
+        # 0:43". When the spinner's state_fn already starts with `stage_id/…`
+        # (because set_state was called), don't duplicate it.
+        state_text = active.state_fn()
+        if active.stage_num:
+            prefix = f"[{active.stage_num}]"
+            if active.stage_id and not state_text.startswith(f"{active.stage_id}"):
+                state_text = f"{active.stage_id}: {state_text}"
+        elif active.stage_id:
+            prefix = f"[{active.stage_id}]"
+        else:
+            prefix = f"[{active.label}]"
+        line = f"--> ⏳ {prefix} {state_text}{suffix}"
         print(line, file=sys.stderr, flush=True)
 
 
@@ -354,13 +368,13 @@ def _format_step_progress(
     step: str, completed: int | None, total: int | None,
     *, stage_id: str | None = None,
 ) -> str:
-    """`diarize_speakers/embeddings: 51% (18/35)` if stage_id given and
-    counters known; `embeddings: ?% (?/?)` if no stage_id or counters."""
+    """`diarize_speakers/embeddings: 51% (18/35)` when counters known;
+    `diarize_speakers/clustering` (no trailing colon) when not."""
     head = f"{stage_id}/{step}" if stage_id else step
     if completed is not None and total:
         pct = int(round(100 * completed / total))
         return f"{head}: {pct}% ({completed}/{total})"
-    return f"{head}: ?% (?/?)"
+    return head
 
 
 def _fmt_elapsed(seconds: float) -> str:

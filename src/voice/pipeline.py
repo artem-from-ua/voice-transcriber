@@ -221,7 +221,9 @@ def _ensure_llm(
             )
         ):
             return current
-        with progress.spinner(f"Unloading LLM ({Path(current.model_path).name})"):
+        with progress.spinner(
+            f"Unloading LLM ({Path(current.model_path).name})", stage_id="llm_unload",
+        ):
             current.close()
         free_mlx(log)
 
@@ -231,7 +233,9 @@ def _ensure_llm(
         log_memory=log_memory,
         sampling_overrides=sampling_overrides or {},
     )
-    with progress.spinner(f"Loading LLM ({Path(new_llm.model_path).name})"):
+    with progress.spinner(
+        f"Loading LLM ({Path(new_llm.model_path).name})", stage_id="llm_load",
+    ):
         new_llm.load()
     if model_load_elapsed is not None:
         model_load_elapsed[want_path] = (
@@ -292,10 +296,15 @@ def run(options: PipelineOptions) -> str:
     try:
         with progress:
             wav_path = tmpdir / "audio.wav"
-            with progress.spinner("[1/13] transcode → WAV 16 kHz mono"):
+            with progress.spinner(
+                "[1/13] transcode → WAV 16 kHz mono",
+                stage_num="1/13", stage_id="transcode",
+            ):
                 transcode_module.transcode(audio, wav_path, log)
 
-            with progress.spinner("[2/13] audio_meta"):
+            with progress.spinner(
+                "[2/13] audio_meta", stage_num="2/13", stage_id="audio_meta",
+            ):
                 audio_meta = audio_meta_module.extract_metadata(
                     audio, override_started_at=options.datetime_override
                 )
@@ -334,7 +343,10 @@ def run(options: PipelineOptions) -> str:
             # longest pyannote turn instead gives a much stronger signal.
             lang_detect_info: dict | None = None
             if options.language is None:
-                with progress.spinner("[4/13] Визначення мови"), _timed("lang_detect"):
+                with progress.spinner(
+                    "[4/13] Визначення мови",
+                    stage_num="4/13", stage_id="lang_detect",
+                ), _timed("lang_detect"):
                     lang_result = lang_detect_module.detect_language(
                         wav_path, turns, log=log,
                     )
@@ -368,7 +380,10 @@ def run(options: PipelineOptions) -> str:
             def _dump_step(idx: int, effect: str, path: Path) -> None:
                 dumper.write_binary(f"02b-clear_speech-{idx}-{effect}.wav", path)
 
-            with progress.spinner(f"[5/13] clear_speech ({chain_label})"):
+            with progress.spinner(
+                f"[5/13] clear_speech ({chain_label})",
+                stage_num="5/13", stage_id="clear_speech",
+            ):
                 processed_wav_path, clearspeech_config = clear_speech_module.clearspeech(
                     wav_path,
                     chain=chain,
@@ -391,11 +406,17 @@ def run(options: PipelineOptions) -> str:
                 )
             dumper.write("02b-clear_speech-config.json", clearspeech_config)
 
-            with progress.spinner(f"[6/13] Завантаження Whisper"):
+            with progress.spinner(
+                f"[6/13] Завантаження Whisper",
+                stage_num="6/13", stage_id="speech2text_load",
+            ):
                 whisper_model, whisper_load_s = whisper_asr_module.load_model(log=log)
             model_load_elapsed[_WHISPER] = model_load_elapsed.get(_WHISPER, 0.0) + whisper_load_s
             stage_models["speech2text"] = _WHISPER
-            with progress.spinner(f"[6/13] speech2text ({_WHISPER})"), _timed("speech2text"):
+            with progress.spinner(
+                f"[6/13] speech2text ({_WHISPER})",
+                stage_num="6/13", stage_id="speech2text",
+            ), _timed("speech2text"):
                 asr_segments = whisper_asr_module.transcribe(
                     processed_wav_path,
                     language=effective_language,
@@ -406,7 +427,9 @@ def run(options: PipelineOptions) -> str:
             log(f"      {len(asr_segments)} ASR-сегментів")
             dumper.write("03-asr.json", asr_segments)
 
-            with progress.spinner("[7/13] Merge"):
+            with progress.spinner(
+                "[7/13] Merge", stage_num="7/13", stage_id="merge",
+            ):
                 segments: list[Segment] = merge(asr_segments, turns)
             dumper.write("04-merge.json", segments)
 
@@ -526,7 +549,10 @@ def run(options: PipelineOptions) -> str:
                         model_load_elapsed=model_load_elapsed,
                     )
                     stage_models["safe_speech"] = safe_speech_model
-                    with progress.spinner("[11/13] Замовчування чутливого"), _timed("safe_speech"):
+                    with progress.spinner(
+                        "[11/13] Замовчування чутливого",
+                        stage_num="11/13", stage_id="safe_speech",
+                    ), _timed("safe_speech"):
                         dialog, safe_speech_decisions = safe_speech_module.redact_dialog(
                             dialog,
                             llm=llm,
@@ -565,7 +591,7 @@ def run(options: PipelineOptions) -> str:
                 dumper.write("10-speech_summary.txt", tldr_text)
             finally:
                 if llm is not None:
-                    with progress.spinner("Unloading LLM"):
+                    with progress.spinner("Unloading LLM", stage_id="llm_unload"):
                         llm.close()
 
         # Re-write 01-meta.json with collected per-stage telemetry (see #57).
