@@ -72,7 +72,7 @@ If you see this repeatedly:
 
 Self-introduction wasn't detected in the first ~60 s of that cluster's speech.
 
-- The simplest fix: `--names "Artem,Ostap"` — overrides the LLM entirely.
+- The simplest fix: `--names "Alice,Bob"` — overrides the LLM entirely.
 - Or rerun with `--unknown-speaker ask` (default) and type the name when prompted.
 - Otherwise rerecord with a clear "Привіт, я X" at the start.
 

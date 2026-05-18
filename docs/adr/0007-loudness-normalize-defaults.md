@@ -64,7 +64,7 @@ Both of these came out of the tuning process and would be expensive to re-discov
 
 ### 1. pyannote classifies long non-speech as a "turn"
 
-The first tuning slice (15–45 s) had a turn at `[5.36-11.03] SPEAKER_01` at -36 dBFS that AGC happily boosted by +12 dB. User listening revealed it was **Ostap inhaling from a vape pen**, not speech. pyannote's exclusive timeline doesn't distinguish "speech" from "loud breath" — it just splits the audio between the active diariser labels.
+The first tuning slice (15–45 s) had a turn at `[5.36-11.03] SPEAKER_01` at -36 dBFS that AGC happily boosted by +12 dB. User listening revealed it was **one speaker inhaling from a vape pen**, not speech. pyannote's exclusive timeline doesn't distinguish "speech" from "loud breath" — it just splits the audio between the active diariser labels.
 
 `SILENT_RMS_THRESHOLD = 1e-6` does not save us here: human sounds at -36 dBFS are far above silence. Only the raw `[Human Sounds]` markers (where pyannote *did* mark non-speech, with `speaker=None`) get skipped because our gain envelope leaves the gap regions at unity. Anything pyannote tagged as a speaker turn is fair game for AGC.
 
@@ -72,9 +72,9 @@ Mitigation: none in #47 itself. The follow-up is to apply spectral preprocessing
 
 ### 2. The "loud speaker" in the file is the distant one in the room
 
-It is easy to assume that the louder voice in a recording is the closer speaker. On this material the opposite is true: Artem sits across the room from the phone but registers at -19 to -25 dBFS, while Ostap sits right next to the phone but registers at -32 to -36 dBFS. The likely culprit is the iPhone's voice-isolation feature, which is mentioned by the speakers themselves on the very recording being analysed.
+It is easy to assume that the louder voice in a recording is the closer speaker. On this material the opposite is true: the far-microphone speaker sits across the room from the phone but registers at -19 to -25 dBFS, while the near-microphone speaker sits right next to the phone but registers at -32 to -36 dBFS. The likely culprit is the iPhone's voice-isolation feature, which is mentioned by the speakers themselves on the very recording being analysed.
 
-Practical consequence: when the user reported "I cannot hear a difference between baseline and normalised" on the first listening pass, the temptation was to crank `max_gain` higher. It turned out the per-turn boost was actually working as expected — but the perceived "improvement" was on the *distant* speaker (Artem) becoming audible relative to the *near* speaker (Ostap), which read on ear as "Artem is louder now," not "Ostap became normalised." Without the room-physics context the data would have been misread.
+Practical consequence: when the user reported "I cannot hear a difference between baseline and normalised" on the first listening pass, the temptation was to crank `max_gain` higher. It turned out the per-turn boost was actually working as expected — but the perceived "improvement" was on the *distant* speaker becoming audible relative to the *near* speaker, which read on ear as "the distant speaker is louder now," not "the near speaker became normalised." Without the room-physics context the data would have been misread.
 
 This is a property of the test recording, not the algorithm. Future tuning on a different recording should expect different patterns.
 

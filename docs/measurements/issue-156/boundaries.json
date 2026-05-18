@@ -346,7 +346,7 @@
       {
         "start": 2826.18,
         "end": 2831.7,
-        "content": "put it past Zendesk to do that because if other companies are doing it, then we're like, oh,"
+        "content": "put it past [REDACTED] to do that because if other companies are doing it, then we're like, oh,"
       },
       {
         "start": 2831.7,
@@ -396,7 +396,7 @@
         "content": "Most of it was very nice."
       }
     ],
-    "tail_text": "put it past Zendesk to do that because if other companies are doing it, then we're like, oh, we need to do it too, right? So, that's how it goes usually in the corporate world. But for now, we do not have targets. We're very early in the beginnings of like, you know, the code. I mean, we're already using it a lot and my engineers are using it a lot and others as well, but still no targets. So, hopefully it stays that way, but I don't know.",
+    "tail_text": "put it past [REDACTED] to do that because if other companies are doing it, then we're like, oh, we need to do it too, right? So, that's how it goes usually in the corporate world. But for now, we do not have targets. We're very early in the beginnings of like, you know, the code. I mean, we're already using it a lot and my engineers are using it a lot and others as well, but still no targets. So, hopefully it stays that way, but I don't know.",
     "head_text": "Cool. Cool. Yeah. All right. All right. So thank you for your time. Most of it was very nice.",
     "last_token": "know",
     "first_token": "cool",

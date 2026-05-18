@@ -55,7 +55,7 @@ A simpler one-line "fix" — push the validator to accept 5 sections — was rej
 
 ## Consequences
 
-**Measured on the 48-min reference (`zendesk_spm_wfm_hm.wav`, 535 speech segments):**
+**Measured on the 48-min private phone-interview reference (535 speech segments):**
 
 | | v0.34.0 baseline | this ADR |
 | --- | --- | --- |

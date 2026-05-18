@@ -65,7 +65,7 @@ The peak resets between calls so per-section numbers are real, not cumulative. T
 
 ### Persistent verbose log next to the audio
 
-When `--verbose` is passed, `voice transcribe` mirrors `stderr` to `<input_audio_path>.log` (e.g. `2026-05-15_zendesk_spm_wfm_hm.wav.log`). The mirror is line-buffered with `os.fsync()` after every newline so a kernel reboot mid-run leaves a usable log behind. The CLAUDE.md `tee` convention still applies for live progress; the persistent log is the *backup* the bug taught us to need.
+When `--verbose` is passed, `voice transcribe` mirrors `stderr` to `<input_audio_path>.log` (e.g. `recording.wav.log`). The mirror is line-buffered with `os.fsync()` after every newline so a kernel reboot mid-run leaves a usable log behind. The CLAUDE.md `tee` convention still applies for live progress; the persistent log is the *backup* the bug taught us to need.
 
 ## Consequences
 

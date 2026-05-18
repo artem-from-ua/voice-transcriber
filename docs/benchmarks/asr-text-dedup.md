@@ -139,7 +139,7 @@ chunk boundaries on long recordings.
 
 Same recording as `asr-chunk-boundary-quality.md` §5: the local
 ~48-minute English conversational dump
-(`~/Downloads/2026-05-15_zendesk_spm_wfm_hm.wav`,
+(private phone-interview fixture, kept locally only,
 ~5 speakers; not redistributed — privacy + size).
 
 For this benchmark only the ASR stage was re-run (via
