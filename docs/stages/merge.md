@@ -6,20 +6,93 @@ segments (from `[6] speech2text`) and pyannote diarization turns (from
 segment by **maximum temporal overlap**; everything else in this file
 is an opt-in correction for known failure modes of that default.
 
+## Pipeline at a glance
+
+```plantuml
+@startuml
+title merge stage — optimisation pipeline
+
+skinparam ActivityBorderColor #95A5A6
+skinparam ActivityFontSize 12
+skinparam ArrowColor #5B9BD5
+skinparam DefaultFontName "Helvetica"
+
+start
+:ASR segments + pyannote turns;
+
+:[1] naive owner
+__always-on__
+per-word argmax over turn overlap; <<#E8F4FD>>
+
+:[2] filler-bias  (opt-in · impact **)
+reassign known-filler words near a boundary
+to the turn containing word.end
+""--merge-split-filler-bias-tie-ms""; <<#E8F5E9>>
+
+:[3] deadband  (opt-in · impact **)
+reassign any word whose centre is within
+±N ms of a boundary to the downstream turn
+""--merge-split-deadband-ms""; <<#E8F5E9>>
+
+:[4] snap  (opt-in · impact ***)
+shift each split cut to the nearest
+low-probability word within ±window
+""--merge-split-snap-window-ms""; <<#E8F5E9>>
+
+:[5] split_on_turn_boundary  (opt-in · impact ***)
+cut a multi-speaker ASR segment
+into per-speaker fragments
+""--merge-split-on-boundary""; <<#E8F5E9>>
+
+:[6] speaker_hint
+__always-on__
+majority-vote owner per emitted fragment
+(carries refinements through merge); <<#E8F4FD>>
+
+:[7] merge
+__always-on__
+emit final Segments; honour speaker_hint
+when present, else max-overlap; <<#E8F4FD>>
+
+:[8] crossings telemetry  (impact *)
+__always-on__
+counts straddling cases per run
+into 01-meta.json; <<#FFF8E1>>
+
+stop
+
+legend right
+  <back:#E8F4FD>   </back> always-on (baseline / structural)
+  <back:#E8F5E9>   </back> opt-in refinement
+  <back:#FFF8E1>   </back> telemetry (no render change)
+endlegend
+@enduml
+```
+
+![PlantUML Diagram](https://www.plantuml.com/plantuml/svg/XPJFKjim4CRlUegTS0cqXj8IohzXW4Ac9mxbsCbaDlR65iWhZoJ7JKzzYBu8fzvvb3v9LtO20SBquaaahRxVxdwhCn_GXReqAkXW24foEO4iolVlhzzWgw1BxJ5eor3fYencKihVQQxGOGddQT0p7UONrcNalbXZ7MmS3iu7v_jhJWqjXnlzas3tu-gkSxPPX0uk3Yyk1okRbpJ5seGOUOqbGUyhcHa5dM9FE2AzEZg_-GQUyf8uU7W7rHoPRI08jMD_hDJHzzqHCEePWMsOd1gFqJGuzudbyLXLv996-05TNk8Fi3DoRMpxos1r32Sd6rS7mxtXvUbflExZ2ARQ68cRQFG0VQbJeXaU_e0kAqm3R6rjAaVelSuPxbXaaou2ef879dI0CB4rP-ZcAbW8HKSCgUIAcZNdxU5juaprUadIDYVnbT4XMP5FWgQazBtU4dDmTTXXVXf1HfXDaBF_CYBFMpLe2ki9Kgcb8z0U6XqApUhX_XfA3tQwGWqBwapIyt9SsXKJU0MxX5XFkJS2prYj9nH4N-Xf0CAqWFOwIEkmL8vb91-KiKrIEJl1YPOJoqnQSdYuRpGBuYkig9fqU-l91gDESImsYOcD7nD_YpMY8PHYM2qYX7VIy1LtAiq27lsst9mwx7pxYivoifHRWxOVqTehnf9ZUE7e4c-japeaipW6hUUZAb2fGw3iKLNrKtHEamT7KvdiRe92uMoT5zrZiFdA_9z7tSuBpNYtJ0MZWPl5B1v3OTdMxZbgKv2y9T8sEV8Uo8ZRPEgIjsRjO0Ifis9IpWMDZ426jWFBkc--04cbQfA561AppCGfIj5BYh40hkQk1nzsfTW1js-zvLPoE1mUNEr6IHzifPIXNEOEdCwBe01E9fZU7It1G1PsuiefF2f3Vo8oyNs4dIXUfs8PD9lFWcF_Le8N9deg_jFX1S_AuQVS-smbXkN1XRH0bYOf-TSHgpFvo8F-3m00)
+
 ## Optimisations at a glance
 
-| Impact | What it does | Wrong-merge (before) | After this optimisation |
+| Step - Impact | What it does | Before | After |
 |---|---|---|---|
-| ⭐⭐⭐ | When two people talk over each other, split the transcript line at the moment the second person joins in. CLI: `--merge-split-on-boundary`. | <pre>Alice: ...about the field<br>Bob:   (silent)<br>Alice: pretty well yes yes i<br>       am lucky…</pre> | <pre>Alice: ...about the field<br>Bob:   pretty well<br>Alice: yes yes i am lucky…</pre> |
-| ⭐⭐ | Diarization sometimes draws the speaker-change line one or two words off. Move it to the word the recogniser is least sure about — that is almost always where the speaker actually changes. CLI: `--merge-split-snap-window-ms 500`. | <pre>Alice: ...so yeah so you<br>       know<br>Bob:   the field pretty well<br>       yes<br>Alice: yes yes i am lucky…</pre> | <pre>Alice: ...so yeah<br>Bob:   so you know the field<br>       pretty well yes<br>Alice: yes yes i am lucky…</pre> |
-| ⭐ | Count how often two speakers overlap inside one transcript line. Helps decide whether the fixes above are worth turning on by default. Numbers only — does not change the transcript. | <pre>(no rendered difference —<br>telemetry-only)</pre> | <pre>(no rendered difference —<br>telemetry-only)</pre> |
-| ⭐⭐ | A back-channel "yes" / "okay" / "sure" sometimes lands on the previous speaker because Whisper put its timestamp half-and-half on both turns. When the word is a known filler and the overlap is near-tied, move it to the speaker who follows. CLI: `--merge-split-filler-bias-tie-ms 120 --merge-split-filler-lang en`. | <pre>Alice: ...the field pretty<br>       well yes<br>Bob:   yes yes i am lucky…</pre> | <pre>Alice: ...the field pretty<br>       well<br>Bob:   yes yes yes i am<br>       lucky…</pre> |
-| ⭐⭐ | Sometimes diarization marks the speaker change a beat late, so the new speaker's first word ("know", "the", ...) gets glued to the previous one. Words very close to a turn boundary (within ±100 ms) move forward to the next speaker. CLI: `--merge-split-deadband-ms 100`. | <pre>Alice: ...so yeah so you<br>       know<br>Bob:   the field pretty well</pre> | <pre>Alice: ...so yeah so you<br>Bob:   know the field<br>       pretty well</pre> |
+| **[1] naive owner**<br>*always-on*<br>— | Each word goes to the pyannote turn it overlaps most. The baseline merge has always done this; everything below is a refinement on top. No CLI knob. | — | — |
+| **[2] filler-bias**<br>*opt-in*<br>⭐⭐ | A back-channel `yes` / `okay` / `sure` sometimes lands on the previous speaker because Whisper put its timestamp half-and-half on both turns. When the word is a known filler AND its two top per-turn overlaps differ by less than the tie-window, reassign it to the turn containing `word.end`. CLI: `--merge-split-filler-bias-tie-ms 120 --merge-split-filler-lang en`. | <pre>Alice: ...the field pretty<br>       well yes<br>Bob:   yes yes i am lucky…</pre> | <pre>Alice: ...the field pretty<br>       well<br>Bob:   yes yes yes i am<br>       lucky…</pre> |
+| **[3] deadband**<br>*opt-in*<br>⭐⭐ | Sometimes diarization marks the speaker change a beat late, so the new speaker's first word (`know`, `the`, ...) gets glued to the previous one. Any word whose centre lies within ±N ms of a boundary is moved forward to the downstream speaker. CLI: `--merge-split-deadband-ms 100`. | <pre>Alice: ...so yeah so you<br>       know<br>Bob:   the field pretty well</pre> | <pre>Alice: ...so yeah so you<br>Bob:   know the field<br>       pretty well</pre> |
+| **[4] snap**<br>*opt-in*<br>⭐⭐⭐ | Diarization boundaries can be a couple of words off. Move each split cut to the word the recogniser is least sure about — that is almost always where the speaker actually changes. CLI: `--merge-split-snap-window-ms 500`. | <pre>Alice: ...so yeah so you<br>       know<br>Bob:   the field pretty well<br>       yes<br>Alice: yes yes i am lucky…</pre> | <pre>Alice: ...so yeah<br>Bob:   so you know the field<br>       pretty well yes<br>Alice: yes yes i am lucky…</pre> |
+| **[5] split_on_turn_boundary**<br>*opt-in*<br>⭐⭐⭐ | When two people talk over each other, split the transcript line at the moment the second person joins in. CLI: `--merge-split-on-boundary`. | <pre>Alice: ...about the field<br>Bob:   (silent)<br>Alice: pretty well yes yes i<br>       am lucky…</pre> | <pre>Alice: ...about the field<br>Bob:   pretty well<br>Alice: yes yes i am lucky…</pre> |
+| **[6] speaker_hint**<br>*always-on*<br>— | Pick the majority-vote owner across a fragment's words and stamp it on `AsrSegment.speaker_hint`. Lets refinements 2-4 override `merge`'s max-overlap decision when their corrected owner disagrees with the fragment's time span. No CLI knob. | — | — |
+| **[7] merge**<br>*always-on*<br>— | Emit final `Segment`s. Use `speaker_hint` when present, otherwise fall back to per-segment max-overlap with pyannote turns. No CLI knob. | — | — |
+| **[8] crossings telemetry**<br>*always-on*<br>⭐ | Count how many ASR segments overlap two pyannote speakers by more than 300 / 500 ms each. Surfaced in `01-meta.json.stages.merge`. Informs whether the opt-in fixes above are worth turning on by default. No render change. | — | — |
 
 Legend: ⭐⭐⭐ visibly fixes a failure the user can point to in the
 rendered transcript · ⭐⭐ fixes a subset of the same family, leaves
 measurable residual · ⭐ no rendered difference, informs the next
 decision.
+
+The pipeline order is load-bearing: rearranging the steps either
+breaks back-compat with prior calibration or silently drops a
+refinement. See [ADR 0037](../adr/0037-merge-split-optimisation-pipeline.md)
+for the reasoning and what would break under each plausible reordering.
 
 ## How the stage works
 
