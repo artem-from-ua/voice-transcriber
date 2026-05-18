@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.37.1] — 2026-05-18
+
+### Added
+
+- **Benchmark: chunked-ASR boundary quality.** Closes [#156](https://github.com/artem-from-ua/voice-transcriber/issues/156). New `scripts/asr-chunk-boundary-quality.py` (subcommands `extract` / `judge-prompt` / `parse-marks`) extracts text + RMS features at each `_dedup_overlap` cutoff in a dumped chunked-ASR run, renders a per-boundary window for a text-only judge, and aggregates the verdicts into a categorical summary (`clean` / `missing` / `duplicated` / `truncated`) with a `material_rate` decision threshold. Baseline measurement on the 48-min reference recording lands in [`docs/benchmarks/asr-chunk-boundary-quality.md`](docs/benchmarks/asr-chunk-boundary-quality.md): **3 of 6 chunk boundaries lose words** when the cut falls in active speech (gap_s 1.5-3.5 s while RMS stays high on both sides). The script doubles as the A/B yardstick for [#159](https://github.com/artem-from-ua/voice-transcriber/issues/159) (snap-to-silence boundaries) and [#168](https://github.com/artem-from-ua/voice-transcriber/issues/168) (silence-detection method comparison) — both can re-run it on a snap-modified dump and report `material_rate` in the same units. No production code changed; fix delivery is delegated to #159.
+
 ## [0.37.0] — 2026-05-18
 
 ### Added
