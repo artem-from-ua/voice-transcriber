@@ -175,20 +175,33 @@ class ProgressReporter:
             self._finalise(label, elapsed)
 
     @contextmanager
-    def spinner(self, label: str) -> Iterator[None]:
-        """Indeterminate spinner. Just shows elapsed time."""
+    def spinner(self, label: str) -> Iterator[Callable[[str], None]]:
+        """Indeterminate spinner. Yields a `set_state(text)` callback the
+        stage can call to surface live progress (e.g. pyannote's
+        "segmentation 12/45"). Callers that don't need it can ignore the
+        yielded value — backwards compatible with `with progress.spinner(x):`.
+        """
         started = time.perf_counter()
         task_id = None
         if self._progress is not None:
             task_id = self._progress.add_task(label, total=None, suffix="")
 
+        current_state = ""
+
+        def set_state(text: str) -> None:
+            nonlocal current_state
+            current_state = text
+            if task_id is not None:
+                self._progress.update(task_id, suffix=text)  # type: ignore[union-attr]
+
         def state() -> str:
-            return f"elapsed {_fmt_elapsed(time.perf_counter() - started)}"
+            elapsed_part = f"elapsed {_fmt_elapsed(time.perf_counter() - started)}"
+            return f"{current_state} · {elapsed_part}" if current_state else elapsed_part
 
         active = _ActiveTask(label=label, started=started, state_fn=state)
         self._register(active)
         try:
-            yield
+            yield set_state
         finally:
             elapsed = time.perf_counter() - started
             if task_id is not None:

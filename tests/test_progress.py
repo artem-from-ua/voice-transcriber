@@ -41,6 +41,17 @@ def test_spinner_runs_to_completion():
             pass
 
 
+def test_spinner_yields_set_state_and_surfaces_in_heartbeat(capsys):
+    """spinner() yields a set_state callback; pushed text appears in heartbeat."""
+    p = _silent_reporter(heartbeat_interval_s=0.1)
+    with p:
+        with p.spinner("diarize") as set_state:
+            set_state("segmentation 12/45")
+            time.sleep(0.25)
+    captured = capsys.readouterr().err
+    assert "segmentation 12/45" in captured, captured
+
+
 def test_token_counter_accepts_deltas():
     with _silent_reporter() as p:
         with p.token_counter("streaming") as advance:

@@ -32,13 +32,45 @@ def _read_hf_token() -> str:
     return token_path.read_text().strip()
 
 
+def _build_progress_hook(
+    set_state: Callable[[str], None],
+) -> Callable[..., None]:
+    """Adapter for pyannote's hook signature `(step_name, step_artifact,
+    file=None, total=None, completed=None)`. Pushes a compact one-line
+    state string into the caller's setter on every step update.
+
+    Do NOT use pyannote.audio.pipelines.utils.hook.ProgressHook directly
+    — it creates its own rich.Progress, which conflicts with the live
+    display our ProgressReporter already owns.
+    """
+    def hook(
+        step_name: str,
+        step_artifact,
+        file=None,
+        total: int | None = None,
+        completed: int | None = None,
+    ) -> None:
+        if total and completed is not None:
+            set_state(f"{step_name} {completed}/{total}")
+        else:
+            set_state(step_name)
+    return hook
+
+
 def diarize(
     wav_path: str | Path,
     *,
     num_speakers: int | None = None,
     log: Callable[[str], None] = print,
+    progress_state: Callable[[str], None] | None = None,
 ) -> tuple[list[DiarTurn], float]:
-    """Run pyannote diarization. Returns (turns, model_load_elapsed_s)."""
+    """Run pyannote diarization. Returns (turns, model_load_elapsed_s).
+
+    If `progress_state` is supplied, it receives a per-step state string
+    like "segmentation 12/45" as pyannote progresses through its
+    internal stages (segmentation → embeddings → clustering). Otherwise
+    behaviour is byte-identical to callers that omit the kwarg.
+    """
     token = _read_hf_token()
 
     log("Loading pyannote pipeline...")
@@ -62,6 +94,8 @@ def diarize(
     kwargs = {}
     if num_speakers is not None:
         kwargs["num_speakers"] = num_speakers
+    if progress_state is not None:
+        kwargs["hook"] = _build_progress_hook(progress_state)
     result = pipeline(str(wav_path), **kwargs)
     log(f"Diarization done in {time.perf_counter() - t1:.1f}s.")
 

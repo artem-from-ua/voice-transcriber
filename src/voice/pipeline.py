@@ -316,8 +316,10 @@ def run(options: PipelineOptions) -> str:
             # runs on the normalised WAV. Each module loads its own model and
             # frees it on return; the LLM is loaded after both, so the three
             # are never co-resident.
-            with progress.spinner("[3/13] Діаризація (pyannote 3.1)"), _timed("diarize_speakers"):
-                turns, diarize_load_s = diarize_speakers_module.diarize(wav_path, log=log)
+            with progress.spinner("[3/13] Діаризація (pyannote 3.1)") as diarize_state, _timed("diarize_speakers"):
+                turns, diarize_load_s = diarize_speakers_module.diarize(
+                    wav_path, log=log, progress_state=diarize_state,
+                )
             stage_models["diarize_speakers"] = _PYANNOTE
             model_load_elapsed[_PYANNOTE] = diarize_load_s
             log(f"      {len({t.speaker for t in turns})} мовців")

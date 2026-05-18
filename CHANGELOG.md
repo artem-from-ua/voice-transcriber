@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.37.0] — 2026-05-18
+
+### Added
+
+- **Live progress for the diarize stage.** Closes [#164](https://github.com/artem-from-ua/voice-transcriber/issues/164). The stage `[3] Діаризація (pyannote 3.1)` now surfaces pyannote's per-step state (`segmentation N/M`, `embeddings N/M`, `clustering`) in the TTY footer and in non-TTY heartbeat lines, refreshed live as the pipeline progresses. Implementation routes pyannote's `hook=` callback into the existing `ProgressReporter` instead of pulling in `pyannote.audio.pipelines.utils.hook.ProgressHook` (which would create a second `rich.Progress` and conflict with the one we already own). `diarize_speakers.diarize()` gained an optional `progress_state: Callable[[str], None] | None = None` kwarg; behaviour for callers that omit it (`scripts/diarize-device-bench.py`) is unchanged.
+- **MPS memory in the resource footer.** `MemoryStats` now reads `torch.mps.current_allocated_memory()` and `torch.mps.driver_allocated_memory()` and displays `MPS X.X GB` whenever either pool exceeds ~10 MB. The driver-pool reading survives `torch.mps.empty_cache()`, so the footer keeps a non-zero signal even after `free_torch_mps()` drains the allocator inside `diarize()` — exactly the asymmetry that misled the [#163](https://github.com/artem-from-ua/voice-transcriber/issues/163) investigation into thinking pyannote was running on CPU. The same ~10 MB display threshold is now applied to MLX too, so non-MLX stages no longer print a confusing `MLX 0.0 GB`.
+
+### Changed
+
+- **`ProgressReporter.spinner(label)` now yields a `set_state(text)` callback** instead of `None`. Existing in-tree callers (`with progress.spinner(x):` without `as`) keep working unchanged — the yielded value is simply ignored. Stages that want to surface per-step state (currently only diarize) can capture it as `with progress.spinner(x) as set_state:`.
+
 ## [0.36.1] — 2026-05-18
 
 ### Added
