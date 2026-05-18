@@ -270,6 +270,33 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     t.add_argument(
+        "--merge-split-filler-bias-tie-ms", type=int, default=None, metavar="MS",
+        help=(
+            "Issue #177 (A): when a filler word's two top per-turn overlaps "
+            "differ by less than this many ms, reassign the word to the turn "
+            "containing its END time. Captures back-channel confirmations "
+            "(yes/yeah/ok/...) that Whisper timestamped across a boundary. "
+            "Default 0 (disabled)."
+        ),
+    )
+    t.add_argument(
+        "--merge-split-filler-lang", default=None, choices=("none", "en"),
+        help=(
+            "Which filler-word list to use with --merge-split-filler-bias-tie-ms. "
+            "'none' disables, 'en' uses voice.merge.DEFAULT_FILLER_WORDS. "
+            "Default 'none'."
+        ),
+    )
+    t.add_argument(
+        "--merge-split-deadband-ms", type=int, default=None, metavar="MS",
+        help=(
+            "Issue #177 (C): any word whose centre lies within ±N ms of a "
+            "pyannote turn boundary is reassigned to the downstream turn. "
+            "Recovers leading words of a turn that pyannote starts late. "
+            "Default 0 (disabled)."
+        ),
+    )
+    t.add_argument(
         "--render-min-silence-s", type=float, default=None, metavar="SECONDS",
         help=(
             "Minimum silence duration (seconds) to show as --- in the transcript. "
@@ -498,6 +525,21 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
             args.merge_split_snap_prob_threshold
             if args.merge_split_snap_prob_threshold is not None
             else PipelineOptions.merge_split_snap_prob_threshold
+        ),
+        merge_split_filler_bias_tie_ms=(
+            args.merge_split_filler_bias_tie_ms
+            if args.merge_split_filler_bias_tie_ms is not None
+            else PipelineOptions.merge_split_filler_bias_tie_ms
+        ),
+        merge_split_filler_lang=(
+            args.merge_split_filler_lang
+            if args.merge_split_filler_lang is not None
+            else PipelineOptions.merge_split_filler_lang
+        ),
+        merge_split_deadband_ms=(
+            args.merge_split_deadband_ms
+            if args.merge_split_deadband_ms is not None
+            else PipelineOptions.merge_split_deadband_ms
         ),
         run_tldr=not args.no_tldr,
         run_structure=not args.no_structure,

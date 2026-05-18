@@ -309,3 +309,144 @@ def test_snap_emits_speaker_hint_that_merge_respects():
     out, _ = merge(asr_split, turns)
     right_seg = next(s for s in out if s.content.startswith("c"))
     assert right_seg.speaker == "SPK_B"
+
+
+# --- A: filler-bias + C: deadband (issue #177) ------------------------------
+
+
+from voice.merge import DEFAULT_FILLER_WORDS
+
+
+def _seg_with(words: list[Word]) -> AsrSegment:
+    return AsrSegment(start=words[0].start, end=words[-1].end,
+                      content=" ".join(w.content for w in words), words=words)
+
+
+def test_filler_bias_flips_straddling_yes_to_downstream():
+    # Mirrors the canonical issue #177 case from the 12-min reference.
+    seg = _seg_with(_words_with_prob([
+        (185.66, 185.94, "pretty", 1.0),
+        (185.94, 186.30, "well",   1.0),
+        (186.30, 187.20, "yes",    0.998),  # straddles A→B boundary
+        (187.20, 187.80, "yes",    0.999),
+        (187.80, 188.16, "yes",    0.994),
+    ]))
+    turns = [
+        DiarTurn(start=185.17, end=186.55, speaker="A"),
+        DiarTurn(start=187.02, end=194.11, speaker="B"),
+    ]
+    out, tel = split_on_turn_boundary(
+        [seg], turns,
+        filler_bias_tie_ms=120,
+        filler_words=DEFAULT_FILLER_WORDS,
+    )
+    # The straddling "yes" overlap: A=0.25s, B=0.18s → diff=70ms < 120ms.
+    # word.end=187.20 → B's turn → owner=B.
+    assert tel["filler_bias_applied"] >= 1
+    # Fragments emitted: pretty+well (A), then three yes-i (B).
+    speakers = [s.speaker_hint for s in out]
+    assert speakers[0] == "A"   # pretty well
+    assert "B" in speakers      # at least one B-segment with the "yes"-es
+
+
+def test_filler_bias_off_preserves_argmax_behaviour():
+    seg = _seg_with(_words_with_prob([
+        (185.66, 185.94, "pretty", 1.0),
+        (185.94, 186.30, "well",   1.0),
+        (186.30, 187.20, "yes",    0.998),
+        (187.20, 187.80, "yes",    0.999),
+    ]))
+    turns = [
+        DiarTurn(start=185.17, end=186.55, speaker="A"),
+        DiarTurn(start=187.02, end=194.11, speaker="B"),
+    ]
+    # filler_bias_tie_ms=0 → no-op; baseline argmax wins → straddling yes
+    # has more overlap with A (0.25s) than B (0.18s) so it goes to A.
+    out, tel = split_on_turn_boundary([seg], turns)
+    assert tel["filler_bias_applied"] == 0
+    speakers = [s.speaker_hint for s in out]
+    # First fragment is "pretty well yes" (A), then "yes" (B).
+    assert speakers[0] == "A"
+
+
+def test_filler_bias_does_not_touch_non_filler():
+    # "definitely" with same straddling shape; should NOT flip.
+    seg = _seg_with(_words_with_prob([
+        (185.66, 185.94, "pretty",     1.0),
+        (185.94, 186.30, "well",       1.0),
+        (186.30, 187.20, "definitely", 0.998),
+        (187.20, 187.80, "yes",        0.999),
+    ]))
+    turns = [
+        DiarTurn(start=185.17, end=186.55, speaker="A"),
+        DiarTurn(start=187.02, end=194.11, speaker="B"),
+    ]
+    out, tel = split_on_turn_boundary(
+        [seg], turns,
+        filler_bias_tie_ms=120, filler_words=DEFAULT_FILLER_WORDS,
+    )
+    assert tel["filler_bias_applied"] == 0
+
+
+def test_deadband_flips_word_near_boundary_to_downstream():
+    # Word whose centre lies within 100ms of the A→B boundary at 185.17.
+    seg = _seg_with(_words_with_prob([
+        (184.84, 185.04, "you",  1.0),
+        (185.04, 185.16, "know", 0.985),   # centre 185.10, boundary 185.17, dist 70ms
+        (185.16, 185.38, "the",  1.0),
+        (185.38, 185.66, "field", 1.0),
+    ]))
+    turns = [
+        DiarTurn(start=180.00, end=185.17, speaker="A"),
+        DiarTurn(start=185.17, end=190.00, speaker="B"),
+    ]
+    out, tel = split_on_turn_boundary([seg], turns, deadband_ms=100)
+    assert tel["deadband_applied"] >= 1
+    # 'know' should land on B's side (downstream).
+    flat_words = [(w.content, s.speaker_hint) for s in out for w in (s.words or [])]
+    know_owner = dict(flat_words)["know"]
+    assert know_owner == "B"
+
+
+def test_deadband_off_keeps_argmax():
+    seg = _seg_with(_words_with_prob([
+        (184.84, 185.04, "you",  1.0),
+        (185.04, 185.16, "know", 0.985),
+        (185.16, 185.38, "the",  1.0),
+    ]))
+    turns = [
+        DiarTurn(start=180.00, end=185.17, speaker="A"),
+        DiarTurn(start=185.17, end=190.00, speaker="B"),
+    ]
+    out, tel = split_on_turn_boundary([seg], turns)
+    assert tel["deadband_applied"] == 0
+
+
+def test_ac_combo_fixes_both_canonical_cases():
+    # Both Case 1 ('know' near boundary) and Case 4 ('yes' straddling) on
+    # one segment, the way they appear on the real reference.
+    seg = _seg_with(_words_with_prob([
+        (184.84, 185.04, "you",    1.0),
+        (185.04, 185.16, "know",   0.985),   # → deadband flips to B
+        (185.16, 185.38, "the",    1.0),
+        (185.38, 185.66, "field",  1.0),
+        (185.66, 185.94, "pretty", 1.0),
+        (185.94, 186.30, "well",   1.0),
+        (186.30, 187.20, "yes",    0.998),   # → filler-bias flips to C
+        (187.20, 187.80, "yes",    0.999),
+    ]))
+    turns = [
+        DiarTurn(start=180.00, end=185.17, speaker="A"),
+        DiarTurn(start=185.17, end=186.55, speaker="B"),
+        DiarTurn(start=187.02, end=194.11, speaker="C"),
+    ]
+    out, tel = split_on_turn_boundary(
+        [seg], turns,
+        filler_bias_tie_ms=120, filler_words=DEFAULT_FILLER_WORDS,
+        deadband_ms=100,
+    )
+    assert tel["deadband_applied"] >= 1
+    assert tel["filler_bias_applied"] >= 1
+    flat = {w.content: s.speaker_hint for s in out for w in (s.words or [])}
+    assert flat["know"] == "B"   # deadband recovered the leading word for B
+    assert flat["yes"] == "C"    # filler-bias caught the back-channel

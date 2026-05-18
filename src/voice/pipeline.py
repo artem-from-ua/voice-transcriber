@@ -107,6 +107,13 @@ class PipelineOptions:
     # the pyannote-derived cut. 0 disables (default; pure pyannote cut).
     merge_split_snap_window_ms: int = 0
     merge_split_snap_prob_threshold: float = 0.7
+    # Filler-bias + deadband refinements per issue #177. Default OFF;
+    # opt-in via CLI. Filler-bias uses the default English filler list
+    # from `voice.merge.DEFAULT_FILLER_WORDS` when the flag is set;
+    # frozenset() means the refinement is a no-op.
+    merge_split_filler_bias_tie_ms: int = 0
+    merge_split_filler_lang: str = "none"   # "none" | "en"
+    merge_split_deadband_ms: int = 0
 
 
 def _log(verbose: bool) -> Callable[[str], None]:
@@ -451,13 +458,22 @@ def run(options: PipelineOptions) -> str:
             ):
                 split_telemetry: dict[str, Any] | None = None
                 if options.merge_split_on_boundary:
-                    from .merge import split_on_turn_boundary
+                    from .merge import DEFAULT_FILLER_WORDS, split_on_turn_boundary
+                    filler_words = (
+                        DEFAULT_FILLER_WORDS
+                        if options.merge_split_filler_lang == "en"
+                        and options.merge_split_filler_bias_tie_ms > 0
+                        else frozenset()
+                    )
                     asr_segments, split_telemetry = split_on_turn_boundary(
                         asr_segments, turns,
                         min_segment_ms=options.merge_split_min_segment_ms,
                         threshold_ms=options.merge_split_threshold_ms,
                         snap_window_ms=options.merge_split_snap_window_ms,
                         snap_prob_threshold=options.merge_split_snap_prob_threshold,
+                        filler_bias_tie_ms=options.merge_split_filler_bias_tie_ms,
+                        filler_words=filler_words,
+                        deadband_ms=options.merge_split_deadband_ms,
                     )
                     dumper.write("04a-asr-split.json", asr_segments)
                 segments, merge_telemetry = merge(asr_segments, turns)
