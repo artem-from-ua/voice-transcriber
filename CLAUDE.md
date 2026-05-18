@@ -228,3 +228,15 @@ grep -nE "^\s*(speech2text_module|diarize_module|merge|proofread|identify|struct
 The stage that *appears* to feed the next one in the file order isn't always the truth — for example, ASR and diarize both read the same `wav_path` written by ffmpeg, so their incoming edge is from `[2] WAV`, not from `pipeline`. Match the diagram to the code, not to intuition.
 
 The PlantUML pre-commit hook regenerates the embedded SVG URL from the source block. Don't hand-edit the URL; edit the source and let the hook resync.
+
+## Per-stage docs under `docs/stages/`
+
+Some pipeline stages have a dedicated doc under `docs/stages/<stage>.md` that summarises the algorithm, the optimisations layered on top of it, the telemetry the stage produces, and the CLI knobs it exposes. The top of each per-stage doc is a one-table impact view with three columns (subjective quality impact emoji + product description + before/after wrong-merge dialog example) that contributors and reviewers scan first before reading the prose.
+
+**Mandatory: any change to `src/voice/<stage>.py` must update its `docs/stages/<stage>.md` in the same PR.** This applies whether the change adds a new optimisation step, flips a default, removes a flag, refines telemetry, or just records a newly-discovered failure mode. The impact table is the load-bearing artefact — keep it accurate.
+
+Currently active per-stage docs:
+
+- [`docs/stages/merge.md`](docs/stages/merge.md) — `src/voice/merge.py`
+
+When adding a new per-stage doc, follow the structure of `merge.md` (impact table at the top, then algorithm / telemetry / CLI knobs / known limitations / "Updating this document" footer), and link it here.

@@ -7,11 +7,31 @@ from typing import Any
 
 
 @dataclass
+class Word:
+    """A single word with timing from Whisper's `word_timestamps=True` output.
+
+    Used by `merge.split_on_turn_boundary` to cut ASR segments along
+    pyannote speaker turn boundaries at word granularity (issue #125).
+    """
+    start: float
+    end: float
+    content: str
+    probability: float | None = None
+
+
+@dataclass
 class AsrSegment:
     """A raw segment from the ASR backend (Whisper-large-v3-MLX)."""
     start: float
     end: float
     content: str
+    words: list[Word] | None = None
+    # When set, `merge()` uses this speaker label as-is for this segment
+    # instead of recomputing it from time-overlap with pyannote turns.
+    # Set by `split_on_turn_boundary` to preserve a snap-derived owner
+    # whose word-level membership disagrees with the max-overlap label
+    # (issue #125 snap-to-low-prob fix).
+    speaker_hint: str | None = None
 
 
 @dataclass

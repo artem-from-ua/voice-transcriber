@@ -38,13 +38,13 @@ def test_names_override_skips_llm():
     llm = StubLLM({})
     mapping = identify_speakers(
         segs, llm=llm,
-        names_override=["Artem", "Ostap"],
+        names_override=["Alice", "Bob"],
         log=lambda _s: None,
     )
     # Order is first-appearance in time, not label order: SPEAKER_01 first (start=0).
     assert mapping == {
-        "SPEAKER_01": NamedAssignment(name="Artem", source="user-specified"),
-        "SPEAKER_00": NamedAssignment(name="Ostap", source="user-specified"),
+        "SPEAKER_01": NamedAssignment(name="Alice", source="user-specified"),
+        "SPEAKER_00": NamedAssignment(name="Bob", source="user-specified"),
     }
     assert llm.calls == []
 

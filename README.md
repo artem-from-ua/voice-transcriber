@@ -51,7 +51,7 @@ The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR
 ```bash
 uv run voice transcribe path/to/audio.m4a              # default: Whisper detects the language on the longest pyannote turn
 uv run voice transcribe a.m4a --language uk            # skip auto-detect; pin language explicitly (ADR 0022)
-uv run voice transcribe a.m4a --names "Artem,Ostap"    # override speaker names
+uv run voice transcribe a.m4a --names "Alice,Bob"      # override speaker names
 uv run voice transcribe a.m4a --no-tldr --no-structure # plain dialogue only
 uv run voice transcribe a.m4a --safe-speech-topics health,drugs  # redact sensitive utterances
 uv run voice transcribe a.m4a --user-context "Phone interview between two software engineers about ML deployments"  # seed every LLM stage with a per-run context line (ADR 0033)

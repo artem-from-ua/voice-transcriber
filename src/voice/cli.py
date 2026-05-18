@@ -229,6 +229,47 @@ def _build_parser() -> argparse.ArgumentParser:
     t.add_argument("--no-structure", action="store_true", help="Skip section structuring.")
     t.add_argument("--no-safe-speech", action="store_true", help="Skip sensitive-content redaction.")
     t.add_argument(
+        "--merge-split-on-boundary", action="store_true",
+        help=(
+            "Issue #125 research flag: cut ASR segments that cross pyannote turn "
+            "boundaries before merging speaker labels. Reduces mis-attribution "
+            "when speakers interrupt without a pause. Default OFF pending the "
+            "benchmark verdict in docs/benchmarks/merge-turn-boundary.md."
+        ),
+    )
+    t.add_argument(
+        "--merge-split-min-segment-ms", type=int, default=None, metavar="MS",
+        help=(
+            "Minimum fragment duration (ms) when --merge-split-on-boundary "
+            "splits a segment. Default 200. Power-user knob for the boundary "
+            "benchmark."
+        ),
+    )
+    t.add_argument(
+        "--merge-split-threshold-ms", type=int, default=None, metavar="MS",
+        help=(
+            "Minimum per-speaker overlap (ms) for a segment to be considered "
+            "as crossing a turn boundary (default 300). Power-user knob."
+        ),
+    )
+    t.add_argument(
+        "--merge-split-snap-window-ms", type=int, default=None, metavar="MS",
+        help=(
+            "When >0, snap each --merge-split-on-boundary cut to the lowest-"
+            "probability word inside ±N ms of the pyannote boundary "
+            "(mitigates pyannote's ±200-500 ms boundary imprecision by leaning "
+            "on Whisper's per-word confidence). Default 0 (disabled)."
+        ),
+    )
+    t.add_argument(
+        "--merge-split-snap-prob-threshold", type=float, default=None,
+        metavar="P",
+        help=(
+            "When --merge-split-snap-window-ms is active, snap only to words "
+            "with probability strictly below this threshold (default 0.7)."
+        ),
+    )
+    t.add_argument(
         "--render-min-silence-s", type=float, default=None, metavar="SECONDS",
         help=(
             "Minimum silence duration (seconds) to show as --- in the transcript. "
@@ -437,6 +478,27 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
             else PipelineOptions.proofread_n_context
         ),
         run_safe_speech=not args.no_safe_speech,
+        merge_split_on_boundary=args.merge_split_on_boundary,
+        merge_split_min_segment_ms=(
+            args.merge_split_min_segment_ms
+            if args.merge_split_min_segment_ms is not None
+            else PipelineOptions.merge_split_min_segment_ms
+        ),
+        merge_split_threshold_ms=(
+            args.merge_split_threshold_ms
+            if args.merge_split_threshold_ms is not None
+            else PipelineOptions.merge_split_threshold_ms
+        ),
+        merge_split_snap_window_ms=(
+            args.merge_split_snap_window_ms
+            if args.merge_split_snap_window_ms is not None
+            else PipelineOptions.merge_split_snap_window_ms
+        ),
+        merge_split_snap_prob_threshold=(
+            args.merge_split_snap_prob_threshold
+            if args.merge_split_snap_prob_threshold is not None
+            else PipelineOptions.merge_split_snap_prob_threshold
+        ),
         run_tldr=not args.no_tldr,
         run_structure=not args.no_structure,
         safe_speech_topics=_parse_topics(args.safe_speech_topics),

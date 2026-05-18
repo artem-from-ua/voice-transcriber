@@ -28,14 +28,14 @@ Three rounds on a 30-second slice (the same one used in ADR 0011, `/tmp/voice-bp
 | Round | Anchor | Candidate | Result | Decision |
 | ----- | ------ | --------- | ------ | -------- |
 | 1 | baseline `agc,bandpass` (no presence) | presence +3 dB | better | continue |
-| 1 | presence +3 dB | presence +6 dB | **better** — fricatives sharper, Artem (far speaker) audibly louder | adopt +6 |
+| 1 | presence +3 dB | presence +6 dB | **better** — fricatives sharper, the far speaker audibly louder | adopt +6 |
 | 2 | center 3000 Hz | center 3500 Hz | no difference | continue |
 | 2 | center 3000 Hz | center 4000 Hz | no difference | wall hit |
 | 3 (Q) | — | — | skipped: round-2 wall reached at Q=1.0; varying Q within ±0.4 octave at this gain is below the perceptual threshold on this material | keep Q=1 |
 
 Round-1 winner: **+6 dB at 3 kHz, Q=1**. Round 2 confirmed that at Q=1.0 the boost band is wide enough (~1 octave at -3 dB) that 3000 Hz and 3500 Hz are perceptually indistinguishable on this slice; the same reasoning made round 3 (Q tuning) cheap-to-skip. Listening fatigue is real — saturating on the same 30-second clip after 4 rounds — and "no perceived difference" is itself a load-bearing signal that we are at the perceptual ceiling for the chosen knobs.
 
-The listener also recorded a perceptual observation worth keeping: Artem (the far-microphone speaker) became audibly louder relative to Ostap (the close-microphone speaker) after presence +6 dB. This is the expected physics — distance attenuates HF faster than LF, so presence boost re-balances the two speakers' fricative energy. The listener correctly flagged "I'm not sure this is good for ASR" — which set up the Metric A test below.
+The listener also recorded a perceptual observation worth keeping: the far-microphone speaker became audibly louder relative to the close-microphone speaker after presence +6 dB. This is the expected physics — distance attenuates HF faster than LF, so presence boost re-balances the two speakers' fricative energy. The listener correctly flagged "I'm not sure this is good for ASR" — which set up the Metric A test below.
 
 ## Metric A — language-drift measurement
 

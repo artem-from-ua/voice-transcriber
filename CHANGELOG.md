@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.39.0] — 2026-05-18
+
+### Added
+
+- **Word-level timestamps from Whisper.** `whisper_asr.transcribe` now always calls `mlx_whisper.transcribe(..., word_timestamps=True)` and `_parse_segments` populates a new `AsrSegment.words: list[Word] | None` field. Used by the new boundary-split helper below; safe for old dumps because the field defaults to `None`.
+- **`merge()` returns boundary-crossing telemetry.** Signature changed to `tuple[list[Segment], dict[str, Any]]`. The telemetry dict records `total_asr_segments` plus `crossings_300ms` / `crossings_500ms` — how many ASR segments overlap two pyannote speakers by more than 300 / 500 ms each. Surfaced via `01-meta.json.stages.merge` so the issue [#125](https://github.com/artem-from-ua/voice-transcriber/issues/125) baseline rate is measurable from any dump.
+- **`merge.split_on_turn_boundary()`** (opt-in via the new `--merge-split-on-boundary` CLI flag, default OFF). When enabled, ASR segments that cross a pyannote turn boundary are split *before* the max-overlap speaker assignment runs:
+  - **Word-level cut** when `AsrSegment.words` is present — each word is bucketed to the pyannote turn with maximum temporal overlap, then consecutive same-speaker words are regrouped into new `AsrSegment`s.
+  - **Character-proportional fallback** when words are absent — segment text is split at the boundary timestamp at the proportional character offset.
+  - Fragments shorter than `--merge-split-min-segment-ms` (default 200) are discarded. If all fragments would be discarded the original segment is kept untouched.
+  Telemetry counters (`segments_split`, `new_segments_produced`, `fallback_char_split`, `fragments_skipped_below_min`) are merged into `stage_meta["merge"].split`. With `--dump-stages`, the pre-merge split is also written to `04a-asr-split.json` for diffing.
+- **Two power-user knobs** for the boundary split: `--merge-split-min-segment-ms` (default 200) and `--merge-split-threshold-ms` (default 300).
+- **Snap split cuts to low-probability words.** Two more knobs: `--merge-split-snap-window-ms` (default 0 — off) and `--merge-split-snap-prob-threshold` (default 0.7). When the snap window is non-zero, each naive pyannote-boundary cut is shifted within ±window to the nearest word whose Whisper `probability` is strictly below the threshold. Rationale: pyannote boundaries are imprecise by ±200-500 ms, and Whisper's per-word probability dips at acoustic ambiguity (silence padding, crosstalk, speaker change) — leaning on the more confident signal recovers attribution that the naive cut would have stuck on the wrong side of the change. `AsrSegment` gained a `speaker_hint: str | None` field for this; `merge()` honours the hint as-is instead of recomputing max-overlap when it is set. Validated on the first 8 min of the 48-min reference: `snaps_applied = 1` of 2 boundary-crossing segments, recovering the `"so you know"` words that the naive cut had stuck on the wrong speaker; 0 regressions on the other 105 segments. ASR wall-clock unchanged.
+
+### Notes
+
+- This is a research-scope change for issue [#125](https://github.com/artem-from-ua/voice-transcriber/issues/125). The default behaviour is byte-identical to v0.38.0 unless `--merge-split-on-boundary` is passed. The benchmark and shipping decision land in [`docs/benchmarks/merge-turn-boundary.md`](docs/benchmarks/merge-turn-boundary.md) and (if positive) ADR 0037.
+- `word_timestamps=True` does add measurable cost to `mlx_whisper.transcribe` (cross-attention head heuristics — ~30-50% extra ASR wall-clock in published benchmarks). On the M1/16 GB reference machine this was deemed acceptable for the baseline measurement and downstream split; if a future benchmark shows it pushes us past the real-time floor we may gate it behind the same `--merge-split-on-boundary` flag.
+
 ## [0.38.0] — 2026-05-18
 
 ### Changed

@@ -23,7 +23,7 @@ Defaults:
 - `bandpass_high_hz = 5500.0` (lowered from issue-proposed 10000, then from the Nyquist-capped 7900)
 - `bandpass` enabled? **No** (default off — experimental opt-in, pending Metric A on a full ASR run)
 
-These cutoffs were picked by a five-round binary-search listening test on a 30-second slice of `~/Downloads/two-speakers-diar-test-ukr.m4a` (the same reference recording used for ADR 0007). The slice was taken at the 30 s offset so it contains both speakers at their typical microphone distances (Ostap close to the phone, Artem across the room — see ADR 0007 for the room-physics context).
+These cutoffs were picked by a five-round binary-search listening test on a 30-second slice of the same private reference recording used for ADR 0007. The slice was taken at the 30 s offset so it contains both speakers at their typical microphone distances (one close to the phone, the other across the room — see ADR 0007 for the room-physics context).
 
 Each round produced candidate WAVs at `/tmp/voice-bp-loop/out-NN-bp-LOW-HIGH-NOTE.wav`, all sharing the same AGC pre-step (transplanted v0.13.0 logic, 49.4% per-turn RMS spread reduction) so only the bandpass change varied between A/B comparisons. Listening was binary: better / worse / same vs the previous round's winner.
 

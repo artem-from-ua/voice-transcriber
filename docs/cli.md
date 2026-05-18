@@ -48,8 +48,8 @@ voice transcribe <audio> [options]
 # 1) Default — full pipeline, asks for any unidentified speaker
 uv run voice transcribe ~/recordings/standup.m4a -v
 
-# 2) Skip LLM identify; force the order Artem → Ostap
-uv run voice transcribe call.m4a --names "Artem,Ostap"
+# 2) Skip LLM identify; force the order Alice → Bob
+uv run voice transcribe call.m4a --names "Alice,Bob"
 
 # 3) Force English transcript (skip the [4] lang_detect probe)
 uv run voice transcribe interview.wav --language en

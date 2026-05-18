@@ -22,7 +22,7 @@ import pytest
 
 from voice import whisper_asr
 from voice.whisper_asr import AsrError
-from voice.types import AsrSegment
+from voice.types import AsrSegment, Word
 
 
 def _install_fake_mlx_whisper(
@@ -444,3 +444,60 @@ def test_dedup_supersede_only_drops_overlapping_tail_not_unrelated_tail():
     assert len(out) == 2
     assert out[0] == accumulated[0]
     assert out[1] == incoming[0]
+
+
+# ---------------------------------------------------------------------------
+# Word-level timestamps (issue #125)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_segments_extracts_word_timestamps():
+    payload = {
+        "segments": [
+            {
+                "start": 0.0, "end": 2.0, "text": "hello world",
+                "words": [
+                    {"word": " hello", "start": 0.0, "end": 0.5, "probability": 0.99},
+                    {"word": " world", "start": 0.6, "end": 1.2, "probability": 0.88},
+                ],
+            }
+        ]
+    }
+    out = whisper_asr._parse_segments(payload)
+    assert len(out) == 1
+    assert out[0].words is not None
+    assert len(out[0].words) == 2
+    assert out[0].words[0] == Word(start=0.0, end=0.5, content="hello", probability=0.99)
+
+
+def test_parse_segments_words_absent_yields_none():
+    payload = {"segments": [{"start": 0.0, "end": 1.0, "text": "hi"}]}
+    out = whisper_asr._parse_segments(payload)
+    assert out[0].words is None
+
+
+def test_shift_segments_shifts_words():
+    seg = AsrSegment(
+        start=1.0, end=2.0, content="hello",
+        words=[Word(start=1.0, end=2.0, content="hello", probability=0.9)],
+    )
+    out = whisper_asr._shift_segments([seg], 10.0)
+    assert out[0].start == 11.0 and out[0].end == 12.0
+    assert out[0].words is not None
+    assert out[0].words[0].start == 11.0 and out[0].words[0].end == 12.0
+    assert out[0].words[0].probability == 0.9
+
+
+def test_transcribe_passes_word_timestamps_to_mlx_whisper(monkeypatch):
+    capture: dict[str, Any] = {}
+    _install_fake_mlx_whisper(
+        monkeypatch,
+        return_payload={"segments": []},
+        capture=capture,
+        audio_duration_s=60.0,
+    )
+    _patch_cache_hit(monkeypatch)
+
+    whisper_asr.transcribe("/tmp/a.wav")
+
+    assert capture["kwargs"]["word_timestamps"] is True

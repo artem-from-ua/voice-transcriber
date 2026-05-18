@@ -157,7 +157,7 @@ the next iteration of this measurement.
 
 ### tail (chunk N, last segments before cutoff)
 
-- `47:06.18 - 47:11.70` put it past Zendesk to do that because if other companies are doing it, then we're like, oh,
+- `47:06.18 - 47:11.70` put it past [REDACTED] to do that because if other companies are doing it, then we're like, oh,
 - `47:11.70 - 47:15.70` we need to do it too, right? So, that's how it goes usually in the corporate world.
 - `47:17.06 - 47:22.74` But for now, we do not have targets. We're very early in the beginnings of like, you know,
 - `47:22.74 - 47:30.58` the code. I mean, we're already using it a lot and my engineers are using it a lot and others as well,

@@ -1,0 +1,20 @@
+{
+  "stages_merge": {
+    "strategy": "max_overlap",
+    "total_asr_segments": 604,
+    "crossings_300ms": 1,
+    "crossings_500ms": 0,
+    "split": {
+      "strategy": "split_on_boundary",
+      "input_asr_segments": 568,
+      "output_asr_segments": 604,
+      "segments_split": 27,
+      "new_segments_produced": 63,
+      "fallback_char_split": 0,
+      "fragments_skipped_below_min": 2,
+      "min_segment_ms": 200,
+      "threshold_ms": 300
+    }
+  },
+  "duration_s": 2884.308
+}
