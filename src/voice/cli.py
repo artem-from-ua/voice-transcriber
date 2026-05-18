@@ -462,6 +462,17 @@ def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # huggingface_hub prints "Fetching N files: 100%|████|" via tqdm every
+    # time pyannote / whisper / mlx-lm hit the cache. The lines collide with
+    # our `--> 👾`/`==> ✅` status format and add no information for users
+    # who already see the per-stage progress. Disable them at the SDK level
+    # before any HF import happens downstream.
+    try:
+        from huggingface_hub.utils import disable_progress_bars
+        disable_progress_bars()
+    except ImportError:
+        pass
+
     args = _build_parser().parse_args(argv)
     if args.cmd == "transcribe":
         if args.verbose:

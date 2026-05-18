@@ -151,6 +151,8 @@ def identify_speakers(
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
     read_input: Callable[[str], str] = input,
     progress: "ProgressReporter | None" = None,
+    stage_num: str | None = None,
+    stage_id: str | None = None,
 ) -> dict[str, NamedAssignment]:
     """Return mapping `pyannote_label → NamedAssignment`.
 
@@ -175,7 +177,8 @@ def identify_speakers(
         candidates = {}
         reporter = progress if progress is not None else NullProgress()
         with reporter.task(
-            "[9/13] Ідентифікація мовців", total=len(clusters)
+            "[9/13] Ідентифікація мовців", total=len(clusters),
+            stage_num=stage_num, stage_id=stage_id, kind="sub_step",
         ) as advance:
             for cluster in clusters:
                 snippet = _cluster_snippet(segs, cluster, INTRO_WINDOW_S)
@@ -191,11 +194,18 @@ def identify_speakers(
     mapping: dict[str, NamedAssignment] = _resolve_conflicts(candidates, first_seen)
 
     if unknown_policy == "ask":
-        for cluster in clusters:
-            if cluster in mapping:
-                continue
-            guess = _ask_user_interactively(cluster, segs, log, read_input)
-            if guess:
-                mapping[cluster] = NamedAssignment(name=guess, source="interactive")
+        # In non-interactive mode (stdin not a TTY — CI, `voice transcribe …
+        # | tee log`, scripts) the built-in `input` prompt would hang forever
+        # or print a stray header. Treat it as `keep` instead. Tests inject a
+        # custom `read_input` and should still exercise the ask path.
+        if read_input is input and not sys.stdin.isatty():
+            log("identify: stdin not a TTY — skipping interactive name prompts")
+        else:
+            for cluster in clusters:
+                if cluster in mapping:
+                    continue
+                guess = _ask_user_interactively(cluster, segs, log, read_input)
+                if guess:
+                    mapping[cluster] = NamedAssignment(name=guess, source="interactive")
 
     return mapping

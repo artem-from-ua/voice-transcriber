@@ -166,6 +166,8 @@ def redact_dialog(
     user_context: str | None = None,
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
     progress: "ProgressReporter | None" = None,
+    stage_num: str | None = None,
+    stage_id: str | None = None,
 ) -> tuple[StructuredDialog, list[Decision]]:
     """Return a (redacted dialog copy, decisions list).
 
@@ -218,7 +220,10 @@ def redact_dialog(
             ]
 
             try:
-                with reporter.token_counter(f"safe_speech [{section.title}]") as advance:
+                with reporter.token_counter(
+                    f"safe_speech [{section.title}]",
+                    stage_num=stage_num, stage_id=stage_id, kind="sub_step",
+                ) as advance:
                     result = llm.chat_json(
                         messages,
                         schema=_REDACTION_SCHEMA,

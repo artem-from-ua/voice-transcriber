@@ -168,6 +168,8 @@ def fix_asr_errors(
     progress: "ProgressReporter | None" = None,
     n_context: int = DEFAULT_N_CONTEXT,
     user_context: str | None = None,
+    stage_num: str | None = None,
+    stage_id: str | None = None,
 ) -> tuple[list[Segment], dict]:
     """Return ``(new_segments, telemetry)``.
 
@@ -207,7 +209,8 @@ def fix_asr_errors(
         ),
     }
     with llm.prompt_cache_session(prefix_messages=[system_msg]), reporter.task(
-        "[8/13] Proofread", total=len(segs)
+        "[8/13] Proofread", total=len(segs),
+        stage_num=stage_num, stage_id=stage_id, kind="inference",
     ) as advance:
         for i, seg in enumerate(segs):
             if n_context > 0:

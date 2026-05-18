@@ -184,6 +184,7 @@ def transcribe(
     language: str | None = None,
     model: Any = None,
     log: Callable[[str], None] = _noop_log,
+    progress_state: Callable[..., None] | None = None,
 ) -> list[AsrSegment]:
     """Run Whisper-large-v3-MLX on a WAV. Returns a list of AsrSegment.
 
@@ -255,6 +256,9 @@ def transcribe(
         chunk_audio = audio[start_sample:end_sample]
         chunk_start_s = start_sample / SAMPLE_RATE
         label = f"chunk {chunk_idx + 1}/{n_chunks} @{chunk_start_s:.0f}s"
+
+        if progress_state is not None:
+            progress_state("chunk", chunk_idx, n_chunks)
 
         result, _peak_gb, _elapsed = _call_mlx_whisper(
             chunk_audio,
