@@ -13,7 +13,7 @@ memory refreshed every second.
 
 On a non-TTY (CI, Claude Code Bash tool, `2> log`), bars are suppressed
 but a background heartbeat thread prints a single-line snapshot of the
-active task plus memory every 15 seconds. Stage transitions
+active task plus memory every 5 seconds. Stage transitions
 (`✓ {label} in N.Ns`) print immediately, never waiting for the next
 heartbeat tick.
 
@@ -46,7 +46,7 @@ from rich.progress import (
 from ._memory_stats import read_memory_snapshot
 
 
-HEARTBEAT_INTERVAL_S = 15.0
+HEARTBEAT_INTERVAL_S = 5.0
 FOOTER_REFRESH_HZ = 1.0
 
 
@@ -55,6 +55,10 @@ class _ActiveTask:
     label: str
     started: float
     state_fn: Callable[[], str]  # returns "23/64 (35%) elapsed 0:32" or similar
+    stage_num: str | None = None  # e.g. "3/13" — pipeline position
+    stage_id: str | None = None  # e.g. "diarize_speakers" — module-level id
+    kind: str = "plain"  # "inference" / "loading" / "plain" — controls glyph + ==> ✅ printing
+    heartbeat_count: int = 0  # incremented per emitted heartbeat
 
 
 class ProgressReporter:
@@ -135,8 +139,21 @@ class ProgressReporter:
     # ------------------------------------------------------------------ tasks
 
     @contextmanager
-    def task(self, label: str, *, total: int) -> Iterator[Callable[..., None]]:
-        """A counter task — yields `advance(n=1, suffix=None)`."""
+    def task(
+        self,
+        label: str,
+        *,
+        total: int,
+        stage_num: str | None = None,
+        stage_id: str | None = None,
+        kind: str = "plain",
+    ) -> Iterator[Callable[..., None]]:
+        """A counter task — yields `advance(n=1, suffix=None)`.
+
+        When stage_num/stage_id are supplied, the heartbeat reads as
+        `--> ⏳ [N/13] stage_id: 27% (3/11) · elapsed 0:32 · RAM ...` and
+        completion as `==> ✅ [N/13] stage_id: completed in X.Xs`.
+        """
         started = time.perf_counter()
         task_id = None
         if self._progress is not None:
@@ -159,11 +176,20 @@ class ProgressReporter:
 
         def state() -> str:
             elapsed = time.perf_counter() - started
+            # Show the currently-in-progress item, not the completed count:
+            # `1/2` means "working on the 1st of 2" right now. When all done
+            # (completed == total), display `total/total (100%)`. This reads
+            # more naturally for sparse counters (identify_speakers does 2
+            # items, and "0/2" while the first is mid-LLM-call is misleading).
+            displayed = min(completed + 1, total) if total else 0
             pct = int(round(100 * completed / total)) if total else 0
-            extras = f" {last_suffix}" if last_suffix else ""
-            return f"{completed}/{total} ({pct}%) elapsed {_fmt_elapsed(elapsed)}{extras}"
+            extras = f" · {last_suffix}" if last_suffix else ""
+            return f"{pct}% ({displayed}/{total}){extras} · elapsed {_fmt_elapsed(elapsed)}"
 
-        active = _ActiveTask(label=label, started=started, state_fn=state)
+        active = _ActiveTask(
+            label=label, started=started, state_fn=state,
+            stage_num=stage_num, stage_id=stage_id, kind=kind,
+        )
         self._register(active)
         try:
             yield advance
@@ -172,32 +198,96 @@ class ProgressReporter:
             if task_id is not None:
                 self._progress.update(task_id, completed=total)  # type: ignore[union-attr]
             self._unregister(active)
-            self._finalise(label, elapsed)
+            self._finalise(
+                label, elapsed,
+                stage_num=stage_num, stage_id=stage_id, kind=kind,
+            )
 
     @contextmanager
-    def spinner(self, label: str) -> Iterator[None]:
-        """Indeterminate spinner. Just shows elapsed time."""
+    def spinner(
+        self,
+        label: str,
+        *,
+        stage_num: str | None = None,
+        stage_id: str | None = None,
+        kind: str = "plain",
+    ) -> Iterator[Callable[..., None]]:
+        """Indeterminate spinner. Yields a `set_state(step, completed=None,
+        total=None)` callback the stage can call to surface live progress
+        (e.g. pyannote's segmentation → embeddings → clustering steps).
+
+        Callers that don't need it can ignore the yielded value — backwards
+        compatible with `with progress.spinner(x):`.
+
+        When `stage_num` and `stage_id` are supplied, the heartbeat
+        rendering uses them as `[stage_num] stage_id/step_name` — e.g.
+        `[3/13] diarize_speakers/embeddings`.
+        """
         started = time.perf_counter()
         task_id = None
         if self._progress is not None:
             task_id = self._progress.add_task(label, total=None, suffix="")
 
-        def state() -> str:
-            return f"elapsed {_fmt_elapsed(time.perf_counter() - started)}"
+        step_state: dict[str, object] = {"name": "", "completed": None, "total": None}
 
-        active = _ActiveTask(label=label, started=started, state_fn=state)
+        def set_state(
+            step: str, completed: int | None = None, total: int | None = None,
+        ) -> None:
+            # If pyannote sends a trailing update with no counter for a step
+            # we already know counters for, keep the last known values —
+            # otherwise the final heartbeat reads "embeddings · elapsed …"
+            # with no progress info even though we just saw 26/35.
+            if step == step_state.get("name") and completed is None and total is None:
+                completed = step_state["completed"]  # type: ignore[assignment]
+                total = step_state["total"]  # type: ignore[assignment]
+            step_state["name"] = step
+            step_state["completed"] = completed
+            step_state["total"] = total
+            if task_id is not None:
+                self._progress.update(  # type: ignore[union-attr]
+                    task_id,
+                    suffix=_format_step_progress(step, completed, total, stage_id=stage_id),
+                )
+
+        def state() -> str:
+            elapsed_part = f"elapsed {_fmt_elapsed(time.perf_counter() - started)}"
+            name = step_state["name"]
+            if not name:
+                return elapsed_part
+            step_text = _format_step_progress(
+                str(name),
+                step_state["completed"],  # type: ignore[arg-type]
+                step_state["total"],  # type: ignore[arg-type]
+                stage_id=stage_id,
+            )
+            return f"{step_text} · {elapsed_part}"
+
+        active = _ActiveTask(
+            label=label, started=started, state_fn=state,
+            stage_num=stage_num, stage_id=stage_id, kind=kind,
+        )
         self._register(active)
         try:
-            yield
+            yield set_state
         finally:
             elapsed = time.perf_counter() - started
             if task_id is not None:
                 self._progress.remove_task(task_id)  # type: ignore[union-attr]
             self._unregister(active)
-            self._finalise(label, elapsed)
+            self._finalise(
+                label, elapsed,
+                stage_num=stage_num, stage_id=stage_id, kind=kind,
+            )
 
     @contextmanager
-    def token_counter(self, label: str) -> Iterator[Callable[[int], None]]:
+    def token_counter(
+        self,
+        label: str,
+        *,
+        stage_num: str | None = None,
+        stage_id: str | None = None,
+        kind: str = "plain",
+    ) -> Iterator[Callable[[int], None]]:
         """A token-streaming task; yields `advance(tokens_delta)`."""
         started = time.perf_counter()
         task_id = None
@@ -223,10 +313,13 @@ class ProgressReporter:
             elapsed = time.perf_counter() - started
             tps = token_count / elapsed if elapsed > 0 else 0.0
             return (
-                f"{token_count} tokens ({tps:.1f} t/s) elapsed {_fmt_elapsed(elapsed)}"
+                f"{token_count} tokens · {tps:.1f} t/s · elapsed {_fmt_elapsed(elapsed)}"
             )
 
-        active = _ActiveTask(label=label, started=started, state_fn=state)
+        active = _ActiveTask(
+            label=label, started=started, state_fn=state,
+            stage_num=stage_num, stage_id=stage_id, kind=kind,
+        )
         self._register(active)
         try:
             yield advance
@@ -235,8 +328,10 @@ class ProgressReporter:
             if task_id is not None:
                 self._progress.remove_task(task_id)  # type: ignore[union-attr]
             self._unregister(active)
-            tail = f"{token_count} tokens"
-            self._finalise(label, elapsed, suffix=tail)
+            self._finalise(
+                label, elapsed,
+                stage_num=stage_num, stage_id=stage_id, kind=kind,
+            )
 
     # ------------------------------------------------------------------ helpers
 
@@ -255,11 +350,54 @@ class ProgressReporter:
         with self._tasks_lock:
             return self._active_tasks[-1] if self._active_tasks else None
 
-    def _finalise(self, label: str, elapsed: float, *, suffix: str | None = None) -> None:
-        """Print a one-line completion message that survives non-TTY logs."""
-        line = f"  ✓ {label} in {elapsed:.1f}s"
-        if suffix:
-            line += f" ({suffix})"
+    def _finalise(
+        self,
+        label: str,
+        elapsed: float,
+        *,
+        stage_num: str | None = None,
+        stage_id: str | None = None,
+        kind: str = "plain",
+        suffix: str | None = None,
+    ) -> None:
+        """Print a one-line completion message that survives non-TTY logs.
+
+        Format: `==> ✅ [N/13] stage_id: completed in X.Xs` when stage_num
+        and stage_id are supplied; otherwise falls back to the legacy
+        `  ✓ {label} in X.Xs` shape for callers that haven't been migrated.
+
+        For kind="loading" (model load/unload) and kind="sub_step" (one
+        of several per-section LLM calls inside a stage) we suppress the
+        completion line — the parent stage's own `==> ✅` will fire once
+        the outer wrapper exits.
+        """
+        if kind in ("loading", "sub_step"):
+            return
+        prefix = _format_stage_prefix(stage_num, stage_id, label)
+        if stage_num or stage_id:
+            line = f"==> ✅ {prefix}: completed in {elapsed:.1f}s"
+            if suffix:
+                line += f" ({suffix})"
+        else:
+            line = f"  ✓ {label} in {elapsed:.1f}s"
+            if suffix:
+                line += f" ({suffix})"
+        if self._is_tty and self._progress is not None:
+            self._console.log(line)
+        else:
+            print(line, file=sys.stderr, flush=True)
+
+    def skipped(
+        self,
+        stage_num: str,
+        stage_id: str,
+        reason: str | None = None,
+    ) -> None:
+        """Log a stage as skipped: `==> ⏭️ [N/13] stage_id: SKIPPED (reason)`."""
+        prefix = _format_stage_prefix(stage_num, stage_id, stage_id)
+        line = f"==> ⏭️ {prefix}: SKIPPED"
+        if reason:
+            line += f" ({reason})"
         if self._is_tty and self._progress is not None:
             self._console.log(line)
         else:
@@ -268,7 +406,7 @@ class ProgressReporter:
     # ------------------------------------------------------------------ background monitor
 
     def _monitor_loop(self) -> None:
-        """Update the TTY footer ~1 Hz; emit a non-TTY heartbeat every 15 s."""
+        """Update the TTY footer ~1 Hz; emit a non-TTY heartbeat every 5 s."""
         if self._is_tty:
             interval = 1.0 / FOOTER_REFRESH_HZ
         else:
@@ -297,11 +435,61 @@ class ProgressReporter:
         active = self._current_active()
         if active is None:
             return
+        # 👾 only on inference / model-loading / sub_step tasks. Plain stages
+        # (transcode, audio_meta, clear_speech, merge, render) are short enough
+        # that a heartbeat just adds noise — stay silent for them.
+        if active.kind not in ("inference", "loading", "sub_step"):
+            return
         snapshot = read_memory_snapshot()
         memory_part = snapshot.format()
         suffix = f" · {memory_part}" if memory_part else ""
-        line = f"  · {active.label}: {active.state_fn()}{suffix}"
+        # When spinner's state_fn already starts with `stage_id/…` (because
+        # set_state was called with a sub-step), don't repeat stage_id —
+        # the prefix's `[N/13] stage_id` plus state's `stage_id/step` would
+        # double it.
+        state_text = active.state_fn()
+        if active.stage_num and active.stage_id:
+            base = f"[{active.stage_num}] {active.stage_id}"
+            if state_text.startswith(f"{active.stage_id}/"):
+                # state already contains "stage_id/step…" — strip stage_id
+                # since prefix has it, leaving "/step…".
+                line_state = state_text[len(active.stage_id):]
+                head = f"{base}{line_state}"
+            else:
+                head = f"{base}: {state_text}"
+        elif active.stage_id:
+            head = f"[{active.stage_id}] {state_text}"
+        else:
+            head = f"[{active.label}] {state_text}"
+        active.heartbeat_count += 1
+        line = f"--> 👾 {head}{suffix}"
         print(line, file=sys.stderr, flush=True)
+
+
+def _format_step_progress(
+    step: str, completed: int | None, total: int | None,
+    *, stage_id: str | None = None,
+) -> str:
+    """`diarize_speakers/embeddings: 51% (18/35)` when counters known;
+    `diarize_speakers/clustering` (no trailing colon) when not."""
+    head = f"{stage_id}/{step}" if stage_id else step
+    if completed is not None and total:
+        pct = int(round(100 * completed / total))
+        return f"{head}: {pct}% ({completed}/{total})"
+    return head
+
+
+def _format_stage_prefix(
+    stage_num: str | None, stage_id: str | None, label: str,
+) -> str:
+    """`[N/13] stage_id` when both known; `[stage_id]` when only id;
+    `[label]` when neither — used in heartbeat and completion lines so
+    every status row reads the same way."""
+    if stage_num and stage_id:
+        return f"[{stage_num}] {stage_id}"
+    if stage_id:
+        return f"[{stage_id}]"
+    return f"[{label}]"
 
 
 def _fmt_elapsed(seconds: float) -> str:
@@ -323,17 +511,38 @@ class NullProgress:
     def __exit__(self, *_: object) -> None: ...
 
     @contextmanager
-    def task(self, _label: str, *, total: int) -> Iterator[Callable[..., None]]:
+    def task(
+        self, _label: str, *, total: int,
+        stage_num: str | None = None, stage_id: str | None = None,
+        kind: str = "plain",
+    ) -> Iterator[Callable[..., None]]:
         def _advance(_n: int = 1, suffix: str | None = None) -> None:
             return
         yield _advance
 
     @contextmanager
-    def spinner(self, _label: str) -> Iterator[None]:
-        yield
+    def spinner(
+        self, _label: str, *,
+        stage_num: str | None = None, stage_id: str | None = None,
+        kind: str = "plain",
+    ) -> Iterator[Callable[..., None]]:
+        def _set_state(
+            _step: str, _completed: int | None = None, _total: int | None = None,
+        ) -> None:
+            return
+        yield _set_state
 
     @contextmanager
-    def token_counter(self, _label: str) -> Iterator[Callable[[int], None]]:
+    def token_counter(
+        self, _label: str, *,
+        stage_num: str | None = None, stage_id: str | None = None,
+        kind: str = "plain",
+    ) -> Iterator[Callable[[int], None]]:
         def _advance(_delta: int = 1) -> None:
             return
         yield _advance
+
+    def skipped(
+        self, stage_num: str, stage_id: str, reason: str | None = None,
+    ) -> None:
+        return

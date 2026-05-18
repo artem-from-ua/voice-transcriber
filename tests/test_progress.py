@@ -41,6 +41,66 @@ def test_spinner_runs_to_completion():
             pass
 
 
+def test_spinner_set_state_renders_step_and_percent_in_heartbeat(capsys):
+    """spinner(kind='inference') yields set_state(step, completed, total);
+    heartbeat formats it as `[3/13] diarize_speakers/embeddings: 27% (12/45)`."""
+    p = _silent_reporter(heartbeat_interval_s=0.1)
+    with p:
+        with p.spinner(
+            "diarize", stage_num="3/13", stage_id="diarize_speakers",
+            kind="inference",
+        ) as set_state:
+            set_state("embeddings", 12, 45)
+            time.sleep(0.25)
+    captured = capsys.readouterr().err
+    assert "--> 👾 [3/13]" in captured, captured
+    assert "diarize_speakers/embeddings: 27% (12/45)" in captured, captured
+
+
+def test_spinner_set_state_omits_percent_when_total_unknown(capsys):
+    """When pyannote does not report total/completed, show just the step
+    name — no `?% (?/?)` noise."""
+    p = _silent_reporter(heartbeat_interval_s=0.1)
+    with p:
+        with p.spinner(
+            "diarize", stage_num="3/13", stage_id="diarize_speakers",
+            kind="inference",
+        ) as set_state:
+            set_state("segmentation")
+            time.sleep(0.25)
+    captured = capsys.readouterr().err
+    assert "diarize_speakers/segmentation" in captured, captured
+    assert "?%" not in captured, captured
+
+
+def test_plain_stage_emits_no_heartbeat(capsys):
+    """Plain (non-inference, non-loading) stages stay silent — no heartbeats."""
+    p = _silent_reporter(heartbeat_interval_s=0.1)
+    with p:
+        with p.spinner("transcode", stage_num="1/13", stage_id="transcode"):
+            time.sleep(0.25)
+    captured = capsys.readouterr().err
+    assert "👾" not in captured
+    assert "⏳" not in captured
+    # plain spinner still emits completion line
+    assert "==> ✅ [1/13] transcode: completed" in captured, captured
+
+
+def test_loading_stage_skips_completion_line(capsys):
+    """kind='loading' suppresses the ==> ✅ completion message but still
+    emits 👾 heartbeats during the load."""
+    p = _silent_reporter(heartbeat_interval_s=0.1)
+    with p:
+        with p.spinner(
+            "load", stage_num="6/13", stage_id="speech2text/loading(X)",
+            kind="loading",
+        ):
+            time.sleep(0.25)
+    captured = capsys.readouterr().err
+    assert "==> ✅" not in captured
+    assert "👾" in captured  # heartbeat fires for loading stages too
+
+
 def test_token_counter_accepts_deltas():
     with _silent_reporter() as p:
         with p.token_counter("streaming") as advance:
@@ -83,17 +143,18 @@ def test_non_tty_reporter_does_not_render_bars():
 
 
 def test_heartbeat_fires_on_non_tty(capsys):
-    """A short-interval heartbeat must emit at least one line during a task."""
+    """A short-interval heartbeat on an inference task must emit at least
+    one line; plain tasks would stay silent (see test_plain_stage…)."""
     p = _silent_reporter(heartbeat_interval_s=0.1)
     with p:
-        with p.task("crunching", total=10) as advance:
+        with p.task("crunching", total=10, kind="inference") as advance:
             advance(3, suffix="ok")
             time.sleep(0.25)  # let the monitor wake up at least once
             advance(2)
             time.sleep(0.15)
     captured = capsys.readouterr().err
-    assert " · crunching:" in captured, captured
-    # transitions (✓) and heartbeats (·) both present
+    assert "--> 👾 [crunching]" in captured, captured
+    # transitions (✓) and heartbeat arrows both present
     assert "✓ crunching" in captured
 
 
@@ -103,8 +164,8 @@ def test_heartbeat_silent_when_no_active_task(capsys):
     with p:
         time.sleep(0.3)
     captured = capsys.readouterr().err
-    # No heartbeat lines, only any final summary (none here).
-    assert " · " not in captured.replace("✓", "")
+    # No heartbeat lines emitted (heartbeat prefix is "--> ⏳").
+    assert "--> ⏳" not in captured
 
 
 def test_monitor_thread_stops_cleanly():

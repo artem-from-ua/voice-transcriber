@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.37.0] — 2026-05-18
+
+### Added
+
+- **Live progress for the diarize stage.** Closes [#164](https://github.com/artem-from-ua/voice-transcriber/issues/164). The stage `[3] Діаризація (pyannote 3.1)` now surfaces pyannote's per-step state (`segmentation N/M`, `embeddings N/M`, `clustering`) in the TTY footer and in non-TTY heartbeat lines, refreshed live as the pipeline progresses. Implementation routes pyannote's `hook=` callback into the existing `ProgressReporter` instead of pulling in `pyannote.audio.pipelines.utils.hook.ProgressHook` (which would create a second `rich.Progress` and conflict with the one we already own). `diarize_speakers.diarize()` gained an optional `progress_state: Callable[[str], None] | None = None` kwarg; behaviour for callers that omit it (`scripts/diarize-device-bench.py`) is unchanged.
+- **MPS memory in the resource footer.** `MemoryStats` now reads `torch.mps.current_allocated_memory()` and `torch.mps.driver_allocated_memory()` and displays `MPS X.X GB` whenever either pool exceeds ~10 MB. The driver-pool reading survives `torch.mps.empty_cache()`, so the footer keeps a non-zero signal even after `free_torch_mps()` drains the allocator inside `diarize()` — exactly the asymmetry that misled the [#163](https://github.com/artem-from-ua/voice-transcriber/issues/163) investigation into thinking pyannote was running on CPU. The same ~10 MB display threshold is now applied to MLX too, so non-MLX stages no longer print a confusing `MLX 0.0 GB`.
+
+### Changed
+
+- **`ProgressReporter.spinner(label, *, stage_num=None, stage_id=None)` now yields a structured `set_state(step, completed=None, total=None)` callback** instead of `None`. Existing in-tree callers (`with progress.spinner(x):` without `as`) keep working unchanged — the yielded value is simply ignored. Stages that want to surface per-step state (currently only diarize) capture it as `with progress.spinner(x, stage_num="3/13", stage_id="diarize_speakers") as set_state:` and call `set_state("embeddings", 18, 35)` on each pyannote step update.
+- **Non-TTY heartbeat format redesigned.** Lines now look like `--> ⏳ [3/13] diarize_speakers/embeddings: 51% (18/35) · elapsed 0:15 · RAM 8.6 GB (53%) · MPS 3.1 GB` — the `-->` arrow + ⏳ glyph make heartbeat lines instantly distinguishable from the `✓` completion lines and from other stderr noise; the bracketed `stage_num` is the pipeline position; `stage_id/step_name` identifies the module and the active sub-step machine-greppably; step progress shows `PERCENT% (completed/total)` when known, and just `stage_id/step_name` (no trailing colon) when pyannote does not report counters (e.g. `segmentation`, `clustering`, `discrete_diarization`). Every spinner-driven stage in `pipeline.py` now carries `stage_num` / `stage_id` so the bracketed prefix stays consistent across the whole run.
+- **Non-TTY heartbeat interval lowered from 15 s to 5 s.** Long stages now emit a state line every 5 s instead of every 15 s — enough to actually catch pyannote's internal step transitions (segmentation → embeddings → clustering) on the 6-min reference recording; with 15 s only one tick would fall inside the 25 s diarize window. Short stages (transcode, audio_meta, merge — sub-second) still complete before the first tick and stay silent.
+
 ## [0.36.1] — 2026-05-18
 
 ### Added

@@ -77,7 +77,7 @@ def patched_pipeline(monkeypatch, tmp_path):
         DiarTurn(start=1.5, end=3.0, speaker="SPEAKER_01"),
     ]
 
-    def fake_diarize(wav_path, *, log=print):
+    def fake_diarize(wav_path, *, log=print, progress_state=None):
         rec("diarize", str(wav_path))
         return fake_turns, 5.0  # (turns, load_elapsed_s)
 

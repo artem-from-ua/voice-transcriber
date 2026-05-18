@@ -200,6 +200,8 @@ def _ensure_llm(
     progress: ProgressReporter,
     sampling_overrides: dict | None = None,
     model_load_elapsed: dict[str, float] | None = None,
+    stage_num: str | None = None,
+    stage_id: str | None = None,
 ) -> MlxLLM:
     """Return an MlxLLM ready for use at `want_path`, reusing `current` when
     the resident model already matches; otherwise unload the old one and
@@ -221,7 +223,12 @@ def _ensure_llm(
             )
         ):
             return current
-        with progress.spinner(f"Unloading LLM ({Path(current.model_path).name})"):
+        unload_name = Path(current.model_path).name
+        unload_id = f"{stage_id}/unloading({unload_name})" if stage_id else f"llm_unload({unload_name})"
+        with progress.spinner(
+            f"Unloading LLM ({unload_name})",
+            stage_num=stage_num, stage_id=unload_id, kind="loading",
+        ):
             current.close()
         free_mlx(log)
 
@@ -231,7 +238,12 @@ def _ensure_llm(
         log_memory=log_memory,
         sampling_overrides=sampling_overrides or {},
     )
-    with progress.spinner(f"Loading LLM ({Path(new_llm.model_path).name})"):
+    load_name = Path(new_llm.model_path).name
+    load_id = f"{stage_id}/loading({load_name})" if stage_id else f"llm_load({load_name})"
+    with progress.spinner(
+        f"Loading LLM ({load_name})",
+        stage_num=stage_num, stage_id=load_id, kind="loading",
+    ):
         new_llm.load()
     if model_load_elapsed is not None:
         model_load_elapsed[want_path] = (
@@ -292,10 +304,15 @@ def run(options: PipelineOptions) -> str:
     try:
         with progress:
             wav_path = tmpdir / "audio.wav"
-            with progress.spinner("[1/13] transcode → WAV 16 kHz mono"):
+            with progress.spinner(
+                "[1/13] transcode → WAV 16 kHz mono",
+                stage_num="1/13", stage_id="transcode",
+            ):
                 transcode_module.transcode(audio, wav_path, log)
 
-            with progress.spinner("[2/13] audio_meta"):
+            with progress.spinner(
+                "[2/13] audio_meta", stage_num="2/13", stage_id="audio_meta",
+            ):
                 audio_meta = audio_meta_module.extract_metadata(
                     audio, override_started_at=options.datetime_override
                 )
@@ -316,8 +333,13 @@ def run(options: PipelineOptions) -> str:
             # runs on the normalised WAV. Each module loads its own model and
             # frees it on return; the LLM is loaded after both, so the three
             # are never co-resident.
-            with progress.spinner("[3/13] Діаризація (pyannote 3.1)"), _timed("diarize_speakers"):
-                turns, diarize_load_s = diarize_speakers_module.diarize(wav_path, log=log)
+            with progress.spinner(
+                "[3/13] Діаризація (pyannote 3.1)",
+                stage_num="3/13", stage_id="diarize_speakers", kind="inference",
+            ) as diarize_state, _timed("diarize_speakers"):
+                turns, diarize_load_s = diarize_speakers_module.diarize(
+                    wav_path, log=log, progress_state=diarize_state,
+                )
             stage_models["diarize_speakers"] = _PYANNOTE
             model_load_elapsed[_PYANNOTE] = diarize_load_s
             log(f"      {len({t.speaker for t in turns})} мовців")
@@ -329,7 +351,10 @@ def run(options: PipelineOptions) -> str:
             # longest pyannote turn instead gives a much stronger signal.
             lang_detect_info: dict | None = None
             if options.language is None:
-                with progress.spinner("[4/13] Визначення мови"), _timed("lang_detect"):
+                with progress.spinner(
+                    "[4/13] Визначення мови",
+                    stage_num="4/13", stage_id="lang_detect", kind="inference",
+                ), _timed("lang_detect"):
                     lang_result = lang_detect_module.detect_language(
                         wav_path, turns, log=log,
                     )
@@ -363,7 +388,10 @@ def run(options: PipelineOptions) -> str:
             def _dump_step(idx: int, effect: str, path: Path) -> None:
                 dumper.write_binary(f"02b-clear_speech-{idx}-{effect}.wav", path)
 
-            with progress.spinner(f"[5/13] clear_speech ({chain_label})"):
+            with progress.spinner(
+                f"[5/13] clear_speech ({chain_label})",
+                stage_num="5/13", stage_id="clear_speech",
+            ):
                 processed_wav_path, clearspeech_config = clear_speech_module.clearspeech(
                     wav_path,
                     chain=chain,
@@ -386,22 +414,32 @@ def run(options: PipelineOptions) -> str:
                 )
             dumper.write("02b-clear_speech-config.json", clearspeech_config)
 
-            with progress.spinner(f"[6/13] Завантаження Whisper"):
+            with progress.spinner(
+                f"[6/13] Завантаження Whisper",
+                stage_num="6/13", stage_id=f"speech2text/loading({_WHISPER})",
+                kind="loading",
+            ):
                 whisper_model, whisper_load_s = whisper_asr_module.load_model(log=log)
             model_load_elapsed[_WHISPER] = model_load_elapsed.get(_WHISPER, 0.0) + whisper_load_s
             stage_models["speech2text"] = _WHISPER
-            with progress.spinner(f"[6/13] speech2text ({_WHISPER})"), _timed("speech2text"):
+            with progress.spinner(
+                f"[6/13] speech2text ({_WHISPER})",
+                stage_num="6/13", stage_id="speech2text", kind="inference",
+            ) as asr_state, _timed("speech2text"):
                 asr_segments = whisper_asr_module.transcribe(
                     processed_wav_path,
                     language=effective_language,
                     model=whisper_model,
                     log=log,
+                    progress_state=asr_state,
                 )
             del whisper_model
             log(f"      {len(asr_segments)} ASR-сегментів")
             dumper.write("03-asr.json", asr_segments)
 
-            with progress.spinner("[7/13] Merge"):
+            with progress.spinner(
+                "[7/13] Merge", stage_num="7/13", stage_id="merge",
+            ):
                 segments: list[Segment] = merge(asr_segments, turns)
             dumper.write("04-merge.json", segments)
 
@@ -419,6 +457,7 @@ def run(options: PipelineOptions) -> str:
                         log=log, log_memory=options.verbose, progress=progress,
                         sampling_overrides=sampling_overrides,
                         model_load_elapsed=model_load_elapsed,
+                        stage_num="8/13", stage_id="proofread",
                     )
                     stage_models["proofread"] = proofread_model
                     with _timed("proofread"):
@@ -430,6 +469,7 @@ def run(options: PipelineOptions) -> str:
                             progress=progress,
                             n_context=options.proofread_n_context,
                             user_context=options.user_context,
+                            stage_num="8/13", stage_id="proofread",
                         )
                     stage_meta["proofread"] = {
                         "wall_clock_s": round(stage_timings["proofread"], 2),
@@ -440,7 +480,7 @@ def run(options: PipelineOptions) -> str:
                     dumper.write("05-proofread.json", segments)
                     free_mlx(log)
                 else:
-                    log(f"[8/13] Proofread пропущено")
+                    progress.skipped("8/13", "proofread")
 
                 if needs_identify_llm:
                     identify_model = _resolve_stage_model(options, "identify_speakers")
@@ -449,12 +489,16 @@ def run(options: PipelineOptions) -> str:
                         log=log, log_memory=options.verbose, progress=progress,
                         sampling_overrides=sampling_overrides,
                         model_load_elapsed=model_load_elapsed,
+                        stage_num="9/13", stage_id="identify_speakers",
                     )
                     stage_models["identify_speakers"] = identify_model
                     identify_llm = llm
                 else:
                     identify_llm = None
-                with _timed("identify_speakers"):
+                with progress.spinner(
+                    "[9/13] Ідентифікація мовців",
+                    stage_num="9/13", stage_id="identify_speakers", kind="inference",
+                ), _timed("identify_speakers"):
                     name_map = identify_speakers_module.identify_speakers(
                         segments,
                         language=effective_language,
@@ -464,6 +508,7 @@ def run(options: PipelineOptions) -> str:
                         user_context=options.user_context,
                         log=log,
                         progress=progress,
+                        stage_num="9/13", stage_id="identify_speakers",
                     )
                 # Build name_sources for render (covers all pyannote clusters).
                 all_clusters = sorted(
@@ -491,6 +536,7 @@ def run(options: PipelineOptions) -> str:
                         log=log, log_memory=options.verbose, progress=progress,
                         sampling_overrides=sampling_overrides,
                         model_load_elapsed=model_load_elapsed,
+                        stage_num="10/13", stage_id="speech_structure",
                     )
                     stage_models["speech_structure"] = structure_model
                     with _timed("speech_structure"):
@@ -498,10 +544,11 @@ def run(options: PipelineOptions) -> str:
                             segments, llm=llm, language=effective_language,
                             user_context=options.user_context,
                             log=log, progress=progress,
+                            stage_num="10/13", stage_id="speech_structure",
                         )
                     free_mlx(log)
                 else:
-                    log(f"[10/13] Структурування пропущене")
+                    progress.skipped("10/13", "speech_structure")
                     dialog = speech_structure_module.structure_dialog(
                         segments, llm=None, language=effective_language, log=log,
                     )
@@ -519,9 +566,13 @@ def run(options: PipelineOptions) -> str:
                         log=log, log_memory=options.verbose, progress=progress,
                         sampling_overrides=sampling_overrides,
                         model_load_elapsed=model_load_elapsed,
+                        stage_num="11/13", stage_id="safe_speech",
                     )
                     stage_models["safe_speech"] = safe_speech_model
-                    with progress.spinner("[11/13] Замовчування чутливого"), _timed("safe_speech"):
+                    with progress.spinner(
+                        "[11/13] Замовчування чутливого",
+                        stage_num="11/13", stage_id="safe_speech", kind="inference",
+                    ), _timed("safe_speech"):
                         dialog, safe_speech_decisions = safe_speech_module.redact_dialog(
                             dialog,
                             llm=llm,
@@ -531,11 +582,12 @@ def run(options: PipelineOptions) -> str:
                             user_context=options.user_context,
                             log=log,
                             progress=progress,
+                            stage_num="11/13", stage_id="safe_speech",
                         )
                     free_mlx(log)
                     dumper.write("09-safe_speech-decisions.json", safe_speech_decisions)
                 else:
-                    log("[11/13] Замовчування чутливого пропущено")
+                    progress.skipped("11/13", "safe_speech")
 
                 if options.run_tldr:
                     tldr_model = _resolve_stage_model(options, "speech_summary")
@@ -544,23 +596,30 @@ def run(options: PipelineOptions) -> str:
                         log=log, log_memory=options.verbose, progress=progress,
                         sampling_overrides=sampling_overrides,
                         model_load_elapsed=model_load_elapsed,
+                        stage_num="12/13", stage_id="speech_summary",
                     )
                     stage_models["speech_summary"] = tldr_model
-                    with _timed("speech_summary"):
+                    with progress.spinner(
+                        "[12/13] TL;DR",
+                        stage_num="12/13", stage_id="speech_summary", kind="inference",
+                    ), _timed("speech_summary"):
                         tldr_text = speech_summary_module.generate_tldr(
                             dialog, llm=llm, language=effective_language,
                             include_silence=options.tldr_include_silence,
                             user_context=options.user_context,
                             log=log, progress=progress,
+                            stage_num="12/13", stage_id="speech_summary",
                         )
                     free_mlx(log)
                 else:
                     tldr_text = ""
-                    log(f"[12/13] TL;DR пропущено")
+                    progress.skipped("12/13", "speech_summary")
                 dumper.write("10-speech_summary.txt", tldr_text)
             finally:
                 if llm is not None:
-                    with progress.spinner("Unloading LLM"):
+                    with progress.spinner(
+                        "Unloading LLM", stage_id="llm_unload", kind="loading",
+                    ):
                         llm.close()
 
         # Re-write 01-meta.json with collected per-stage telemetry (see #57).

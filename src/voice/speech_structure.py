@@ -375,6 +375,8 @@ def structure_dialog(
     user_context: str | None = None,
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
     progress: "ProgressReporter | None" = None,
+    stage_num: str | None = None,
+    stage_id: str | None = None,
 ) -> StructuredDialog:
     """Return a `StructuredDialog`. Falls back to a single section on error."""
     segs = list(segments)
@@ -394,7 +396,10 @@ def structure_dialog(
     if len(speech) < STRUCTURE_CHUNK_THRESHOLD:
         # Fast path: one call for the whole dialogue.
         try:
-            with reporter.token_counter("[10/13] Структурування на секції") as advance:
+            with reporter.token_counter(
+                "[10/13] Структурування на секції",
+                stage_num=stage_num, stage_id=stage_id, kind="inference",
+            ) as advance:
                 sections = _structure_single_pass(
                     speech,
                     llm=llm,
@@ -445,7 +450,8 @@ def structure_dialog(
         with llm.prompt_cache_session(
             prefix_messages=[structure_system_msg]
         ), reporter.task(
-            "[10/13] Структурування на секції", total=len(chunks)
+            "[10/13] Структурування на секції", total=len(chunks),
+            stage_num=stage_num, stage_id=stage_id, kind="inference",
         ) as advance:
             for idx, chunk in enumerate(chunks, start=1):
                 try:
@@ -462,7 +468,7 @@ def structure_dialog(
                     advance(1, suffix=f"chunk {idx} invalid")
                     continue
                 chunk_results.append(sections)
-                advance(1, suffix=f"chunk {idx} ok ({len(sections)} sec)")
+                advance(1, suffix=f"+{len(sections)} sections")
     except LLMError as exc:
         log(f"structure: LLM error — {exc}; falling back to single section")
         return StructuredDialog(sections=_fallback_section(segs, language), segments=segs)

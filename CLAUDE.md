@@ -16,7 +16,7 @@ When introducing a feature or changing a default, sanity-check it against this l
 
 ## Running the pipeline interactively
 
-`voice transcribe` is slow (3–10 minutes for a typical recording) and its on-purpose progress UI — `rich.Progress` bars on a TTY, a 15-second heartbeat otherwise — is the user's only signal that the run is still alive. **Never** silence it.
+`voice transcribe` is slow (3–10 minutes for a typical recording) and its on-purpose progress UI — `rich.Progress` bars on a TTY, a 5-second heartbeat otherwise — is the user's only signal that the run is still alive. **Never** silence it.
 
 When you need to keep a log file but still want progress on screen, pipe through `tee` instead of redirecting:
 

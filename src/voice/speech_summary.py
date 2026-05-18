@@ -147,12 +147,16 @@ def _llm_call(
     label: str,
     progress: ProgressReporter,
     log: Callable[[str], None],
+    stage_num: str | None = None,
+    stage_id: str | None = None,
 ) -> str | None:
     """One TL;DR LLM call with MLX peak logging. Returns None on LLMError."""
     mx.clear_cache()
     before_gb = mx.get_active_memory() / 1e9
     try:
-        with progress.token_counter(label) as advance:
+        with progress.token_counter(
+            label, stage_num=stage_num, stage_id=stage_id, kind="sub_step",
+        ) as advance:
             text = llm.chat(
                 [system_msg, {"role": "user", "content": user_content}],
                 on_token=advance,
@@ -175,6 +179,8 @@ def _per_section_tldrs(
     progress: ProgressReporter,
     log: Callable[[str], None],
     user_context: str | None = None,
+    stage_num: str | None = None,
+    stage_id: str | None = None,
 ) -> list[tuple[str, str]]:
     """Level 0: one TL;DR per real section. Returns (title, body) pairs.
 
@@ -205,6 +211,7 @@ def _per_section_tldrs(
                 llm=llm, system_msg=system_msg, user_content=user_content,
                 prompt_name=prompt_name, label=label,
                 progress=progress, log=log,
+                stage_num=stage_num, stage_id=stage_id,
             )
             if body:
                 results.append((section.title, body))
@@ -220,6 +227,8 @@ def _aggregate_level(
     progress: ProgressReporter,
     log: Callable[[str], None],
     user_context: str | None = None,
+    stage_num: str | None = None,
+    stage_id: str | None = None,
 ) -> list[tuple[str, str]]:
     """One recursion step. Groups `blocks` into chunks of TLDR_FANOUT and
     produces one aggregated TL;DR per group. Singleton groups pass through
@@ -249,6 +258,7 @@ def _aggregate_level(
                 llm=llm, system_msg=system_msg, user_content=user_content,
                 prompt_name=prompt_name, label=label,
                 progress=progress, log=log,
+                stage_num=stage_num, stage_id=stage_id,
             )
             if body:
                 out.append((agg_title, body))
@@ -263,6 +273,8 @@ def _final_pass(
     progress: ProgressReporter,
     log: Callable[[str], None],
     user_context: str | None = None,
+    stage_num: str | None = None,
+    stage_id: str | None = None,
 ) -> str:
     """Produce the canonical-format TL;DR that the renderer consumes."""
     prompt_name = _pick_prompt_name(language, "final")
@@ -277,6 +289,7 @@ def _final_pass(
         llm=llm, system_msg=system_msg, user_content=user_content,
         prompt_name=prompt_name, label="[12/13] TL;DR final",
         progress=progress, log=log,
+        stage_num=stage_num, stage_id=stage_id,
     )
     return body or ""
 
@@ -290,6 +303,8 @@ def generate_tldr(
     user_context: str | None = None,
     log: Callable[[str], None] = lambda s: print(s, file=sys.stderr),
     progress: "ProgressReporter | None" = None,
+    stage_num: str | None = None,
+    stage_id: str | None = None,
 ) -> str:
     """Return a Markdown TL;DR string, or empty string when summarising is
     not viable (no segments, synthetic-fallback section under --no-structure,
@@ -320,6 +335,7 @@ def generate_tldr(
         include_silence=include_silence,
         progress=reporter, log=log,
         user_context=user_context,
+        stage_num=stage_num, stage_id=stage_id,
     )
     if not blocks:
         return ""
@@ -332,6 +348,7 @@ def generate_tldr(
             llm=llm, language=language,
             progress=reporter, log=log,
             user_context=user_context,
+            stage_num=stage_num, stage_id=stage_id,
         )
         if not blocks:
             return ""
@@ -347,4 +364,5 @@ def generate_tldr(
         blocks, llm=llm, language=language,
         progress=reporter, log=log,
         user_context=user_context,
+        stage_num=stage_num, stage_id=stage_id,
     )
