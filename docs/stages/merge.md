@@ -111,6 +111,45 @@ a split-on run they reflect the residual rate, not the original one.
 | `--merge-split-snap-window-ms` | 0 (off) | Cap on how far a cut may snap from its naive position. |
 | `--merge-split-snap-prob-threshold` | 0.7 | Snap only to words strictly below this `probability`. |
 
+### Why the optimisation order matters
+
+The current order is `split_on_turn_boundary` → snap → `speaker_hint`
+→ `merge`. It is not interchangeable, and each step exists because it
+catches a failure mode of the previous one:
+
+1. **Split runs before merge** because `merge` produces `Segment`,
+   which has no `words` field. Once a multi-speaker `AsrSegment` is
+   collapsed into a single `Segment` by max-overlap, the per-word
+   evidence needed to undo that decision is gone. Splitting has to be
+   a preprocessing pass over `AsrSegment`s, not a post-processing pass
+   over `Segment`s.
+2. **Snap runs inside split, between owner assignment and group
+   emission**, because snap needs the naive cut indices to exist and
+   needs to rewrite per-word owners before the groups are sliced out.
+   Snapping after the groups are emitted means re-splitting already-
+   emitted fragments — that is the same code with one extra round-trip.
+3. **`speaker_hint` is set inside split (at group emission), not
+   globally**, because the hint exists exactly when the snapped
+   fragment's time span no longer agrees with its word-derived owner.
+   For clean splits where snap did nothing, `speaker_hint=None` and
+   `merge` falls back to max-overlap — keeping backwards compatibility
+   with the no-words path and with all callers that build
+   `AsrSegment`s by hand (tests, scripts).
+4. **`merge` is always last** because it is the only step that emits
+   `Segment` — the type the rest of the pipeline consumes. Every
+   speaker decision must land here, either via `speaker_hint` or via
+   max-overlap. Splitting the speaker decision across two stages turns
+   debugging into archaeology.
+
+**Adding a new optimisation:** put it inside `_split_segment_by_words`
+in the right slot relative to the existing steps. The default slot
+for a new word-level heuristic is **between naive owner assignment
+and the snap step** — that is where per-word evidence is freshest and
+hint propagation comes for free. If a candidate optimisation does not
+fit in that slot, that is usually a signal it operates on the wrong
+abstraction; consider whether it belongs upstream (`whisper_asr`,
+`diarize_speakers`) or downstream (`proofread`, `render`) instead.
+
 ### Known limitations (open items, not bugs in this stage)
 
 - **Whisper-hallucinated text on silence** (e.g. a sequence of `.` or
@@ -142,9 +181,14 @@ reviewers scan first; the prose below is where the why-and-how lives.
 
 When adding a new optimisation:
 
-1. Add a row to the impact table with the appropriate emoji.
-2. Document the algorithm in "How the stage works" and the new
+1. Decide where it fits in the pipeline order — see "Why the
+   optimisation order matters". Most new word-level heuristics belong
+   inside `_split_segment_by_words`, between naive owner assignment
+   and the snap step. If the new step cannot live in that order, that
+   is the signal to discuss the design before writing code.
+2. Add a row to the impact table with the appropriate emoji.
+3. Document the algorithm in "How the stage works" and the new
    telemetry fields under "Telemetry".
-3. Add the new CLI flag(s) to the "CLI knobs" table.
-4. If shipping the change flips an existing default or invalidates a
+4. Add the new CLI flag(s) to the "CLI knobs" table.
+5. If shipping the change flips an existing default or invalidates a
    prior decision, also write or update the corresponding ADR.
