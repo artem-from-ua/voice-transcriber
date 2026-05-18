@@ -41,15 +41,28 @@ def test_spinner_runs_to_completion():
             pass
 
 
-def test_spinner_yields_set_state_and_surfaces_in_heartbeat(capsys):
-    """spinner() yields a set_state callback; pushed text appears in heartbeat."""
+def test_spinner_set_state_renders_step_and_percent_in_heartbeat(capsys):
+    """spinner() yields set_state(step, completed, total); heartbeat formats
+    it as `embeddings: 27% (12/45)` and prefixes with the stage_id."""
     p = _silent_reporter(heartbeat_interval_s=0.1)
     with p:
-        with p.spinner("diarize") as set_state:
-            set_state("segmentation 12/45")
+        with p.spinner("diarize", stage_id="3/13 diarize_speakers") as set_state:
+            set_state("embeddings", 12, 45)
             time.sleep(0.25)
     captured = capsys.readouterr().err
-    assert "segmentation 12/45" in captured, captured
+    assert "--> ⏳ [3/13 diarize_speakers]" in captured, captured
+    assert "embeddings: 27% (12/45)" in captured, captured
+
+
+def test_spinner_set_state_renders_unknown_total_as_question_marks(capsys):
+    """When pyannote does not report total/completed, show `?% (?/?)`."""
+    p = _silent_reporter(heartbeat_interval_s=0.1)
+    with p:
+        with p.spinner("diarize", stage_id="3/13 diarize_speakers") as set_state:
+            set_state("segmentation")
+            time.sleep(0.25)
+    captured = capsys.readouterr().err
+    assert "segmentation: ?% (?/?)" in captured, captured
 
 
 def test_token_counter_accepts_deltas():
@@ -103,8 +116,8 @@ def test_heartbeat_fires_on_non_tty(capsys):
             advance(2)
             time.sleep(0.15)
     captured = capsys.readouterr().err
-    assert " · crunching:" in captured, captured
-    # transitions (✓) and heartbeats (·) both present
+    assert "--> ⏳ [crunching]" in captured, captured
+    # transitions (✓) and heartbeat arrows both present
     assert "✓ crunching" in captured
 
 
@@ -114,8 +127,8 @@ def test_heartbeat_silent_when_no_active_task(capsys):
     with p:
         time.sleep(0.3)
     captured = capsys.readouterr().err
-    # No heartbeat lines, only any final summary (none here).
-    assert " · " not in captured.replace("✓", "")
+    # No heartbeat lines emitted (heartbeat prefix is "--> ⏳").
+    assert "--> ⏳" not in captured
 
 
 def test_monitor_thread_stops_cleanly():

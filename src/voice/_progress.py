@@ -55,6 +55,7 @@ class _ActiveTask:
     label: str
     started: float
     state_fn: Callable[[], str]  # returns "23/64 (35%) elapsed 0:32" or similar
+    stage_id: str | None = None  # short machine-readable id for the heartbeat prefix
 
 
 class ProgressReporter:
@@ -175,30 +176,53 @@ class ProgressReporter:
             self._finalise(label, elapsed)
 
     @contextmanager
-    def spinner(self, label: str) -> Iterator[Callable[[str], None]]:
-        """Indeterminate spinner. Yields a `set_state(text)` callback the
-        stage can call to surface live progress (e.g. pyannote's
-        "segmentation 12/45"). Callers that don't need it can ignore the
-        yielded value — backwards compatible with `with progress.spinner(x):`.
+    def spinner(
+        self,
+        label: str,
+        *,
+        stage_id: str | None = None,
+    ) -> Iterator[Callable[..., None]]:
+        """Indeterminate spinner. Yields a `set_state(step, completed=None,
+        total=None)` callback the stage can call to surface live progress
+        (e.g. pyannote's segmentation → embeddings → clustering steps).
+
+        Callers that don't need it can ignore the yielded value — backwards
+        compatible with `with progress.spinner(x):`.
+
+        When `stage_id` is supplied, the heartbeat / footer rendering uses it
+        as the machine-readable prefix (`[3/13] diarize_speakers/embeddings`).
         """
         started = time.perf_counter()
         task_id = None
         if self._progress is not None:
             task_id = self._progress.add_task(label, total=None, suffix="")
 
-        current_state = ""
+        step_state: dict[str, object] = {"name": "", "completed": None, "total": None}
 
-        def set_state(text: str) -> None:
-            nonlocal current_state
-            current_state = text
+        def set_state(
+            step: str, completed: int | None = None, total: int | None = None,
+        ) -> None:
+            step_state["name"] = step
+            step_state["completed"] = completed
+            step_state["total"] = total
             if task_id is not None:
-                self._progress.update(task_id, suffix=text)  # type: ignore[union-attr]
+                self._progress.update(  # type: ignore[union-attr]
+                    task_id, suffix=_format_step_progress(step, completed, total),
+                )
 
         def state() -> str:
             elapsed_part = f"elapsed {_fmt_elapsed(time.perf_counter() - started)}"
-            return f"{current_state} · {elapsed_part}" if current_state else elapsed_part
+            name = step_state["name"]
+            if not name:
+                return elapsed_part
+            step_text = _format_step_progress(
+                str(name),
+                step_state["completed"],  # type: ignore[arg-type]
+                step_state["total"],  # type: ignore[arg-type]
+            )
+            return f"{step_text} · {elapsed_part}"
 
-        active = _ActiveTask(label=label, started=started, state_fn=state)
+        active = _ActiveTask(label=label, started=started, state_fn=state, stage_id=stage_id)
         self._register(active)
         try:
             yield set_state
@@ -313,8 +337,19 @@ class ProgressReporter:
         snapshot = read_memory_snapshot()
         memory_part = snapshot.format()
         suffix = f" · {memory_part}" if memory_part else ""
-        line = f"  · {active.label}: {active.state_fn()}{suffix}"
+        prefix = active.stage_id or active.label
+        line = f"--> ⏳ [{prefix}] {active.state_fn()}{suffix}"
         print(line, file=sys.stderr, flush=True)
+
+
+def _format_step_progress(
+    step: str, completed: int | None, total: int | None,
+) -> str:
+    """`embeddings: 51% (18/35)` if both known; `embeddings: ?% (?/?)` if not."""
+    if completed is not None and total:
+        pct = int(round(100 * completed / total))
+        return f"{step}: {pct}% ({completed}/{total})"
+    return f"{step}: ?% (?/?)"
 
 
 def _fmt_elapsed(seconds: float) -> str:

@@ -33,11 +33,11 @@ def _read_hf_token() -> str:
 
 
 def _build_progress_hook(
-    set_state: Callable[[str], None],
+    set_state: Callable[..., None],
 ) -> Callable[..., None]:
     """Adapter for pyannote's hook signature `(step_name, step_artifact,
-    file=None, total=None, completed=None)`. Pushes a compact one-line
-    state string into the caller's setter on every step update.
+    file=None, total=None, completed=None)`. Forwards each step update
+    to the caller's structured setter as `(step, completed, total)`.
 
     Do NOT use pyannote.audio.pipelines.utils.hook.ProgressHook directly
     — it creates its own rich.Progress, which conflicts with the live
@@ -50,10 +50,7 @@ def _build_progress_hook(
         total: int | None = None,
         completed: int | None = None,
     ) -> None:
-        if total and completed is not None:
-            set_state(f"{step_name} {completed}/{total}")
-        else:
-            set_state(step_name)
+        set_state(step_name, completed, total)
     return hook
 
 
@@ -62,14 +59,14 @@ def diarize(
     *,
     num_speakers: int | None = None,
     log: Callable[[str], None] = print,
-    progress_state: Callable[[str], None] | None = None,
+    progress_state: Callable[..., None] | None = None,
 ) -> tuple[list[DiarTurn], float]:
     """Run pyannote diarization. Returns (turns, model_load_elapsed_s).
 
-    If `progress_state` is supplied, it receives a per-step state string
-    like "segmentation 12/45" as pyannote progresses through its
-    internal stages (segmentation → embeddings → clustering). Otherwise
-    behaviour is byte-identical to callers that omit the kwarg.
+    If `progress_state` is supplied, it is called as
+    `progress_state(step_name, completed, total)` on every pyannote step
+    update (segmentation → embeddings → clustering). Otherwise behaviour
+    is byte-identical to callers that omit the kwarg.
     """
     token = _read_hf_token()
 
