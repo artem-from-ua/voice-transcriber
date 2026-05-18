@@ -13,7 +13,7 @@ memory refreshed every second.
 
 On a non-TTY (CI, Claude Code Bash tool, `2> log`), bars are suppressed
 but a background heartbeat thread prints a single-line snapshot of the
-active task plus memory every 15 seconds. Stage transitions
+active task plus memory every 5 seconds. Stage transitions
 (`✓ {label} in N.Ns`) print immediately, never waiting for the next
 heartbeat tick.
 
@@ -46,7 +46,7 @@ from rich.progress import (
 from ._memory_stats import read_memory_snapshot
 
 
-HEARTBEAT_INTERVAL_S = 15.0
+HEARTBEAT_INTERVAL_S = 5.0
 FOOTER_REFRESH_HZ = 1.0
 
 
@@ -281,7 +281,7 @@ class ProgressReporter:
     # ------------------------------------------------------------------ background monitor
 
     def _monitor_loop(self) -> None:
-        """Update the TTY footer ~1 Hz; emit a non-TTY heartbeat every 15 s."""
+        """Update the TTY footer ~1 Hz; emit a non-TTY heartbeat every 5 s."""
         if self._is_tty:
             interval = 1.0 / FOOTER_REFRESH_HZ
         else:

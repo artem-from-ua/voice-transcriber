@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file. The format 
 ### Changed
 
 - **`ProgressReporter.spinner(label)` now yields a `set_state(text)` callback** instead of `None`. Existing in-tree callers (`with progress.spinner(x):` without `as`) keep working unchanged — the yielded value is simply ignored. Stages that want to surface per-step state (currently only diarize) can capture it as `with progress.spinner(x) as set_state:`.
+- **Non-TTY heartbeat interval lowered from 15 s to 5 s.** Long stages now emit a state line every 5 s instead of every 15 s — enough to actually catch pyannote's internal step transitions (segmentation → embeddings → clustering) on the 6-min reference recording; with 15 s only one tick would fall inside the 25 s diarize window. Short stages (transcode, audio_meta, merge — sub-second) still complete before the first tick and stay silent.
 
 ## [0.36.1] — 2026-05-18
 
