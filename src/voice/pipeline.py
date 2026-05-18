@@ -317,7 +317,8 @@ def run(options: PipelineOptions) -> str:
             # frees it on return; the LLM is loaded after both, so the three
             # are never co-resident.
             with progress.spinner(
-                "[3/13] Діаризація (pyannote 3.1)", stage_id="3/13 diarize_speakers",
+                "[3/13] Діаризація (pyannote 3.1)",
+                stage_num="3/13", stage_id="diarize_speakers",
             ) as diarize_state, _timed("diarize_speakers"):
                 turns, diarize_load_s = diarize_speakers_module.diarize(
                     wav_path, log=log, progress_state=diarize_state,

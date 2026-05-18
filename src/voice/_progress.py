@@ -55,7 +55,8 @@ class _ActiveTask:
     label: str
     started: float
     state_fn: Callable[[], str]  # returns "23/64 (35%) elapsed 0:32" or similar
-    stage_id: str | None = None  # short machine-readable id for the heartbeat prefix
+    stage_num: str | None = None  # e.g. "3/13" — pipeline position
+    stage_id: str | None = None  # e.g. "diarize_speakers" — module-level id
 
 
 class ProgressReporter:
@@ -180,6 +181,7 @@ class ProgressReporter:
         self,
         label: str,
         *,
+        stage_num: str | None = None,
         stage_id: str | None = None,
     ) -> Iterator[Callable[..., None]]:
         """Indeterminate spinner. Yields a `set_state(step, completed=None,
@@ -189,8 +191,9 @@ class ProgressReporter:
         Callers that don't need it can ignore the yielded value — backwards
         compatible with `with progress.spinner(x):`.
 
-        When `stage_id` is supplied, the heartbeat / footer rendering uses it
-        as the machine-readable prefix (`[3/13] diarize_speakers/embeddings`).
+        When `stage_num` and `stage_id` are supplied, the heartbeat
+        rendering uses them as `[stage_num] stage_id/step_name` — e.g.
+        `[3/13] diarize_speakers/embeddings`.
         """
         started = time.perf_counter()
         task_id = None
@@ -207,7 +210,8 @@ class ProgressReporter:
             step_state["total"] = total
             if task_id is not None:
                 self._progress.update(  # type: ignore[union-attr]
-                    task_id, suffix=_format_step_progress(step, completed, total),
+                    task_id,
+                    suffix=_format_step_progress(step, completed, total, stage_id=stage_id),
                 )
 
         def state() -> str:
@@ -219,10 +223,14 @@ class ProgressReporter:
                 str(name),
                 step_state["completed"],  # type: ignore[arg-type]
                 step_state["total"],  # type: ignore[arg-type]
+                stage_id=stage_id,
             )
             return f"{step_text} · {elapsed_part}"
 
-        active = _ActiveTask(label=label, started=started, state_fn=state, stage_id=stage_id)
+        active = _ActiveTask(
+            label=label, started=started, state_fn=state,
+            stage_num=stage_num, stage_id=stage_id,
+        )
         self._register(active)
         try:
             yield set_state
@@ -337,19 +345,22 @@ class ProgressReporter:
         snapshot = read_memory_snapshot()
         memory_part = snapshot.format()
         suffix = f" · {memory_part}" if memory_part else ""
-        prefix = active.stage_id or active.label
-        line = f"--> ⏳ [{prefix}] {active.state_fn()}{suffix}"
+        prefix = f"[{active.stage_num}]" if active.stage_num else f"[{active.label}]"
+        line = f"--> ⏳ {prefix} {active.state_fn()}{suffix}"
         print(line, file=sys.stderr, flush=True)
 
 
 def _format_step_progress(
     step: str, completed: int | None, total: int | None,
+    *, stage_id: str | None = None,
 ) -> str:
-    """`embeddings: 51% (18/35)` if both known; `embeddings: ?% (?/?)` if not."""
+    """`diarize_speakers/embeddings: 51% (18/35)` if stage_id given and
+    counters known; `embeddings: ?% (?/?)` if no stage_id or counters."""
+    head = f"{stage_id}/{step}" if stage_id else step
     if completed is not None and total:
         pct = int(round(100 * completed / total))
-        return f"{step}: {pct}% ({completed}/{total})"
-    return f"{step}: ?% (?/?)"
+        return f"{head}: {pct}% ({completed}/{total})"
+    return f"{head}: ?% (?/?)"
 
 
 def _fmt_elapsed(seconds: float) -> str:
