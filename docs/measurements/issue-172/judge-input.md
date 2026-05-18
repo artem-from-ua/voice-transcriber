@@ -29,19 +29,19 @@ the next iteration of this measurement.
 ---
 ## Boundary 0 @ cutoff=08:00.00 (480.00s)
 
-- gap_s: 3.9599999999999795
-- word_overlap_jaccard: 0.156
-- last_token: `um` (truncated_heuristic=False)
+- gap_s: 0.0
+- word_overlap_jaccard: 0.183
+- last_token: `is` (truncated_heuristic=False)
 - first_token: `that` (truncated_heuristic=False)
 - rms_before: 0.00041, rms_after: 0.00034
 
 ### tail (chunk N, last segments before cutoff)
 
+- `07:25.60 - 07:31.76` Okay. That's interesting. You know, the, the, so we're looking for a PM, right? For,
+- `07:33.04 - 07:36.80` for workforce management, but specifically for our forecasting product.
 - `07:37.52 - 07:46.92` So, it's interesting. And the fact that you work closely with data teams, it's actually a good thing for us, right? Because, again, forecast is all about data anyways, right?
 - `07:46.92 - 07:51.52` And algorithms and all of that. So, yeah. Thank you for that.
-- `07:51.52 - 07:57.92` Cool. It looks like you have, like, a very interesting background. You did a lot of things.
 - `07:55.00 - 08:03.96` interesting background. You did a lot of things. So you mentioned you co-founded a company. Is
-- `07:57.92 - 08:00.00` So, um...
 
 ### head (chunk N+1, first segments at/after cutoff)
 
@@ -101,19 +101,19 @@ the next iteration of this measurement.
 
 ## Boundary 3 @ cutoff=31:45.00 (1905.00s)
 
-- gap_s: 3.400000000000091
-- word_overlap_jaccard: 0.131
-- last_token: `myself` (truncated_heuristic=False)
+- gap_s: 0.0
+- word_overlap_jaccard: 0.134
+- last_token: `like` (truncated_heuristic=False)
 - first_token: `to` (truncated_heuristic=False)
 - rms_before: 0.09210, rms_after: 0.08866
 
 ### tail (chunk N, last segments before cutoff)
 
+- `31:08.68 - 31:13.44` And what are your weaknesses?
+- `31:13.44 - 31:21.92` Well, I mentioned one that like, sometimes, especially early when I join a project or
+- `31:21.92 - 31:27.74` a company, I might feel a little bit insecure, more insecure.
 - `31:27.74 - 31:34.22` So I might overspend on, you know, like, just closing in myself into like, trying to learn
-- `31:34.22 - 31:40.40` trying to be like, like have enough knowledge to be comfortable on like talking to people
 - `31:40.00 - 31:48.40` people and asking questions and i need to catch myself on this sometimes um and and i think like
-- `31:40.40 - 31:43.34` and asking questions.
-- `31:43.34 - 31:45.00` And I need to catch myself.
 
 ### head (chunk N+1, first segments at/after cutoff)
 
@@ -125,19 +125,19 @@ the next iteration of this measurement.
 
 ## Boundary 4 @ cutoff=39:40.00 (2380.00s)
 
-- gap_s: 1.5
-- word_overlap_jaccard: 0.134
-- last_token: `product` (truncated_heuristic=False)
+- gap_s: 0.0
+- word_overlap_jaccard: 0.162
+- last_token: `our` (truncated_heuristic=False)
 - first_token: `scheduling` (truncated_heuristic=False)
 - rms_before: 0.11700, rms_after: 0.13129
 
 ### tail (chunk N, last segments before cutoff)
 
+- `39:24.66 - 39:26.66` Are we paying less?
+- `39:26.66 - 39:28.16` Are we paying more, right?
 - `39:28.16 - 39:30.18` Doing all of those analyses.
 - `39:30.18 - 39:33.58` So again, there's a lot of opportunity in Forecast
-- `39:33.58 - 39:37.98` to do those integrations, especially with our AI products.
 - `39:35.00 - 39:41.50` especially with our ai products and against our forecast product does not survive without our
-- `39:37.98 - 39:40.00` And again, our Forecast product
 
 ### head (chunk N+1, first segments at/after cutoff)
 

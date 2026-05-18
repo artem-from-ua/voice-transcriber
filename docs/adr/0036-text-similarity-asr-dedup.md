@@ -38,27 +38,59 @@ window.
 
 ## Decision
 
-Replace structural `_dedup_overlap` with text-similarity (Jaccard)
-dedup. For each `incoming` segment with at least `min_token_count`
-tokens, take the max Jaccard against each segment in `accumulated`'s
-trailing `overlap_window_s`; drop if `max >= jaccard_threshold`. Once
-a non-duplicate is kept, stop scanning — boundary repeats live in
-chunk N+1's head, not its middle.
+Replace structural `_dedup_overlap` with a three-case text-similarity
+reconciler that returns the **full updated** `accumulated` list
+(original minus any superseded tail segments, plus kept `incoming`).
+
+For each `incoming` segment with at least `min_token_count` tokens:
+
+1. **Plain duplicate** — pairwise max Jaccard against any tail segment
+   `>= jaccard_threshold` → drop incoming, keep tail.
+2. **Superseding rewind** — pairwise max stays below the threshold,
+   but the incoming segment's audio span overlaps one or more tail
+   segments AND the Jaccard against the *union* of those overlapping
+   tail tokens `>= supersede_aggregate_threshold` → drop the
+   superseded tail segments, keep the incoming. This case catches
+   Whisper re-emitting a longer, context-richer version of several
+   short tail fragments — pairwise stays low because each fragment is
+   short, but the aggregate signal exposes the rewind. Without it the
+   rendered transcript shows both the short tail fragments and the
+   long head segment back-to-back (visible duplication on the 48-min
+   reference at B3/B4 after the first PR landed; see post-PR review).
+3. **Legitimate continuation** — low pairwise, no audio overlap →
+   keep incoming, stop scanning further `incoming` (boundary repeats
+   live at the head, not the middle).
 
 ```
 accumulated, incoming
   -> tail = [s for s in accumulated
              if s.end >= accumulated[-1].end - overlap_window_s]
+  -> out_accumulated = list(accumulated)
   -> for each `seg in incoming`:
        seg_tokens = tokenize(seg.content)
        if len(seg_tokens) < min_token_count:
-           keep seg, continue scanning
-       max_sim = max(jaccard(seg_tokens, t) for t in tail_tokens)
-       if max_sim >= jaccard_threshold:
-           drop, continue scanning  (next head seg may also dup)
+           keep seg, continue
+       max_pairwise = max(jaccard(seg_tokens, t) for t in tail_tokens)
+       if max_pairwise >= jaccard_threshold:
+           drop seg, continue          # CASE 1
+       overlap_idx = [i for i in tail_idx
+                      if seg.start < tail[i].end
+                      and seg.end > tail[i].start]
+       if overlap_idx and jaccard(
+              seg_tokens, union(tail_tokens[i] for i in overlap_idx)
+          ) >= supersede_aggregate_threshold:
+           drop tail[i] for i in overlap_idx   # CASE 2 (SUPERSEDE)
+           keep seg, stop scanning
        else:
-           keep seg, stop scanning  (rest of incoming is kept verbatim)
+           keep seg, stop scanning      # CASE 3
+  -> return out_accumulated + kept_incoming
 ```
+
+The function returns the updated accumulated list directly; the
+call-site in `transcribe()` rebinds `segments = _dedup_overlap(...)`.
+This is a behavioural change from the original PR (which returned
+only the kept-incoming list and never mutated accumulated); see the
+post-PR walk-through under "Consequences" below.
 
 Defaults (`src/voice/whisper_asr.py`):
 
@@ -74,6 +106,15 @@ Defaults (`src/voice/whisper_asr.py`):
 - `ASR_DEDUP_MIN_TOKEN_COUNT = 3` — a 2-token backchannel like
   `"yeah okay"` near a turn change would otherwise self-match similar
   backchannels in the trailing context and disappear.
+- `ASR_DEDUP_SUPERSEDE_AGG_THRESHOLD = 0.3` — lower than the pairwise
+  threshold because the union over multiple tail fragments inflates
+  the denominator. Calibrated from the 48-min reference's B3/B4
+  rewinds (aggregate ≈ 0.45-0.55 against the merged tail tokens);
+  setting it too high (e.g. 0.5) would miss the rewinds, setting it
+  too low (e.g. 0.1) would supersede on coincidental vocabulary
+  overlap from an unrelated topic that happens to be in the tail
+  window. The audio-span overlap requirement guards against the
+  latter even at low aggregate thresholds.
 
 `ASR_CHUNK_OVERLAP_S = 5.0` is unchanged — it still drives the audio
 slice geometry so Whisper has enough context on both sides of every

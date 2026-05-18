@@ -60,6 +60,16 @@ ASR_CHUNK_OVERLAP_S = 5.0
 ASR_DEDUP_OVERLAP_WINDOW_S = 30.0
 ASR_DEDUP_JACCARD_THRESHOLD = 0.5
 ASR_DEDUP_MIN_TOKEN_COUNT = 3
+# Aggregate (union-token) Jaccard threshold for the SUPERSEDE branch:
+# when chunk N+1's head segment audio overlaps multiple accumulated tail
+# segments, this catches the "Whisper re-emitted a longer, richer version
+# of several short tail fragments" case (pairwise max stays low because
+# each fragment is short, but the union shares most vocabulary). Drops
+# the superseded tail segments and keeps the incoming one. 0.3 is lower
+# than the pairwise threshold (0.5) because the union always inflates
+# the denominator — see the V4b B3/B4 walk-through in the post-PR review
+# of #172 for the empirical calibration.
+ASR_DEDUP_SUPERSEDE_AGG_THRESHOLD = 0.3
 
 
 class AsrError(RuntimeError):
@@ -199,55 +209,129 @@ def _dedup_overlap(
     overlap_window_s: float = ASR_DEDUP_OVERLAP_WINDOW_S,
     jaccard_threshold: float = ASR_DEDUP_JACCARD_THRESHOLD,
     min_token_count: int = ASR_DEDUP_MIN_TOKEN_COUNT,
+    supersede_aggregate_threshold: float = ASR_DEDUP_SUPERSEDE_AGG_THRESHOLD,
 ) -> list[AsrSegment]:
-    """Drop boundary-repeat segments from `incoming` by text similarity.
+    """Reconcile chunk N+1's head against chunk N's tail and return the
+    full updated `accumulated` list (not just kept `incoming`).
 
     Whisper's per-chunk 30 s decode windows can re-emit a phrase from the
-    end of chunk N at the start of chunk N+1. The previous (structural)
-    dedup compared timestamps against a fixed overlap cutoff, which both
-    over-trimmed legitimate continuation that happened to land inside
-    the cutoff and under-trimmed Whisper-rewound duplicates whose
-    timestamp drifted past it (see ADR 0036 / issue #172, post-mortem of
-    #159 V4b/V5).
+    end of chunk N at the start of chunk N+1. Three patterns appear in
+    practice:
 
-    For each `incoming` segment with at least `min_token_count` tokens,
-    take the max Jaccard against each segment in `accumulated`'s trailing
-    `overlap_window_s` (slicing by `s.end >= last_end - overlap_window_s`
-    so a long segment crossing the boundary still participates). Drop if
-    the max >= `jaccard_threshold`; otherwise keep, and stop scanning
-    further incoming segments — boundary repeats live in chunk N+1's
-    head, not its middle, so once we've found a non-duplicate the dedup
-    work is done.
+      1. **Plain duplicate** — chunk N+1's head segment is text-similar
+         to one or more `accumulated` tail segments and its audio span
+         overlaps theirs. Drop the head segment, keep the tail.
+      2. **Superseding rewind** — chunk N+1's head segment audio span
+         *contains* one or more accumulated tail segments AND is
+         text-similar to their union (Jaccard against the union >=
+         `supersede_aggregate_threshold`). The longer head segment is
+         Whisper's better, longer-context transcription of the same
+         audio region. **Drop the superseded tail segments, keep the
+         head.** Without this branch the rendered transcript shows
+         both the short tail fragments and the long head segment back
+         to back — visible duplication despite the pairwise text-only
+         check passing (issue #172 post-PR review on the 48-min ref).
+      3. **Legitimate continuation** — chunk N+1's head segment has
+         low Jaccard against tail AND no audio span overlap. Keep it,
+         stop scanning further `incoming` (boundary repeats live at the
+         head, not the middle).
+
+    For each `incoming` segment with at least `min_token_count` tokens:
+      - pick the `accumulated` tail by `s.end >= last_end - overlap_window_s`
+        (so a long segment crossing the boundary still participates)
+      - identify tail segments whose audio span overlaps `seg`'s span
+        (`seg.start < t.end` and `seg.end > t.start`)
+      - compute pairwise max Jaccard against tail tokens
+      - compute Jaccard against the *union* of overlapping tail tokens
+        (the aggregate signal that catches "one head segment ate several
+        tail fragments")
+      - decide:
+          * if pairwise max >= `jaccard_threshold` -> drop head (case 1)
+          * elif aggregate against overlapped tail >= `supersede_aggregate_threshold`
+            AND there are overlapped tail segs -> drop those tail segs,
+            keep head (case 2)
+          * else -> keep head, stop scanning (case 3)
 
     Short segments (fewer than `min_token_count` tokens) bypass the
-    Jaccard check entirely — a backchannel like "yeah okay so" would
-    otherwise self-match nearby backchannels at the join."""
-    if not accumulated or not incoming:
-        return incoming
-    last_end = accumulated[-1].end
-    tail = [s for s in accumulated if s.end >= last_end - overlap_window_s]
-    if not tail:
-        return incoming
-    tail_tokens = [_tokenize(s.content) for s in tail]
+    Jaccard checks — a backchannel like "yeah okay so" would otherwise
+    self-match nearby backchannels at the join.
 
-    kept: list[AsrSegment] = []
+    Returns the full updated accumulated list: original accumulated minus
+    any superseded tail segments, plus the kept `incoming` segments."""
+    if not accumulated:
+        return list(incoming)
+    if not incoming:
+        return list(accumulated)
+
+    last_end = accumulated[-1].end
+    tail_window_start = last_end - overlap_window_s
+
+    # Working copy of accumulated we may mutate (drop superseded tails).
+    # Use ids rather than indices because we never reorder, only drop.
+    out_accumulated: list[AsrSegment] = list(accumulated)
+
+    def _tail_indices() -> list[int]:
+        return [
+            i for i, s in enumerate(out_accumulated)
+            if s.end >= tail_window_start
+        ]
+
+    kept_incoming: list[AsrSegment] = []
     dedup_done = False
     for seg in incoming:
         if dedup_done:
-            kept.append(seg)
+            kept_incoming.append(seg)
             continue
         seg_tokens = _tokenize(seg.content)
         if len(seg_tokens) < min_token_count:
-            kept.append(seg)
+            kept_incoming.append(seg)
             continue
-        max_similarity = max(_jaccard(seg_tokens, t) for t in tail_tokens)
-        if max_similarity >= jaccard_threshold:
-            # Boundary duplicate; drop and keep scanning — the next head
-            # segment may also be a duplicate.
+
+        tail_idx = _tail_indices()
+        if not tail_idx:
+            kept_incoming.append(seg)
+            dedup_done = True
             continue
-        kept.append(seg)
+
+        tail_tokens_each = [
+            _tokenize(out_accumulated[i].content) for i in tail_idx
+        ]
+        max_pairwise = max(_jaccard(seg_tokens, t) for t in tail_tokens_each)
+
+        if max_pairwise >= jaccard_threshold:
+            # Case 1: plain duplicate. Drop incoming; keep scanning, the
+            # next head segment may also be a duplicate.
+            continue
+
+        # Identify accumulated tail segments whose audio overlaps `seg`.
+        overlap_idx = [
+            i for i in tail_idx
+            if seg.start < out_accumulated[i].end
+            and seg.end > out_accumulated[i].start
+        ]
+        if overlap_idx:
+            union_tokens: list[str] = []
+            for i in overlap_idx:
+                union_tokens.extend(_tokenize(out_accumulated[i].content))
+            aggregate = _jaccard(seg_tokens, union_tokens)
+            if aggregate >= supersede_aggregate_threshold:
+                # Case 2: superseding rewind. Drop those tail segments,
+                # keep the (longer, context-rich) incoming.
+                drop_set = set(overlap_idx)
+                out_accumulated = [
+                    s for i, s in enumerate(out_accumulated)
+                    if i not in drop_set
+                ]
+                kept_incoming.append(seg)
+                dedup_done = True
+                continue
+
+        # Case 3: legitimate continuation.
+        kept_incoming.append(seg)
         dedup_done = True
-    return kept
+
+    out_accumulated.extend(kept_incoming)
+    return out_accumulated
 
 
 def transcribe(
@@ -338,8 +422,10 @@ def transcribe(
             log=log,
         )
         chunk_segments = _shift_segments(_parse_segments(result), chunk_start_s)
-        chunk_segments = _dedup_overlap(segments, chunk_segments)
-        segments.extend(chunk_segments)
+        # _dedup_overlap returns the full updated accumulated list
+        # (original minus superseded tail segments plus kept incoming);
+        # see the SUPERSEDE branch in its docstring.
+        segments = _dedup_overlap(segments, chunk_segments)
         del result
 
     del audio

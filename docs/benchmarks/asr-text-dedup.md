@@ -162,48 +162,73 @@ The strict-baseline comparison artefacts live under
 
 ### Numbers
 
-| Variant | clean | missing | duplicated | truncated | material_rate | ASR wall-clock |
-|---|---|---|---|---|---|---|
-| **Strict / structural dedup (#156)** | 3 | 3 | 0 | 0 | **0.500** | 246.3 s |
-| **Text-similarity dedup (#172)** | 5 | 1 | 0 | 0 | **0.167** | 246.8 s |
+| Variant | clean | missing | duplicated | truncated | material_rate | ASR wall-clock | render-visible dup? |
+|---|---|---|---|---|---|---|---|
+| **Strict / structural dedup (#156)** | 3 | 3 | 0 | 0 | **0.500** | 246.3 s | no |
+| **Text-similarity dedup PR1** (pairwise-only) | 5 | 1 | 0 | 0 | 0.167 | 246.8 s | **yes** (B3/B4 short tail fragments survived alongside the long rewind) |
+| **Text-similarity dedup + SUPERSEDE (final)** | 5 | 1 | 0 | 0 | **0.167** | 247.2 s | **no** |
 
 `material_rate` improvement: **0.50 → 0.167 = 3× reduction.** ASR
-wall-clock unchanged within noise (+0.5 s, 0.2%).
+wall-clock unchanged within noise (+1 s, 0.4%). SUPERSEDE adds no
+measurable cost — it triggered at 2 of the 6 boundaries on this
+recording (B3, B4) and only when the pairwise check already passed
+without dropping.
 
 ### Per-boundary breakdown
 
-| Boundary | Cutoff | Strict (#156) | Text-dedup (#172) | Change |
+| Boundary | Cutoff | Strict (#156) | Final SUPERSEDE (#172) | Change |
 |---|---|---|---|---|
-| B0 | 480 s | clean | clean | informationally richer (extra connecting segment preserved) |
-| B1 | 955 s | clean | clean | unchanged |
+| B0 | 480 s | clean | clean | informationally richer; SUPERSEDE dropped two short tail fragments superseded by the longer rewind |
+| B1 | 955 s | clean | clean | unchanged (no audio overlap → no SUPERSEDE trigger) |
 | B2 | 1430 s | missing | missing | unchanged — `#171` class (Whisper segmentation drop, no dedup mechanism can fix) |
-| B3 | 1905 s | **missing** | **clean** | `"catch myself on this sometimes"` clause recovered |
-| B4 | 2380 s | **missing** | **clean** | `"does not survive without our scheduling"` clause recovered |
-| B5 | 2855 s | clean | clean | unchanged |
+| B3 | 1905 s | **missing** | **clean** | `"catch myself on this sometimes"` clause recovered; SUPERSEDE dropped `"and asking questions."` + `"And I need to catch myself."` short fragments that PR1 had left alongside the long rewind |
+| B4 | 2380 s | **missing** | **clean** | `"does not survive without our scheduling"` clause recovered; SUPERSEDE dropped `"And again, our Forecast product"` short fragment that PR1 had left alongside the long rewind |
+| B5 | 2855 s | clean | clean | unchanged (intra-chunk Whisper duplications survive — out of scope for `_dedup_overlap`, which only touches across-boundary segments) |
 
 ### What changed and why
 
 The two boundaries that flipped from `missing` to `clean` share the
-same pattern: in the strict baseline, Whisper emitted a long
-connecting segment whose **content** straddled the chunk boundary,
-but whose Whisper-assigned `start` timestamp landed **inside** the
-5 s overlap window with the previous chunk. Structural dedup dropped
-it as a presumed duplicate. Text-similarity dedup checks the Jaccard
-against the trailing tail and finds it's a new sentence (Jaccard
-well below 0.5), so it keeps it.
+same pattern: Whisper, given the additional context at the chunk
+boundary, re-emits a longer, richer version of the audio that the
+previous chunk had transcribed as several short fragments. The PR1
+text-similarity check (pairwise max-Jaccard only) keeps the longer
+rewind (low pairwise score against any single short fragment) but
+also keeps the short fragments themselves — they pre-existed in
+`accumulated`. Both versions then survive into the rendered transcript
+as visible duplication.
 
-Walk-through B4: tail's strict-dropped sequence
-`"especially with our ai products and against our forecast product
-does not survive without our"` has unigram Jaccard ≈ 0.38 against
-the trailing `"...there's a lot of opportunity in Forecast to do
-those integrations, especially with our AI products"`. The 0.5
-threshold keeps it, and the boundary now reads as a complete
-grammatical sentence.
+The SUPERSEDE branch added in this PR's final commit catches the
+pattern: when `incoming` has low pairwise but its audio span overlaps
+multiple accumulated tail segments AND its Jaccard against the *union*
+of those overlapping tail tokens passes a lower aggregate threshold,
+drop the superseded tail segments and keep the (richer) incoming.
+
+Walk-through B3:
+- tail fragments: `"and asking questions."` (3 tokens) +
+  `"And I need to catch myself."` (6 tokens), audio spans
+  `[1900.40, 1903.34]` and `[1903.34, 1905.00]`.
+- incoming: `"people and asking questions and i need to catch myself
+  on this sometimes um and i think like"` (16 tokens), audio span
+  `[1900.00, 1908.40]`.
+- pairwise max ≈ 0.35 (below 0.5 plain-dup threshold) → not Case 1.
+- audio span of incoming covers both tail fragments
+  (`1900.00 < 1903.34` and `1908.40 > 1900.40` for the first,
+  analogous for the second).
+- aggregate Jaccard against union of overlapping tail tokens ≈ 0.5
+  (above 0.3 SUPERSEDE threshold) → Case 2 fires, both tail fragments
+  dropped, incoming kept.
+- final tail: `"...trying to learn / people and asking questions and
+  i need to catch myself on this sometimes..."`. Renders cleanly,
+  no duplication.
+
+B4 follows the same shape: `"And again, our Forecast product"` short
+tail fragment superseded by `"especially with our ai products and
+against our forecast product does not survive without our"`.
 
 B2 stays missing for an entirely different reason: Whisper never
 transcribed the lost words in *either* chunk's segments. No dedup
-mechanism (structural, text-similarity, or future embedding-based)
-can recover what's not in the input. Tracked by [issue #171](https://github.com/artem-from-ua/voice-transcriber/issues/171).
+mechanism (structural, text-similarity, or SUPERSEDE) can recover
+what's not in the input. Tracked by [issue #171](https://github.com/artem-from-ua/voice-transcriber/issues/171).
 
 ### Decision
 

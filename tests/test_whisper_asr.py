@@ -263,31 +263,33 @@ def _seg(start: float, end: float, content: str) -> AsrSegment:
 
 
 def test_dedup_drops_clear_duplicate():
+    """Case 1: pairwise max >= threshold -> drop incoming, keep tail intact."""
     accumulated = [_seg(0.0, 5.0, "the forecast product helps with scheduling")]
     incoming = [_seg(5.0, 10.0, "the forecast product helps with scheduling")]
     out = whisper_asr._dedup_overlap(accumulated, incoming)
-    assert out == []
+    assert out == accumulated  # tail kept, incoming dropped
 
 
 def test_dedup_keeps_continuation():
+    """Case 3: low pairwise + no audio overlap -> tail kept, incoming kept."""
     accumulated = [_seg(0.0, 5.0, "the forecast product helps with scheduling")]
     incoming = [_seg(5.0, 10.0, "completely unrelated topic about birds")]
     out = whisper_asr._dedup_overlap(accumulated, incoming)
-    assert out == incoming
+    assert out == accumulated + incoming
 
 
 def test_dedup_keeps_short_segment_regardless():
-    """Short segments (below min_token_count) never get Jaccard-checked.
-    A two-token backchannel like 'yeah okay' must survive even when the
-    same two tokens appear in the trailing accumulated context."""
+    """Short segments (below min_token_count) bypass the Jaccard checks
+    and are kept; tail is also kept."""
     accumulated = [_seg(0.0, 5.0, "yeah okay so I guess we should move on")]
     incoming = [_seg(5.0, 6.0, "yeah okay")]
     out = whisper_asr._dedup_overlap(accumulated, incoming)
-    assert out == incoming
+    assert out == accumulated + incoming
 
 
 def test_dedup_threshold_exact_drops():
-    """Jaccard exactly at the threshold drops (>= comparison)."""
+    """Jaccard exactly at the threshold drops the incoming (`>=` semantics);
+    tail is kept intact."""
     # 6-token bag in tail; 4 of those + 2 new in incoming.
     # Intersection = 4, union = 8 → Jaccard = 0.5.
     accumulated = [_seg(0.0, 5.0, "alpha beta gamma delta epsilon zeta")]
@@ -295,13 +297,14 @@ def test_dedup_threshold_exact_drops():
     out = whisper_asr._dedup_overlap(
         accumulated, incoming, jaccard_threshold=0.5
     )
-    assert out == []
+    assert out == accumulated  # incoming dropped
 
 
 def test_dedup_pairwise_not_aggregated():
-    """One tail segment matches strongly; the others dilute the bag.
-    Aggregating tail tokens into one bag would lower the Jaccard against
-    the diluting union; the pairwise max-Jaccard rule still drops."""
+    """One tail segment matches strongly; aggregating tail tokens into one
+    bag would lower the Jaccard against the diluting union, but the
+    pairwise max-Jaccard rule against the strong-match seg still drops
+    the incoming."""
     accumulated = [
         _seg(0.0, 5.0, "the forecast product helps with scheduling"),  # strong match target
         _seg(5.0, 10.0, "completely unrelated topic about ships"),
@@ -310,7 +313,7 @@ def test_dedup_pairwise_not_aggregated():
     ]
     incoming = [_seg(20.0, 25.0, "the forecast product helps with scheduling")]
     out = whisper_asr._dedup_overlap(accumulated, incoming)
-    assert out == []
+    assert out == accumulated  # incoming dropped
 
 
 def test_dedup_stops_scanning_after_first_keep():
@@ -323,9 +326,8 @@ def test_dedup_stops_scanning_after_first_keep():
         _seg(10.0, 15.0, "alpha beta gamma delta epsilon"),  # would be dropped if scanned
     ]
     out = whisper_asr._dedup_overlap(accumulated, incoming)
-    # Both kept — second one survives despite being a duplicate of tail,
-    # because dedup stopped scanning after the first keep.
-    assert out == incoming
+    # Tail kept; both incoming kept (second survives because scan stopped).
+    assert out == accumulated + incoming
 
 
 def test_dedup_empty_accumulated_passes_through():
@@ -347,5 +349,98 @@ def test_dedup_overlap_window_excludes_old_tail():
     )
     # The old "forecast product" tail seg is outside the 30 s window
     # (last_end=105, cutoff=75); the in-window "orthogonal" seg has low
-    # Jaccard → incoming kept.
+    # Jaccard AND no audio span overlap with incoming (its end=105 <=
+    # incoming.start=105 strictly) -> kept. Result: both tail kept,
+    # incoming kept too.
+    assert out == accumulated + incoming
+
+
+# ---------------------------------------------------------------------------
+# SUPERSEDE branch (Case 2) — issue #172 post-PR review (option Д)
+# ---------------------------------------------------------------------------
+
+
+def test_dedup_supersedes_short_tail_with_longer_richer_incoming():
+    """Whisper sometimes re-emits a longer, context-richer version of
+    several short tail fragments — pairwise Jaccard against each fragment
+    stays low (each fragment is too short to match), but the aggregate
+    Jaccard against the union of overlapping tail tokens passes. SUPERSEDE
+    drops the short tail fragments and keeps the longer incoming.
+
+    Concrete example mirroring B3 from the 48-min reference (#172):
+    tail has two short fragments 'and asking questions.' (3 tokens) +
+    'And I need to catch myself.' (6 tokens); incoming is the long
+    re-transcription 'people and asking questions and i need to catch
+    myself on this sometimes...' (~16 tokens) whose audio span covers
+    both tail fragments. Pairwise max ≈ 0.35 (below 0.5 threshold) but
+    aggregate ≈ 0.55 (above 0.3 supersede threshold) AND audio spans
+    overlap -> drop both tail fragments, keep the incoming."""
+    accumulated = [
+        _seg(1900.40, 1903.34, "and asking questions."),
+        _seg(1903.34, 1905.00, "And I need to catch myself."),
+    ]
+    incoming = [
+        _seg(
+            1900.00, 1908.40,
+            "people and asking questions and i need to catch myself on "
+            "this sometimes um and i think like",
+        ),
+    ]
+    out = whisper_asr._dedup_overlap(accumulated, incoming)
+    # Both tail fragments superseded; only the long incoming survives.
     assert out == incoming
+
+
+def test_dedup_does_not_supersede_when_no_audio_overlap():
+    """A long incoming segment with moderate-but-not-pairwise-dup Jaccard
+    and NO audio overlap with the tail is NOT a Whisper rewind — it's a
+    coincidental partial repetition later in the recording. Even though
+    the aggregate Jaccard might be above the supersede threshold, the
+    SUPERSEDE branch requires audio span overlap (`seg.start < t.end` and
+    `seg.end > t.start`); without it, we keep both."""
+    # Use vocabulary where pairwise max stays below 0.5 against either
+    # tail seg, but aggregate against the union is above 0.3.
+    accumulated = [
+        _seg(0.0, 3.0, "alpha beta gamma"),
+        _seg(3.0, 5.0, "delta epsilon zeta eta"),
+    ]
+    incoming = [
+        # Starts well after the tail ends — no audio overlap.
+        _seg(
+            10.0, 18.0,
+            "alpha beta delta epsilon brand new fresh extra content here",
+        ),
+    ]
+    out = whisper_asr._dedup_overlap(accumulated, incoming)
+    # No supersede; tail and incoming both kept.
+    assert len(out) == 3
+    assert out[:2] == accumulated
+    assert out[2:] == incoming
+
+
+def test_dedup_supersede_only_drops_overlapping_tail_not_unrelated_tail():
+    """Tail has one unrelated short fragment plus two short fragments the
+    incoming supersedes. Only the overlapping ones are dropped; the
+    unrelated tail seg survives."""
+    accumulated = [
+        _seg(100.0, 102.0, "completely unrelated chitchat about weather"),
+        _seg(1900.40, 1903.34, "and asking questions."),
+        _seg(1903.34, 1905.00, "And I need to catch myself."),
+    ]
+    incoming = [
+        _seg(
+            1900.00, 1908.40,
+            "people and asking questions and i need to catch myself on "
+            "this sometimes um and i think like",
+        ),
+    ]
+    # Widen the overlap window so the older 'weather' seg is considered
+    # tail too (it sits ~1800 s before the boundary).
+    out = whisper_asr._dedup_overlap(
+        accumulated, incoming, overlap_window_s=2000.0,
+    )
+    # The unrelated seg is in the tail window but has no audio overlap
+    # with incoming -> kept. The two overlapping fragments are dropped.
+    assert len(out) == 2
+    assert out[0] == accumulated[0]
+    assert out[1] == incoming[0]

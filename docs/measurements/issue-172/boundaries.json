@@ -4,6 +4,16 @@
     "cutoff_s": 480.0,
     "tail_segments": [
       {
+        "start": 445.59999999999997,
+        "end": 451.76,
+        "content": "Okay. That's interesting. You know, the, the, so we're looking for a PM, right? For,"
+      },
+      {
+        "start": 453.03999999999996,
+        "end": 456.79999999999995,
+        "content": "for workforce management, but specifically for our forecasting product."
+      },
+      {
         "start": 457.52,
         "end": 466.91999999999996,
         "content": "So, it's interesting. And the fact that you work closely with data teams, it's actually a good thing for us, right? Because, again, forecast is all about data anyways, right?"
@@ -14,19 +24,9 @@
         "content": "And algorithms and all of that. So, yeah. Thank you for that."
       },
       {
-        "start": 471.52,
-        "end": 477.91999999999996,
-        "content": "Cool. It looks like you have, like, a very interesting background. You did a lot of things."
-      },
-      {
         "start": 475.0,
         "end": 483.96,
         "content": "interesting background. You did a lot of things. So you mentioned you co-founded a company. Is"
-      },
-      {
-        "start": 477.92,
-        "end": 480.0,
-        "content": "So, um..."
       }
     ],
     "head_segments": [
@@ -56,14 +56,14 @@
         "content": "and the places that you've worked with, how do you usually go from a problem or from a product?"
       }
     ],
-    "tail_text": "So, it's interesting. And the fact that you work closely with data teams, it's actually a good thing for us, right? Because, again, forecast is all about data anyways, right? And algorithms and all of that. So, yeah. Thank you for that. Cool. It looks like you have, like, a very interesting background. You did a lot of things. interesting background. You did a lot of things. So you mentioned you co-founded a company. Is So, um...",
+    "tail_text": "Okay. That's interesting. You know, the, the, so we're looking for a PM, right? For, for workforce management, but specifically for our forecasting product. So, it's interesting. And the fact that you work closely with data teams, it's actually a good thing for us, right? Because, again, forecast is all about data anyways, right? And algorithms and all of that. So, yeah. Thank you for that. interesting background. You did a lot of things. So you mentioned you co-founded a company. Is",
     "head_text": "that still going? Yeah, this is still going, but this is something which we do on the side. So it's not something that will consume my energy and time. Got it, got it. Okay. And so now I'm just going to go a little bit into product management, how you normally work, right? Just to get a sense of what your process is. So, given your experience and the places that you've worked with, how do you usually go from a problem or from a product?",
-    "last_token": "um",
+    "last_token": "is",
     "first_token": "that",
     "last_token_truncated_heuristic": false,
     "first_token_truncated_heuristic": false,
-    "gap_s": 3.9599999999999795,
-    "word_overlap_jaccard": 0.15555555555555556,
+    "gap_s": 0.0,
+    "word_overlap_jaccard": 0.1827956989247312,
     "rms_before": 0.0004109967561221541,
     "rms_after": 0.00034330621735828505
   },
@@ -208,29 +208,29 @@
     "cutoff_s": 1905.0,
     "tail_segments": [
       {
+        "start": 1868.68,
+        "end": 1873.44,
+        "content": "And what are your weaknesses?"
+      },
+      {
+        "start": 1873.44,
+        "end": 1881.92,
+        "content": "Well, I mentioned one that like, sometimes, especially early when I join a project or"
+      },
+      {
+        "start": 1881.92,
+        "end": 1887.74,
+        "content": "a company, I might feel a little bit insecure, more insecure."
+      },
+      {
         "start": 1887.74,
         "end": 1894.22,
         "content": "So I might overspend on, you know, like, just closing in myself into like, trying to learn"
       },
       {
-        "start": 1894.22,
-        "end": 1900.4,
-        "content": "trying to be like, like have enough knowledge to be comfortable on like talking to people"
-      },
-      {
         "start": 1900.0,
         "end": 1908.4,
         "content": "people and asking questions and i need to catch myself on this sometimes um and and i think like"
-      },
-      {
-        "start": 1900.4,
-        "end": 1903.3400000000001,
-        "content": "and asking questions."
-      },
-      {
-        "start": 1903.3400000000001,
-        "end": 1905.0,
-        "content": "And I need to catch myself."
       }
     ],
     "head_segments": [
@@ -260,14 +260,14 @@
         "content": "properly discussed this and maybe asked for help. Things could be different."
       }
     ],
-    "tail_text": "So I might overspend on, you know, like, just closing in myself into like, trying to learn trying to be like, like have enough knowledge to be comfortable on like talking to people people and asking questions and i need to catch myself on this sometimes um and and i think like and asking questions. And I need to catch myself.",
+    "tail_text": "And what are your weaknesses? Well, I mentioned one that like, sometimes, especially early when I join a project or a company, I might feel a little bit insecure, more insecure. So I might overspend on, you know, like, just closing in myself into like, trying to learn people and asking questions and i need to catch myself on this sometimes um and and i think like",
     "head_text": "to somehow like partially related to this uh is when i'm not at my best like maybe mental state or i might um not ask for help in time so i had this actually this this is one of the learnings from my voice mode experience, my burnout year. So instead of actually being open with my manager and flagging directly, I tried to flag that I'm having some issues, but maybe I should have properly discussed this and maybe asked for help. Things could be different.",
-    "last_token": "myself",
+    "last_token": "like",
     "first_token": "to",
     "last_token_truncated_heuristic": false,
     "first_token_truncated_heuristic": false,
-    "gap_s": 3.400000000000091,
-    "word_overlap_jaccard": 0.13095238095238096,
+    "gap_s": 0.0,
+    "word_overlap_jaccard": 0.13402061855670103,
     "rms_before": 0.09209518963213117,
     "rms_after": 0.08865851751203745
   },
@@ -275,6 +275,16 @@
     "boundary_idx": 4,
     "cutoff_s": 2380.0,
     "tail_segments": [
+      {
+        "start": 2364.66,
+        "end": 2366.66,
+        "content": "Are we paying less?"
+      },
+      {
+        "start": 2366.66,
+        "end": 2368.16,
+        "content": "Are we paying more, right?"
+      },
       {
         "start": 2368.16,
         "end": 2370.18,
@@ -286,19 +296,9 @@
         "content": "So again, there's a lot of opportunity in Forecast"
       },
       {
-        "start": 2373.58,
-        "end": 2377.98,
-        "content": "to do those integrations, especially with our AI products."
-      },
-      {
         "start": 2375.0,
         "end": 2381.5,
         "content": "especially with our ai products and against our forecast product does not survive without our"
-      },
-      {
-        "start": 2377.98,
-        "end": 2380.0,
-        "content": "And again, our Forecast product"
       }
     ],
     "head_segments": [
@@ -328,14 +328,14 @@
         "content": "So we do one year."
       }
     ],
-    "tail_text": "Doing all of those analyses. So again, there's a lot of opportunity in Forecast to do those integrations, especially with our AI products. especially with our ai products and against our forecast product does not survive without our And again, our Forecast product",
+    "tail_text": "Are we paying less? Are we paying more, right? Doing all of those analyses. So again, there's a lot of opportunity in Forecast especially with our ai products and against our forecast product does not survive without our",
     "head_text": "scheduling product so it's they go in hand so there's also like opportunities there as well and also for our reporting solutions so yeah okay and these forecasts usually like how far into the future are like are we forecasting uh so right now we are only doing one year because we have two years worth of data. So we do one year.",
-    "last_token": "product",
+    "last_token": "our",
     "first_token": "scheduling",
     "last_token_truncated_heuristic": false,
     "first_token_truncated_heuristic": false,
-    "gap_s": 1.5,
-    "word_overlap_jaccard": 0.13432835820895522,
+    "gap_s": 0.0,
+    "word_overlap_jaccard": 0.16176470588235295,
     "rms_before": 0.11699775593390647,
     "rms_after": 0.1312856492379439
   },
