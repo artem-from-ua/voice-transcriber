@@ -172,6 +172,12 @@ see iteration 2 in [`proofread-hit-rate.md`](proofread-hit-rate.md).
   Result: yes, with the right strategy (delta-tokens + trim-back) —
   proofread dropped 35 %, safe_speech 42 %; output byte-identical
   ([ADR 0027](../adr/0027-prompt-cache-llm-stages.md)).
+- [`asr-chunk-boundary-quality.md`](asr-chunk-boundary-quality.md) — is
+  the 5 s overlap in the chunked ASR path enough to avoid losing words
+  at chunk joints? Result on the 48-min reference: no — 50 % of
+  boundaries lose words when the cut lands in active speech. Fix is
+  delegated to issue #159 (snap-to-silence); this benchmark is the
+  reusable A/B yardstick #159 / #168 compare against.
 
 ## Storage of artefacts
 
