@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.38.0] — 2026-05-18
+
+### Changed
+
+- **Chunked-ASR dedup is now text-similarity, not structural.** Closes [#172](https://github.com/artem-from-ua/voice-transcriber/issues/172). `whisper_asr._dedup_overlap` no longer drops chunk N+1 segments by timestamp (`start < chunk_start + overlap_s`) — it computes per-segment max-Jaccard against the trailing 30 s of `accumulated` tail and drops only when similarity ≥ 0.5. Boundary repeats Whisper emits from its 30 s decode-window rewind are caught regardless of the assigned timestamp; legitimate continuation that happens to land inside the audio overlap window survives. On the 48-min reference recording this drops `material_rate` from 0.50 (#156 baseline) to **0.167** — 2 of the 3 strict-baseline `missing` boundaries (B3 "catch myself on this sometimes" and B4 "does not survive without our scheduling") flip to `clean`. ASR wall-clock unchanged (~247 s). New tunables `ASR_DEDUP_OVERLAP_WINDOW_S = 30.0`, `ASR_DEDUP_JACCARD_THRESHOLD = 0.5`, `ASR_DEDUP_MIN_TOKEN_COUNT = 3`. `ASR_CHUNK_OVERLAP_S = 5.0` is unchanged — it still drives the audio slice geometry. See [ADR 0036](docs/adr/0036-text-similarity-asr-dedup.md) and [`docs/benchmarks/asr-text-dedup.md`](docs/benchmarks/asr-text-dedup.md). Remaining `material_rate = 0.167` is the B2-class boundary (no usable silence in window, Whisper-segmentation drop) tracked by [#171](https://github.com/artem-from-ua/voice-transcriber/issues/171).
+- **`_dedup_overlap` public signature changed.** No external callers (`grep` confirms); the call-site in `transcribe()` is the only consumer and was updated in the same commit.
+
+### Added
+
+- **`scripts/asr-only-bench.py`** — reusable companion to `scripts/asr-chunk-boundary-quality.py`. Takes a `--dump-dir` containing `02b-clear_speech-*-autogain.wav` from a prior `voice transcribe` run, loads Whisper-large-v3-MLX once, runs only the ASR stage, and writes a fresh `03-asr.json`. Avoids the ~5 min upstream (diarize + lang_detect + clear_speech) + 4 LLM stages when iterating on `whisper_asr` itself. ~4 min wall-clock on the 48-min reference.
+
 ## [0.37.1] — 2026-05-18
 
 ### Added

@@ -213,20 +213,30 @@ def test_short_audio_skips_chunking(monkeypatch):
 
 
 def test_overlap_dedup_drops_repeated_segments_at_boundary(monkeypatch):
-    """When two consecutive chunks both emit segments inside the overlap
-    window, the second chunk's overlapping segments are dropped — only
-    segments past `chunk_start + overlap_s` are kept from chunk N+1."""
+    """Boundary repeats are detected by text similarity (ADR 0036).
+
+    Chunk N's tail emits the phrase 'the forecast product helps with
+    scheduling'. Chunk N+1's first segment repeats the same phrase (a
+    boundary duplicate Whisper emits from its own 30 s decode window
+    rewind) — Jaccard 1.0 → dropped. The next chunk N+1 segment is a
+    fresh sentence with disjoint vocabulary — kept."""
     capture: dict[str, Any] = {}
-    # Chunk 0 (start 0) returns seg @t=400; chunk 1 (start 475) returns
-    # one seg @local t=2 (= global 477, inside the 5 s overlap window —
-    # should be dropped) and one @local t=10 (= global 485 — kept).
     _install_fake_mlx_whisper(
         monkeypatch,
         payloads=[
-            {"segments": [{"start": 400.0, "end": 402.0, "text": "a"}]},
+            {"segments": [{
+                "start": 400.0, "end": 405.0,
+                "text": "the forecast product helps with scheduling",
+            }]},
             {"segments": [
-                {"start": 2.0, "end": 3.0, "text": "dup"},
-                {"start": 10.0, "end": 11.0, "text": "fresh"},
+                {
+                    "start": 2.0, "end": 7.0,
+                    "text": "the forecast product helps with scheduling",
+                },
+                {
+                    "start": 10.0, "end": 12.0,
+                    "text": "completely fresh sentence here now",
+                },
             ]},
         ],
         capture=capture,
@@ -237,6 +247,105 @@ def test_overlap_dedup_drops_repeated_segments_at_boundary(monkeypatch):
     out = whisper_asr.transcribe("/tmp/long.wav")
 
     contents = [s.content for s in out]
-    assert "a" in contents
-    assert "fresh" in contents
-    assert "dup" not in contents  # dropped by overlap dedup
+    assert "the forecast product helps with scheduling" in contents
+    assert "completely fresh sentence here now" in contents
+    # The repeated phrase appears exactly once (from chunk N), not twice.
+    assert contents.count("the forecast product helps with scheduling") == 1
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for the text-similarity _dedup_overlap (ADR 0036 / issue #172)
+# ---------------------------------------------------------------------------
+
+
+def _seg(start: float, end: float, content: str) -> AsrSegment:
+    return AsrSegment(start=start, end=end, content=content)
+
+
+def test_dedup_drops_clear_duplicate():
+    accumulated = [_seg(0.0, 5.0, "the forecast product helps with scheduling")]
+    incoming = [_seg(5.0, 10.0, "the forecast product helps with scheduling")]
+    out = whisper_asr._dedup_overlap(accumulated, incoming)
+    assert out == []
+
+
+def test_dedup_keeps_continuation():
+    accumulated = [_seg(0.0, 5.0, "the forecast product helps with scheduling")]
+    incoming = [_seg(5.0, 10.0, "completely unrelated topic about birds")]
+    out = whisper_asr._dedup_overlap(accumulated, incoming)
+    assert out == incoming
+
+
+def test_dedup_keeps_short_segment_regardless():
+    """Short segments (below min_token_count) never get Jaccard-checked.
+    A two-token backchannel like 'yeah okay' must survive even when the
+    same two tokens appear in the trailing accumulated context."""
+    accumulated = [_seg(0.0, 5.0, "yeah okay so I guess we should move on")]
+    incoming = [_seg(5.0, 6.0, "yeah okay")]
+    out = whisper_asr._dedup_overlap(accumulated, incoming)
+    assert out == incoming
+
+
+def test_dedup_threshold_exact_drops():
+    """Jaccard exactly at the threshold drops (>= comparison)."""
+    # 6-token bag in tail; 4 of those + 2 new in incoming.
+    # Intersection = 4, union = 8 → Jaccard = 0.5.
+    accumulated = [_seg(0.0, 5.0, "alpha beta gamma delta epsilon zeta")]
+    incoming = [_seg(5.0, 10.0, "alpha beta gamma delta omega lambda")]
+    out = whisper_asr._dedup_overlap(
+        accumulated, incoming, jaccard_threshold=0.5
+    )
+    assert out == []
+
+
+def test_dedup_pairwise_not_aggregated():
+    """One tail segment matches strongly; the others dilute the bag.
+    Aggregating tail tokens into one bag would lower the Jaccard against
+    the diluting union; the pairwise max-Jaccard rule still drops."""
+    accumulated = [
+        _seg(0.0, 5.0, "the forecast product helps with scheduling"),  # strong match target
+        _seg(5.0, 10.0, "completely unrelated topic about ships"),
+        _seg(10.0, 15.0, "another orthogonal sentence about clouds"),
+        _seg(15.0, 20.0, "yet another disjoint phrase about rivers"),
+    ]
+    incoming = [_seg(20.0, 25.0, "the forecast product helps with scheduling")]
+    out = whisper_asr._dedup_overlap(accumulated, incoming)
+    assert out == []
+
+
+def test_dedup_stops_scanning_after_first_keep():
+    """Once a non-duplicate is kept, all following incoming segments are
+    kept without further Jaccard checks — boundary repeats are at the
+    head of chunk N+1, not in its middle."""
+    accumulated = [_seg(0.0, 5.0, "alpha beta gamma delta epsilon")]
+    incoming = [
+        _seg(5.0, 10.0, "fresh continuation with new vocabulary"),  # keep
+        _seg(10.0, 15.0, "alpha beta gamma delta epsilon"),  # would be dropped if scanned
+    ]
+    out = whisper_asr._dedup_overlap(accumulated, incoming)
+    # Both kept — second one survives despite being a duplicate of tail,
+    # because dedup stopped scanning after the first keep.
+    assert out == incoming
+
+
+def test_dedup_empty_accumulated_passes_through():
+    incoming = [_seg(0.0, 5.0, "the forecast product helps with scheduling")]
+    assert whisper_asr._dedup_overlap([], incoming) == incoming
+
+
+def test_dedup_overlap_window_excludes_old_tail():
+    """Accumulated segments older than overlap_window_s before the last
+    accumulated end are not considered for matching — they were never
+    near the chunk boundary."""
+    accumulated = [
+        _seg(0.0, 5.0, "the forecast product helps with scheduling"),  # too old
+        _seg(100.0, 105.0, "completely orthogonal sentence about birds"),  # in window
+    ]
+    incoming = [_seg(105.0, 110.0, "the forecast product helps with scheduling")]
+    out = whisper_asr._dedup_overlap(
+        accumulated, incoming, overlap_window_s=30.0
+    )
+    # The old "forecast product" tail seg is outside the 30 s window
+    # (last_end=105, cutoff=75); the in-window "orthogonal" seg has low
+    # Jaccard → incoming kept.
+    assert out == incoming

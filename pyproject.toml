@@ -1,6 +1,6 @@
 [project]
 name = "voice"
-version = "0.37.1"
+version = "0.38.0"
 description = "End-to-end local pipeline: audio → diarized transcript + TLDR (Whisper + pyannote + in-process MLX LLM)"
 readme = "README.md"
 authors = [

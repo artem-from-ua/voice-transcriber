@@ -22,6 +22,7 @@ wired-memory ceiling on a 16 GB Mac.
 
 from __future__ import annotations
 
+import re
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -32,7 +33,7 @@ from .types import AsrSegment
 
 WHISPER_REPO_ID = "mlx-community/whisper-large-v3-mlx"
 
-# ASR chunking knobs — see ADR 0031.
+# ASR chunking knobs — see ADR 0031 (geometry) and ADR 0036 (dedup).
 #
 # On the M1/16 GB reference machine a 6-min input produces a 7.17 GB MLX
 # peak with the model resident (~3 GB) + per-call working set scaling with
@@ -43,12 +44,22 @@ WHISPER_REPO_ID = "mlx-community/whisper-large-v3-mlx"
 #
 # 10 min chosen as a conservative single-pass ceiling. 8 min per chunk
 # keeps each call comfortably inside the working envelope; 5 s overlap
-# prevents word-level truncation across chunk boundaries (Whisper's own
-# 30 s windows live *inside* one transcribe() call, so chunks are not
-# aligned to them — we rely on overlap-then-dedup to absorb any drift).
+# gives Whisper enough audio context on both sides of every cut for
+# `_dedup_overlap` to recognise repeated phrases and remove them.
 ASR_CHUNK_THRESHOLD_S = 600.0
 ASR_CHUNK_SIZE_S = 480.0
 ASR_CHUNK_OVERLAP_S = 5.0
+
+# Text-similarity dedup knobs — see ADR 0036 / issue #172.
+#
+# How far back into `accumulated` to look for matches. 30 s is wider than
+# the chunk overlap (5 s) on purpose: Whisper assigns segment timestamps
+# inside its own 30-s decode windows, and the duplicate emitted in
+# chunk N+1's head can land several seconds past the strict overlap
+# cutoff with a long enough trailing context in chunk N's tail.
+ASR_DEDUP_OVERLAP_WINDOW_S = 30.0
+ASR_DEDUP_JACCARD_THRESHOLD = 0.5
+ASR_DEDUP_MIN_TOKEN_COUNT = 3
 
 
 class AsrError(RuntimeError):
@@ -160,22 +171,83 @@ def _shift_segments(segments: list[AsrSegment], offset_s: float) -> list[AsrSegm
     ]
 
 
+# Lowercase alphanumerics, Cyrillic + Latin + digits. Mirrors the regex
+# in scripts/asr-chunk-boundary-quality.py (lines 101-113). If you change
+# one, change the other so the benchmark and production agree on what
+# counts as a token.
+_TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яҐґЄєІіЇї0-9']+")
+
+
+def _tokenize(text: str) -> list[str]:
+    return [t.lower() for t in _TOKEN_RE.findall(text)]
+
+
+def _jaccard(a: list[str], b: list[str]) -> float:
+    """Set-Jaccard on token bags. 0.0 on empty input."""
+    sa, sb = set(a), set(b)
+    if not sa and not sb:
+        return 0.0
+    inter = len(sa & sb)
+    union = len(sa | sb)
+    return inter / union if union else 0.0
+
+
 def _dedup_overlap(
     accumulated: list[AsrSegment],
     incoming: list[AsrSegment],
     *,
-    chunk_start_s: float,
-    overlap_s: float,
+    overlap_window_s: float = ASR_DEDUP_OVERLAP_WINDOW_S,
+    jaccard_threshold: float = ASR_DEDUP_JACCARD_THRESHOLD,
+    min_token_count: int = ASR_DEDUP_MIN_TOKEN_COUNT,
 ) -> list[AsrSegment]:
-    """Drop segments from `incoming` whose start lies inside the overlap
-    window with the previous chunk. Whisper's per-window output can repeat
-    a phrase across the boundary; trimming the leading slice of the second
-    chunk by `overlap_s` removes those duplicates cleanly without trying
-    to match text — segments earlier than the overlap zone are kept as-is."""
-    if not accumulated or overlap_s <= 0.0:
+    """Drop boundary-repeat segments from `incoming` by text similarity.
+
+    Whisper's per-chunk 30 s decode windows can re-emit a phrase from the
+    end of chunk N at the start of chunk N+1. The previous (structural)
+    dedup compared timestamps against a fixed overlap cutoff, which both
+    over-trimmed legitimate continuation that happened to land inside
+    the cutoff and under-trimmed Whisper-rewound duplicates whose
+    timestamp drifted past it (see ADR 0036 / issue #172, post-mortem of
+    #159 V4b/V5).
+
+    For each `incoming` segment with at least `min_token_count` tokens,
+    take the max Jaccard against each segment in `accumulated`'s trailing
+    `overlap_window_s` (slicing by `s.end >= last_end - overlap_window_s`
+    so a long segment crossing the boundary still participates). Drop if
+    the max >= `jaccard_threshold`; otherwise keep, and stop scanning
+    further incoming segments — boundary repeats live in chunk N+1's
+    head, not its middle, so once we've found a non-duplicate the dedup
+    work is done.
+
+    Short segments (fewer than `min_token_count` tokens) bypass the
+    Jaccard check entirely — a backchannel like "yeah okay so" would
+    otherwise self-match nearby backchannels at the join."""
+    if not accumulated or not incoming:
         return incoming
-    cutoff = chunk_start_s + overlap_s
-    return [s for s in incoming if s.start >= cutoff]
+    last_end = accumulated[-1].end
+    tail = [s for s in accumulated if s.end >= last_end - overlap_window_s]
+    if not tail:
+        return incoming
+    tail_tokens = [_tokenize(s.content) for s in tail]
+
+    kept: list[AsrSegment] = []
+    dedup_done = False
+    for seg in incoming:
+        if dedup_done:
+            kept.append(seg)
+            continue
+        seg_tokens = _tokenize(seg.content)
+        if len(seg_tokens) < min_token_count:
+            kept.append(seg)
+            continue
+        max_similarity = max(_jaccard(seg_tokens, t) for t in tail_tokens)
+        if max_similarity >= jaccard_threshold:
+            # Boundary duplicate; drop and keep scanning — the next head
+            # segment may also be a duplicate.
+            continue
+        kept.append(seg)
+        dedup_done = True
+    return kept
 
 
 def transcribe(
@@ -266,10 +338,7 @@ def transcribe(
             log=log,
         )
         chunk_segments = _shift_segments(_parse_segments(result), chunk_start_s)
-        chunk_segments = _dedup_overlap(
-            segments, chunk_segments,
-            chunk_start_s=chunk_start_s, overlap_s=ASR_CHUNK_OVERLAP_S,
-        )
+        chunk_segments = _dedup_overlap(segments, chunk_segments)
         segments.extend(chunk_segments)
         del result
 

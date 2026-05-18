@@ -48,6 +48,8 @@ Knob defaults are empirical against the 6-minute baseline above:
 
 Overlap deduplication is structural, not text-based: segments from chunk N+1 whose `start` lies before `chunk_start + overlap_s` are dropped wholesale. The previous chunk's tail already covers that range.
 
+> Dedup mechanism superseded by [ADR 0036](0036-text-similarity-asr-dedup.md) (text-similarity Jaccard, `material_rate` 0.50 → 0.167 on the 48-min reference). Chunk geometry, threshold and overlap from this ADR stay in force; only how `_dedup_overlap` decides what to drop changes.
+
 ## Consequences
 
 **Wins:**

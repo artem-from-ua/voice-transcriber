@@ -178,6 +178,12 @@ see iteration 2 in [`proofread-hit-rate.md`](proofread-hit-rate.md).
   boundaries lose words when the cut lands in active speech. Fix is
   delegated to issue #159 (snap-to-silence); this benchmark is the
   reusable A/B yardstick #159 / #168 compare against.
+- [`asr-text-dedup.md`](asr-text-dedup.md) — does replacing the
+  structural `_dedup_overlap` (drop by timestamp) with text-similarity
+  Jaccard reduce the boundary-word loss rate above? Result: yes —
+  `material_rate` 0.50 → 0.167 (3× reduction; 2 of 3 strict missing
+  verdicts fixed; zero wall-clock cost). Shipped in v0.38.0
+  ([ADR 0036](../adr/0036-text-similarity-asr-dedup.md)).
 
 ## Storage of artefacts
 
