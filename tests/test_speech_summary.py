@@ -136,15 +136,50 @@ def test_no_segments_returns_empty_without_llm():
     assert llm.calls == []
 
 
-def test_synthetic_fallback_section_is_skipped_with_warning(capsys):
-    """Single section spanning the full dialog with title 'Розмова' is the
-    synthetic fallback produced by --no-structure. The stage must skip it."""
+def test_short_synthetic_fallback_section_is_summarised():
+    """Single synthetic 'Розмова' section over a short dialog (≤
+    SYNTHETIC_FALLBACK_TLDR_MAX_SEGMENTS): the stage now runs TL;DR as
+    if the section were real. A single LLM call is safe at this size."""
     segs = [
         _seg(0.0, 1.0, "hi", name="Артем"),
         _seg(10.0, 11.0, "bye", name="Артем"),
     ]
-    # _fallback_section uses int(start*1000) and int(end*1000):
     synthetic = Section(title="Розмова", start_ms=0, end_ms=11000)
+    llm = StubLLM(replies=["sec body", "final body"])
+    msgs: list[str] = []
+    out = generate_tldr(
+        _dialog(segs, [synthetic]),
+        llm=llm, language="uk", log=msgs.append,
+    )
+    assert out == "final body"
+    assert len(llm.calls) == 2  # one per-section + one final
+    assert any("short enough to summarise" in m for m in msgs)
+
+
+def test_short_synthetic_fallback_english_title_is_summarised():
+    segs = [_seg(0.0, 1.0, "hi", name="Sam"), _seg(5.0, 6.0, "bye", name="Sam")]
+    synthetic = Section(title="Conversation", start_ms=0, end_ms=6000)
+    llm = StubLLM(replies=["sec body", "final body"])
+    out = generate_tldr(
+        _dialog(segs, [synthetic]),
+        llm=llm, language="en", log=lambda _s: None,
+    )
+    assert out == "final body"
+    assert len(llm.calls) == 2
+
+
+def test_long_synthetic_fallback_section_is_skipped_with_warning():
+    """Synthetic fallback over a long dialog (> threshold): single full-length
+    prompt would risk OOM on 16 GB Mac — keep ADR 0030 invariant, skip it."""
+    from voice.speech_summary import SYNTHETIC_FALLBACK_TLDR_MAX_SEGMENTS
+
+    n = SYNTHETIC_FALLBACK_TLDR_MAX_SEGMENTS + 1
+    segs = [_seg(float(i), float(i) + 0.5, f"line {i}", name="Артем") for i in range(n)]
+    synthetic = Section(
+        title="Розмова",
+        start_ms=int(segs[0].start * 1000),
+        end_ms=int(segs[-1].end * 1000),
+    )
     llm = StubLLM()
     msgs: list[str] = []
     out = generate_tldr(
@@ -154,20 +189,7 @@ def test_synthetic_fallback_section_is_skipped_with_warning(capsys):
     assert out == ""
     assert llm.calls == []
     assert any("skipping TL;DR" in m for m in msgs)
-
-
-def test_synthetic_fallback_english_title_also_skipped():
-    segs = [_seg(0.0, 1.0, "hi", name="Sam"), _seg(5.0, 6.0, "bye", name="Sam")]
-    synthetic = Section(title="Conversation", start_ms=0, end_ms=6000)
-    llm = StubLLM()
-    msgs: list[str] = []
-    out = generate_tldr(
-        _dialog(segs, [synthetic]),
-        llm=llm, language="en", log=msgs.append,
-    )
-    assert out == ""
-    assert llm.calls == []
-    assert any("skipping TL;DR" in m for m in msgs)
+    assert any("risk OOM" in m for m in msgs)
 
 
 def test_real_one_section_with_fallback_title_is_not_skipped():
