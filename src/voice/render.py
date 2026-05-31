@@ -22,6 +22,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .safe_speech import DEFAULT_TOPICS as _SAFE_SPEECH_DEFAULT_TOPICS, format_topics_for_display
 from .silence import SilenceEvent, extract_silence_events
 from .speaker_emojis import assign_emojis
 from .types import AudioMeta, Section, Segment, StructuredDialog
@@ -290,6 +291,64 @@ def _render_ai_models_table(
     return lines
 
 
+def _render_cli_params_table(
+    cli_invocation: dict | None,
+    language: str,
+) -> list[str]:
+    """Two-column table: invocation parameter | value.
+
+    Surfaces the `voice` version, `--user-context`, `--safe-speech-topics`,
+    and any other CLI flags the user explicitly overrode from
+    `PipelineOptions` defaults. Lets a reader reproduce the run from the
+    transcript header without digging through logs.
+
+    Returns `[]` when `cli_invocation` is None (pipeline driven from Python
+    API, not the CLI).
+    """
+    if cli_invocation is None:
+        return []
+
+    is_en = language.lower().startswith("en")
+    header = "🔧 **Run parameters:**" if is_en else "🔧 **Параметри запуску:**"
+    label_user_context = "*not specified*" if is_en else "*не вказано*"
+    label_default_suffix = " *(default)*"
+    label_disabled = "*disabled*"
+    empty_value_cell = "—"
+
+    rows = [
+        f"| {header} | |",
+        "| --- | --- |",
+        f"| app version | {cli_invocation.get('version', 'unknown')} |",
+    ]
+
+    user_context = cli_invocation.get("user_context")
+    rows.append(
+        f"| `--user-context` | {user_context or label_user_context} |"
+    )
+
+    topics = cli_invocation.get("safe_speech_topics")
+    if topics is None:
+        topics_cell = (
+            format_topics_for_display(_SAFE_SPEECH_DEFAULT_TOPICS, language)
+            + label_default_suffix
+        )
+    elif not topics:
+        topics_cell = label_disabled
+    else:
+        topics_cell = format_topics_for_display(topics, language)
+    # Topics in the uk locale are rendered as a multi-line bullet list by
+    # `format_topics_for_display`; collapse newlines into Markdown line
+    # breaks so they survive inside a table cell.
+    topics_cell = topics_cell.replace("\n", "<br>")
+    rows.append(f"| `--safe-speech-topics` | {topics_cell} |")
+
+    overrides = cli_invocation.get("overrides") or {}
+    for flag, value in overrides.items():
+        rows.append(f"| `{flag}` | {value or empty_value_cell} |")
+
+    return rows
+
+
 def render_markdown(
     *,
     audio_meta: AudioMeta,
@@ -302,6 +361,7 @@ def render_markdown(
     name_sources: dict[str, str] | None = None,
     lang_detect_info: dict | None = None,
     min_silence_s: float | None = None,
+    cli_invocation: dict | None = None,
 ) -> str:
     """Compose the full Markdown output.
 
@@ -339,6 +399,13 @@ def render_markdown(
             stage_models or {}, stage_timings, model_load_elapsed,
             total, audio_meta.duration_s,
         ):
+            lines.append(f"> {row}")
+
+    # Table 4: CLI invocation parameters (omitted when called from Python API)
+    cli_rows = _render_cli_params_table(cli_invocation, language)
+    if cli_rows:
+        lines.append("> ")
+        for row in cli_rows:
             lines.append(f"> {row}")
 
     lines.append("")

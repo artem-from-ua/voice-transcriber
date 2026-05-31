@@ -6,7 +6,13 @@ from datetime import datetime
 
 import pytest
 
-from voice.cli import _build_parser, _opts_from_args
+from voice.cli import (
+    _build_cli_invocation,
+    _build_parser,
+    _compute_cli_overrides,
+    _opts_from_args,
+)
+from voice.pipeline import PipelineOptions
 
 
 def _parse(argv: list[str]):
@@ -291,3 +297,64 @@ def test_persistent_stderr_log_replaces_previous_log(tmp_path: Path):
     fresh = log_path.read_text(encoding="utf-8")
     assert "stale content" not in fresh
     assert "fresh line" in fresh
+
+
+# ---------------------------------------------------------------------------
+# CLI invocation snapshot (overrides + version) for the render-stage header
+# ---------------------------------------------------------------------------
+
+def test_compute_cli_overrides_empty_for_defaults():
+    opts = _opts_from_args(_parse(["transcribe", "/tmp/a.m4a"]))
+    assert _compute_cli_overrides(opts) == {}
+
+
+def test_compute_cli_overrides_detects_temperature():
+    opts = _opts_from_args(_parse([
+        "transcribe", "/tmp/a.m4a", "--llm-temperature", "0.3",
+    ]))
+    overrides = _compute_cli_overrides(opts)
+    assert overrides == {"--llm-temperature": "0.3"}
+
+
+def test_compute_cli_overrides_toggle_proofread():
+    opts = _opts_from_args(_parse([
+        "transcribe", "/tmp/a.m4a", "--no-proofread",
+    ]))
+    overrides = _compute_cli_overrides(opts)
+    assert overrides == {"--no-proofread": ""}
+
+
+def test_compute_cli_overrides_excludes_operational():
+    opts = _opts_from_args(_parse([
+        "transcribe", "/tmp/a.m4a", "--verbose", "--dump-stages", "/tmp/dump",
+    ]))
+    overrides = _compute_cli_overrides(opts)
+    assert "--verbose" not in overrides
+    assert "--dump-stages" not in overrides
+    assert overrides == {}
+
+
+def test_compute_cli_overrides_excludes_header_fields():
+    opts = _opts_from_args(_parse([
+        "transcribe", "/tmp/a.m4a",
+        "--language", "ru",
+        "--names", "A,B",
+        "--user-context", "context goes here",
+    ]))
+    overrides = _compute_cli_overrides(opts)
+    assert overrides == {}
+
+
+def test_build_cli_invocation_shape():
+    opts = _opts_from_args(_parse([
+        "transcribe", "/tmp/a.m4a",
+        "--user-context", "ctx",
+        "--safe-speech-topics", "legal,finance",
+        "--llm-temperature", "0.3",
+    ]))
+    inv = _build_cli_invocation(opts)
+    assert set(inv) == {"version", "user_context", "safe_speech_topics", "overrides"}
+    assert inv["user_context"] == "ctx"
+    assert inv["safe_speech_topics"] == ["legal", "finance"]
+    assert inv["overrides"] == {"--llm-temperature": "0.3"}
+    assert isinstance(inv["version"], str) and inv["version"]

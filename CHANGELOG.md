@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.41.0] — 2026-05-30
+
+### Added
+
+- **CLI invocation parameters surfaced in transcript header.** New table after the AI-models block lists `app version`, `--user-context` (or `*not specified*` / `*не вказано*`), `--safe-speech-topics` (built-in defaults shown with a `*(default)*` suffix), and any other CLI flags the user explicitly overrode from `PipelineOptions` defaults (e.g. `--llm-temperature 0.3`, `--no-proofread`). Localized (uk/en). The transcript is now self-describing — a reader can reproduce the run from the header alone, without consulting the run log.
+
+### Changed
+
+- `voice.__version__` now reads from installed package metadata via `importlib.metadata.version("voice")` instead of a hard-coded `"0.1.0"`. The constant stayed at `0.1.0` across every release since the project started; now it tracks `pyproject.toml` automatically.
+- `safe_speech._topics_text` is now public as `safe_speech.format_topics_for_display(topics, language)` so the render stage can reuse the same uk/en localization that the LLM prompt sees.
+
 ## [0.40.1] — 2026-05-29
 
 ### Fixed

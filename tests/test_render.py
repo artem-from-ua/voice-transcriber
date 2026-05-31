@@ -467,3 +467,126 @@ def test_render_explicit_override_suppresses_auto():
         min_silence_s=10.0,
     )
     assert "\n---\n" not in out
+
+
+# ---------------------------------------------------------------------------
+# CLI invocation parameters in the header (issue: surfaced run config)
+# ---------------------------------------------------------------------------
+
+def _minimal_dialog() -> StructuredDialog:
+    segs = [Segment(start=0.0, end=1.0, content="hi", speaker="A", name="Артем")]
+    sections = [Section(title="t", start_ms=0, end_ms=1000)]
+    return StructuredDialog(sections=sections, segments=segs)
+
+
+def test_render_cli_params_omitted_when_none():
+    out = render_markdown(
+        audio_meta=_meta(), dialog=_minimal_dialog(), tldr="", language="uk",
+        cli_invocation=None,
+    )
+    assert "Параметри запуску" not in out
+    assert "Run parameters" not in out
+    assert "app version" not in out
+
+
+def test_render_cli_params_only_defaults_uk():
+    invocation = {
+        "version": "0.41.0",
+        "user_context": None,
+        "safe_speech_topics": None,
+        "overrides": {},
+    }
+    out = render_markdown(
+        audio_meta=_meta(), dialog=_minimal_dialog(), tldr="", language="uk",
+        cli_invocation=invocation,
+    )
+    assert "🔧 **Параметри запуску:**" in out
+    assert "| app version | 0.41.0 |" in out
+    assert "*не вказано*" in out
+    # Built-in default topics with uk descriptions, suffixed (default)
+    assert "здоров'я" in out
+    assert "*(default)*" in out
+
+
+def test_render_cli_params_custom_user_context():
+    invocation = {
+        "version": "0.41.0",
+        "user_context": "Brainstorm про застосунок",
+        "safe_speech_topics": None,
+        "overrides": {},
+    }
+    out = render_markdown(
+        audio_meta=_meta(), dialog=_minimal_dialog(), tldr="", language="uk",
+        cli_invocation=invocation,
+    )
+    assert "Brainstorm про застосунок" in out
+    assert "*не вказано*" not in out
+
+
+def test_render_cli_params_custom_safe_speech():
+    invocation = {
+        "version": "0.41.0",
+        "user_context": None,
+        "safe_speech_topics": ["legal", "finance"],
+        "overrides": {},
+    }
+    out = render_markdown(
+        audio_meta=_meta(), dialog=_minimal_dialog(), tldr="", language="uk",
+        cli_invocation=invocation,
+    )
+    # Custom topics: no (default) suffix; uk descriptions used
+    assert "правові проблеми" in out
+    assert "фінансові деталі" in out
+    assert "*(default)*" not in out
+
+
+def test_render_cli_params_disabled_safe_speech():
+    invocation = {
+        "version": "0.41.0",
+        "user_context": None,
+        "safe_speech_topics": [],
+        "overrides": {},
+    }
+    out = render_markdown(
+        audio_meta=_meta(), dialog=_minimal_dialog(), tldr="", language="uk",
+        cli_invocation=invocation,
+    )
+    assert "*disabled*" in out
+    assert "*(default)*" not in out
+
+
+def test_render_cli_params_overrides_shown():
+    invocation = {
+        "version": "0.41.0",
+        "user_context": None,
+        "safe_speech_topics": None,
+        "overrides": {"--llm-temperature": "0.3", "--no-proofread": ""},
+    }
+    out = render_markdown(
+        audio_meta=_meta(), dialog=_minimal_dialog(), tldr="", language="uk",
+        cli_invocation=invocation,
+    )
+    assert "`--llm-temperature`" in out
+    assert "| 0.3 |" in out
+    assert "`--no-proofread`" in out
+    # Empty-value toggle flags render as em-dash in the value cell
+    assert "| — |" in out
+
+
+def test_render_cli_params_en_locale():
+    invocation = {
+        "version": "0.41.0",
+        "user_context": None,
+        "safe_speech_topics": None,
+        "overrides": {},
+    }
+    out = render_markdown(
+        audio_meta=_meta(), dialog=_minimal_dialog(), tldr="", language="en",
+        cli_invocation=invocation,
+    )
+    assert "🔧 **Run parameters:**" in out
+    assert "*not specified*" in out
+    assert "*(default)*" in out
+    # English locale uses bare topic names, not uk descriptions
+    assert "health, drugs, alcohol" in out
+    assert "здоров'я" not in out

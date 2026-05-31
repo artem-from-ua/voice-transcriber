@@ -114,6 +114,15 @@ class PipelineOptions:
     merge_split_filler_bias_tie_ms: int = 0
     merge_split_filler_lang: str = "none"   # "none" | "en"
     merge_split_deadband_ms: int = 0
+    # Populated by `cli.py` when the pipeline is driven from the command line
+    # so the render stage can surface invocation parameters in the transcript
+    # header. Shape:
+    #   {"version": str,
+    #    "user_context": str | None,
+    #    "safe_speech_topics": list[str] | None,
+    #    "overrides": dict[str, str]}
+    # None for Python-API callers — the header section is then omitted.
+    cli_invocation: dict | None = None
 
 
 def _log(verbose: bool) -> Callable[[str], None]:
@@ -682,6 +691,7 @@ def run(options: PipelineOptions) -> str:
             name_sources=name_sources,
             lang_detect_info=lang_detect_info,
             min_silence_s=options.render_min_silence_s,
+            cli_invocation=options.cli_invocation,
         )
         out_path.write_text(markdown, encoding="utf-8")
         log(f"      → {out_path}")

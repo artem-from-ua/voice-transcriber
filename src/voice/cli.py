@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import os
 import sys
 from contextlib import contextmanager
@@ -10,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import IO, Iterator, TextIO
 
+from . import __version__
 from .pipeline import PipelineOptions, run
 
 
@@ -476,6 +478,133 @@ def _normalize_user_context(raw: str | None) -> str | None:
     return stripped if stripped else None
 
 
+# Map every overridable `PipelineOptions` field to the CLI flag a user would
+# pass to reproduce the override. Built statically so the order of fields in
+# the rendered transcript header matches the dataclass definition.
+_OPT_TO_CLI_FLAG: dict[str, str] = {
+    "unknown_speaker": "--unknown-speaker",
+    "datetime_override": "--datetime",
+    "llm_model": "--llm-model",
+    "llm_proofread_model": "--llm-proofread-model",
+    "llm_identify_model": "--llm-identify-model",
+    "llm_structure_model": "--llm-structure-model",
+    "llm_safe_speech_model": "--llm-safe-speech-model",
+    "llm_tldr_model": "--llm-tldr-model",
+    "llm_temperature": "--llm-temperature",
+    "llm_top_p": "--llm-top-p",
+    "llm_top_k": "--llm-top-k",
+    "llm_repetition_penalty": "--llm-repetition-penalty",
+    "proofread_n_context": "--proofread-context",
+    "safe_speech_policy": "--safe-speech-policy",
+    "clearspeech_chain": "--clearspeech-chain",
+    "clearspeech_autogain_target_dbfs": "--clearspeech-autogain-target-dbfs",
+    "clearspeech_autogain_max_gain_db": "--clearspeech-autogain-max-gain-db",
+    "clearspeech_bandpass_low_hz": "--clearspeech-bandpass-low-hz",
+    "clearspeech_bandpass_high_hz": "--clearspeech-bandpass-high-hz",
+    "clearspeech_presence_center_hz": "--clearspeech-presence-center-hz",
+    "clearspeech_presence_boost_db": "--clearspeech-presence-boost-db",
+    "clearspeech_presence_q": "--clearspeech-presence-q",
+    "clearspeech_denoise_noise_floor_db": "--clearspeech-denoise-noise-floor-db",
+    "clearspeech_denoise_reduction_db": "--clearspeech-denoise-reduction-db",
+    "clearspeech_dereverb_rt60_floor_ms": "--clearspeech-dereverb-rt60-floor-ms",
+    "clearspeech_dereverb_subtract_factor": "--clearspeech-dereverb-subtract-factor",
+    "clearspeech_dereverb_crossfade_ms": "--clearspeech-dereverb-crossfade-ms",
+    "render_min_silence_s": "--render-min-silence-s",
+    "tldr_include_silence": "--tldr-include-silence",
+    "merge_split_on_boundary": "--merge-split-on-boundary",
+    "merge_split_min_segment_ms": "--merge-split-min-segment-ms",
+    "merge_split_threshold_ms": "--merge-split-threshold-ms",
+    "merge_split_snap_window_ms": "--merge-split-snap-window-ms",
+    "merge_split_snap_prob_threshold": "--merge-split-snap-prob-threshold",
+    "merge_split_filler_bias_tie_ms": "--merge-split-filler-bias-tie-ms",
+    "merge_split_filler_lang": "--merge-split-filler-lang",
+    "merge_split_deadband_ms": "--merge-split-deadband-ms",
+}
+
+# Surfaced elsewhere in the header (meta / participants), driven by operational
+# I/O rather than transcript shape, or self-referential. Never appear in the
+# overrides table even when non-default.
+_EXCLUDE_FROM_OVERRIDES: frozenset[str] = frozenset({
+    "audio_path",          # already in the H1 heading
+    "output_path",          # operational
+    "language",             # already in the meta table
+    "names_override",       # already in the participants table
+    "user_context",         # rendered on its own row
+    "safe_speech_topics",   # rendered on its own row
+    "verbose",              # operational
+    "dump_stages_dir",      # operational
+    "cli_invocation",       # self-reference
+})
+
+# Toggle flags whose user-facing form is `--no-X` rather than `--run-X=false`.
+_TOGGLE_OFF_FLAGS: dict[str, str] = {
+    "run_proofread": "--no-proofread",
+    "run_safe_speech": "--no-safe-speech",
+    "run_tldr": "--no-tldr",
+    "run_structure": "--no-structure",
+}
+
+
+def _format_override_value(value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, list):
+        return ",".join(str(v) for v in value)
+    return str(value)
+
+
+def _compute_cli_overrides(opts: PipelineOptions) -> dict[str, str]:
+    """Return `{flag: value}` for every `PipelineOptions` field whose value
+    differs from the dataclass default. Used to surface non-default CLI flags
+    in the rendered transcript header so the run is reproducible from the
+    output file alone.
+    """
+    defaults = {
+        f.name: f.default
+        for f in dataclasses.fields(PipelineOptions)
+        if f.default is not dataclasses.MISSING
+    }
+    overrides: dict[str, str] = {}
+    for f in dataclasses.fields(PipelineOptions):
+        if f.name in _EXCLUDE_FROM_OVERRIDES:
+            continue
+        value = getattr(opts, f.name)
+        default = defaults.get(f.name, dataclasses.MISSING)
+        if value == default:
+            continue
+        # `_opts_from_args` forwards a few argparse-None values straight into
+        # `PipelineOptions` even though the dataclass default is a real number
+        # (e.g. `--llm-temperature`). In that case the runtime treats None as
+        # "use the model's own default", i.e. semantically *not* an override.
+        # Don't surface it as one in the transcript header either.
+        if value is None:
+            continue
+        if f.name in _TOGGLE_OFF_FLAGS:
+            # The toggle is OFF (run_* = False) — surface the `--no-*` flag
+            # with no value. The default for run_* is True, so getting here
+            # means value is False.
+            if value is False:
+                overrides[_TOGGLE_OFF_FLAGS[f.name]] = ""
+            continue
+        flag = _OPT_TO_CLI_FLAG.get(f.name)
+        if flag is None:
+            # Not a user-facing override (no CLI flag mapped). Skip silently;
+            # _OPT_TO_CLI_FLAG is the source of truth for surfaceable fields.
+            continue
+        overrides[flag] = _format_override_value(value)
+    return overrides
+
+
+def _build_cli_invocation(opts: PipelineOptions) -> dict:
+    """Snapshot of CLI-visible state for the render-stage header."""
+    return {
+        "version": __version__,
+        "user_context": opts.user_context,
+        "safe_speech_topics": opts.safe_speech_topics,
+        "overrides": _compute_cli_overrides(opts),
+    }
+
+
 def _opts_from_args(args: argparse.Namespace) -> PipelineOptions:
     return PipelineOptions(
         audio_path=args.audio,
@@ -579,17 +708,19 @@ def main(argv: list[str] | None = None) -> int:
 
     args = _build_parser().parse_args(argv)
     if args.cmd == "transcribe":
+        opts = _opts_from_args(args)
+        opts.cli_invocation = _build_cli_invocation(opts)
         if args.verbose:
             with _persistent_stderr_log(args.audio) as log_path:
                 print(f"voice: stderr mirrored to {log_path}", file=sys.stderr)
                 try:
-                    out = run(_opts_from_args(args))
+                    out = run(opts)
                 except Exception as exc:
                     print(f"error: {exc}", file=sys.stderr)
                     return 1
         else:
             try:
-                out = run(_opts_from_args(args))
+                out = run(opts)
             except Exception as exc:
                 print(f"error: {exc}", file=sys.stderr)
                 return 1
