@@ -53,6 +53,17 @@ We rejected the alternatives:
 - *Force-run `speech_structure` only for TL;DR*: silently doubles LLM stage cost; surprising for `--no-structure` users who chose the flag specifically to skip LLM work.
 - *Auto-fallback to the old single-prompt path*: not a fix; reintroduces the bug it was created to avoid.
 
+#### Update 2026-05-29 — short synthetic fallbacks are summarised, not skipped
+
+The original blanket-skip was too coarse: a synthetic single-section fallback is also produced for *legitimately* one-topic dialogs (LLM returns 1 section but `_validate` enforces `MIN_SECTIONS = 2`, so single-pass returns invalid → fallback) or whenever the structure LLM returns invalid JSON. Skipping TL;DR for a 3-minute one-topic recording was a regression of the user-facing product — the OOM concern only applies to long inputs.
+
+The guard is now segment-count-gated:
+
+- `len(dialog.segments) ≤ SYNTHETIC_FALLBACK_TLDR_MAX_SEGMENTS` → run TL;DR over the synthetic section as if it were a real one (single per-section call + final pass; same shape as `test_single_real_section_runs_section_then_final`).
+- `> SYNTHETIC_FALLBACK_TLDR_MAX_SEGMENTS` → original skip-with-warning behaviour; the hour-long-recording OOM invariant this ADR was created for still holds.
+
+The cutoff mirrors `speech_structure.STRUCTURE_CHUNK_THRESHOLD` (60 segments): above it, `speech_structure` itself stops trusting a single LLM call and switches to chunked, so we cannot trust a single TL;DR prompt either. Using the same constant means the two stages agree on what "short enough" means.
+
 ### MLX memory instrumentation
 
 Every TL;DR LLM call wraps `mx.clear_cache()` / `mx.get_active_memory()` / `mx.get_peak_memory()` / `mx.reset_peak_memory()` and logs a line like:

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.40.1] — 2026-05-29
+
+### Fixed
+
+- **TL;DR now generated for short single-topic dialogs.** Previously, when `speech_structure` returned its synthetic single-section fallback (`Розмова` / `Conversation` spanning the whole timeline) — emitted under `--no-structure`, on LLM error, or when a short dialog genuinely had one topic — `speech_summary` always skipped TL;DR with an OOM-safety warning. The OOM concern only applies to long dialogs; short ones fit a single LLM call comfortably on a 16 GB Mac. The guard now uses `SYNTHETIC_FALLBACK_TLDR_MAX_SEGMENTS` (mirrors `speech_structure.STRUCTURE_CHUNK_THRESHOLD = 60` — the same bound above which `speech_structure` itself stops trusting a single LLM call). At or below the cutoff, the synthetic fallback is summarised as one section. Above the cutoff, the original skip-with-warning behaviour stands (so ADR 0030's hour-long-dialog invariant is preserved). See [ADR 0030 § Update 2026-05-29](docs/adr/0030-section-based-tldr.md).
+
 ## [0.40.0] — 2026-05-18
 
 ### Added

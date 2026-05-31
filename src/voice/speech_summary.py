@@ -15,10 +15,17 @@ Pipeline shape (depth grows only for very long inputs):
                                                    (output: canonical TL;DR
                                                    format the renderer wants)
 
-If `dialog.sections` is empty or is the single synthetic "Розмова" fallback
-that `speech_structure` produces under `--no-structure`, the stage logs a
-warning and returns an empty string instead of risking the OOM the new
-pipeline was designed to avoid.
+If `dialog.sections` is empty, TL;DR is skipped. The single synthetic
+"Розмова" / "Conversation" fallback that `speech_structure` emits (when
+the user passed `--no-structure`, when the LLM returned an invalid layout,
+or — the case this guard was relaxed for — when the dialog is genuinely
+a single topic) is *not* automatically skipped: short synthetic fallbacks
+fit a single LLM call safely, so we treat the fallback like a real section
+and run the per-section path. Long synthetic fallbacks would collapse back
+to the OOM-prone single-prompt shape ADR 0030 was created to avoid, so we
+still skip those with a logged warning. The cutoff mirrors
+`speech_structure.STRUCTURE_CHUNK_THRESHOLD` — the same segment count
+above which `speech_structure` itself stops trusting a single LLM call.
 
 On any LLM failure for an individual section the stage drops that section
 and continues. If the final pass fails it returns "" so the renderer omits
@@ -37,6 +44,7 @@ from ._progress import NullProgress, ProgressReporter
 from ._prompts import call_kwargs, render as render_prompt, with_user_context
 from .llm import LLMError, MlxLLM
 from .silence import extract_silence_events
+from .speech_structure import STRUCTURE_CHUNK_THRESHOLD
 from .types import Section, Segment, StructuredDialog
 
 
@@ -45,6 +53,13 @@ from .types import Section, Segment, StructuredDialog
 # with no aggregate level in between.
 TLDR_FANOUT = 7
 TLDR_MAX_LEVELS = 4  # 7^4 = 2401 sections — pathological inputs only.
+
+# Maximum dialog length (in segments) for which we still run TL;DR over a
+# synthetic single-section fallback. The bound is the same one
+# `speech_structure` uses to decide that a single LLM call is safe — above
+# it, the structure stage itself switches to chunked, so we cannot trust
+# a single TL;DR prompt either.
+SYNTHETIC_FALLBACK_TLDR_MAX_SEGMENTS = STRUCTURE_CHUNK_THRESHOLD
 
 
 def _pick_prompt_name(language: str, kind: str) -> str:
@@ -320,14 +335,25 @@ def generate_tldr(
     if not dialog.segments:
         return ""
 
-    if not dialog.sections or _is_synthetic_fallback(dialog):
-        log(
-            "speech_summary: skipping TL;DR — the dialog has no real "
-            "sections (likely --no-structure). A single full-length prompt "
-            "would risk OOM on a 16 GB Mac; re-run without --no-structure "
-            "to get a TL;DR."
-        )
+    if not dialog.sections:
+        log("speech_summary: skipping TL;DR — no sections to summarise.")
         return ""
+
+    if _is_synthetic_fallback(dialog):
+        if len(dialog.segments) > SYNTHETIC_FALLBACK_TLDR_MAX_SEGMENTS:
+            log(
+                "speech_summary: skipping TL;DR — synthetic single-section "
+                f"fallback with {len(dialog.segments)} segments "
+                f"(> {SYNTHETIC_FALLBACK_TLDR_MAX_SEGMENTS}) would risk OOM "
+                "on a 16 GB Mac. Re-run with structure enabled to split "
+                "the dialog into sections."
+            )
+            return ""
+        log(
+            "speech_summary: synthetic single-section fallback with "
+            f"{len(dialog.segments)} segments — short enough to summarise "
+            "as one section."
+        )
 
     blocks = _per_section_tldrs(
         dialog,
