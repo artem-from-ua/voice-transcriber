@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.42.0] — 2026-06-03
+
+### Changed
+
+- **Transcript header is now fully English.** All header field labels are English regardless of conversation language: `Transcript:`, `📅 Started (duration):`, `🌐 Language:`, `👥 Participants:`, `⚡ Processing time:`, `💡 Context:`, `🚫 Redacted topics:`, `App version:`. Topic descriptions inside `🚫 Redacted topics:` still follow the conversation locale (uk → expanded descriptions, en → bare topic names).
+- **`--user-context` and `--safe-speech-topics` moved to the upper meta table.** They now appear as `💡 Context:` and `🚫 Redacted topics:` rows directly under `🌐 Language:`, instead of in a separate "Run parameters" block at the bottom of the header.
+- **Lower CLI-parameters table no longer has a heading row.** The bottom block (now containing `App version:` and any CLI overrides) is rendered as a plain bordered table without a `🔧 Run parameters` row.
+- **`Processing time:` value moved to the right-aligned third column** of the AI-models table. Header row is now `| ⚡ Processing time: | | NNs (XX%) |` instead of `| ⚡ Processing time: NNs (XX%) | | |` — the timing aligns visually with per-stage durations underneath.
+- Removed Ukrainian-locale fallback string `*не вказано*`; the upper-table empty-context placeholder is always English `*not specified*`.
+
 ## [0.41.0] — 2026-05-30
 
 ### Added

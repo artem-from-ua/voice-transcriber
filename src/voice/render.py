@@ -206,17 +206,46 @@ def _render_meta_table(
     audio_meta: AudioMeta,
     language: str,
     lang_detect_info: dict | None,
+    cli_invocation: dict | None = None,
 ) -> list[str]:
-    """Two-column table: label | value for date/duration and language."""
+    """Two-column table: label | value for date/duration, language, and
+    (when driven from the CLI) the user-supplied context and the
+    safe-speech topic list."""
     started = _format_started_at(audio_meta.started_at)
     duration = _format_compact_duration(audio_meta.duration_s)
     lang_val = _render_lang_value(language, lang_detect_info)
-    return [
+    rows = [
         "| | |",
         "| --- | --- |",
-        f"| 📅 **Початок (тривалість):** | {started} ({duration}) |",
-        f"| 🌐 **Мова:** | {lang_val} |",
+        f"| 📅 **Started (duration):** | {started} ({duration}) |",
+        f"| 🌐 **Language:** | {lang_val} |",
     ]
+    if cli_invocation is not None:
+        label_user_context = "*not specified*"
+        label_default_suffix = " *(default)*"
+        label_disabled = "*disabled*"
+
+        user_context = cli_invocation.get("user_context")
+        rows.append(
+            f"| 💡 **Context:** | {user_context or label_user_context} |"
+        )
+
+        topics = cli_invocation.get("safe_speech_topics")
+        if topics is None:
+            topics_cell = (
+                format_topics_for_display(_SAFE_SPEECH_DEFAULT_TOPICS, language)
+                + label_default_suffix
+            )
+        elif not topics:
+            topics_cell = label_disabled
+        else:
+            topics_cell = format_topics_for_display(topics, language)
+        # uk locale renders topics as a multi-line bullet list; collapse
+        # newlines into <br> so the list survives inside a table cell.
+        topics_cell = topics_cell.replace("\n", "<br>")
+        rows.append(f"| 🚫 **Redacted topics:** | {topics_cell} |")
+
+    return rows
 
 
 def _render_participants_table(
@@ -229,7 +258,7 @@ def _render_participants_table(
     if not speakers:
         return []
     lines = [
-        "| 👥 **Співрозмовники:** | |",
+        "| 👥 **Participants:** | |",
         "| --- | --- |",
     ]
     for speaker in speakers:
@@ -272,13 +301,17 @@ def _render_ai_models_table(
             rows.append(("", stage, _format_compact_duration(timing_s)))
 
     pct = round(total / duration_s * 100) if duration_s else 0
-    processing = f"⚡ **Час обробки:** {_format_compact_duration(total)} ({pct}% of duration)"
+    processing_label = "⚡ **Processing time:**"
+    processing_value = f"{_format_compact_duration(total)} ({pct}% of duration)"
 
     if not rows:
-        return [f"| {processing} | | |", "| --- | --- | --: |"]
+        return [
+            f"| {processing_label} | | {processing_value} |",
+            "| --- | --- | --: |",
+        ]
 
     lines = [
-        f"| {processing} | | |",
+        f"| {processing_label} | | {processing_value} |",
         "| --- | --- | --: |",
     ]
     prev_model = None
@@ -297,50 +330,23 @@ def _render_cli_params_table(
 ) -> list[str]:
     """Two-column table: invocation parameter | value.
 
-    Surfaces the `voice` version, `--user-context`, `--safe-speech-topics`,
-    and any other CLI flags the user explicitly overrode from
-    `PipelineOptions` defaults. Lets a reader reproduce the run from the
-    transcript header without digging through logs.
+    Surfaces the app version and any other CLI flags the user explicitly
+    overrode from `PipelineOptions` defaults. `--user-context` and
+    `--safe-speech-topics` live in the upper meta table instead.
 
-    Returns `[]` when `cli_invocation` is None (pipeline driven from Python
-    API, not the CLI).
+    Returns `[]` when `cli_invocation` is None (pipeline driven from
+    Python API, not the CLI).
     """
     if cli_invocation is None:
         return []
 
-    is_en = language.lower().startswith("en")
-    header = "🔧 **Run parameters:**" if is_en else "🔧 **Параметри запуску:**"
-    label_user_context = "*not specified*" if is_en else "*не вказано*"
-    label_default_suffix = " *(default)*"
-    label_disabled = "*disabled*"
     empty_value_cell = "—"
 
     rows = [
-        f"| {header} | |",
+        "| | |",
         "| --- | --- |",
-        f"| app version | {cli_invocation.get('version', 'unknown')} |",
+        f"| App version: | {cli_invocation.get('version', 'unknown')} |",
     ]
-
-    user_context = cli_invocation.get("user_context")
-    rows.append(
-        f"| `--user-context` | {user_context or label_user_context} |"
-    )
-
-    topics = cli_invocation.get("safe_speech_topics")
-    if topics is None:
-        topics_cell = (
-            format_topics_for_display(_SAFE_SPEECH_DEFAULT_TOPICS, language)
-            + label_default_suffix
-        )
-    elif not topics:
-        topics_cell = label_disabled
-    else:
-        topics_cell = format_topics_for_display(topics, language)
-    # Topics in the uk locale are rendered as a multi-line bullet list by
-    # `format_topics_for_display`; collapse newlines into Markdown line
-    # breaks so they survive inside a table cell.
-    topics_cell = topics_cell.replace("\n", "<br>")
-    rows.append(f"| `--safe-speech-topics` | {topics_cell} |")
 
     overrides = cli_invocation.get("overrides") or {}
     for flag, value in overrides.items():
@@ -375,11 +381,13 @@ def render_markdown(
     emoji_for = assign_emojis(speakers)
 
     lines: list[str] = []
-    lines.append(f"# Транскрипт: {basename}")
+    lines.append(f"# Transcript: {basename}")
     lines.append("")
 
-    # Table 1: date/language
-    for row in _render_meta_table(audio_meta, language, lang_detect_info):
+    # Table 1: date/language/context/redacted topics
+    for row in _render_meta_table(
+        audio_meta, language, lang_detect_info, cli_invocation
+    ):
         lines.append(f"> {row}")
     lines.append("> ")
 

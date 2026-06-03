@@ -41,13 +41,13 @@ def test_render_minimal_dialogue():
     dialog = StructuredDialog(sections=sections, segments=segs)
 
     out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
-    assert "# Транскрипт: foo.m4a" in out
-    assert "📅 **Початок (тривалість):**" in out
+    assert "# Transcript: foo.m4a" in out
+    assert "📅 **Started (duration):**" in out
     assert "2026-05-10 15:44 UTC" in out
     assert "6m14s" in out
-    assert "🌐 **Мова:** | uk (user-specified)" in out
+    assert "🌐 **Language:** | uk (user-specified)" in out
     assert "🏁" not in out, "no 'Кінець' line expected"
-    assert "👥 **Співрозмовники:**" in out
+    assert "👥 **Participants:**" in out
     assert "🔵 **Артем**" in out
     assert "🟢 **Остап**" in out
     assert "## Привітання" in out
@@ -73,7 +73,7 @@ def test_render_participants_uses_pyannote_label_when_unnamed():
     sections = [Section(title="Test", start_ms=0, end_ms=2000)]
     dialog = StructuredDialog(sections=sections, segments=segs)
     out = render_markdown(audio_meta=_meta(), dialog=dialog, tldr="", language="uk")
-    assert "👥 **Співрозмовники:**" in out
+    assert "👥 **Participants:**" in out
     assert "🔵 **SPEAKER_00**" in out
     assert "🟢 **SPEAKER_01**" in out
 
@@ -92,7 +92,7 @@ def test_render_normalises_started_at_with_offset():
         segments=[Segment(start=0, end=1, content="hi", speaker="A", name="Sam")],
     )
     out = render_markdown(audio_meta=meta, dialog=dialog, tldr="", language="uk")
-    assert "📅 **Початок (тривалість):** | 2026-05-10 15:44 UTC" in out
+    assert "📅 **Started (duration):** | 2026-05-10 15:44 UTC" in out
 
 
 def test_render_includes_tldr_section_when_provided():
@@ -249,7 +249,7 @@ def test_render_lang_user_specified():
         sections=[Section(title="T", start_ms=0, end_ms=1000)], segments=segs
     )
     out = render_markdown(audio_meta=_meta(), dialog=dialog, language="uk")
-    assert "🌐 **Мова:** | uk (user-specified)" in out
+    assert "🌐 **Language:** | uk (user-specified)" in out
 
 
 def test_render_lang_auto_detected_with_runner_up():
@@ -262,7 +262,7 @@ def test_render_lang_auto_detected_with_runner_up():
         audio_meta=_meta(), dialog=dialog, language="uk",
         lang_detect_info={"top": ("uk", 0.74), "second": ("ru", 0.24)},
     )
-    assert "🌐 **Мова:** | uk (auto-detected=0.74, ru=0.24)" in out
+    assert "🌐 **Language:** | uk (auto-detected=0.74, ru=0.24)" in out
 
 
 def test_render_lang_auto_detected_no_runner_up():
@@ -294,7 +294,7 @@ def test_render_lang_auto_detected_two_attempts_agree():
             "n_attempts": 2,
         },
     )
-    assert "🌐 **Мова:** | uk (auto-detected=0.74, ru=0.24, 2/2 agree)" in out
+    assert "🌐 **Language:** | uk (auto-detected=0.74, ru=0.24, 2/2 agree)" in out
 
 
 def test_render_lang_auto_detected_two_attempts_disagree():
@@ -313,7 +313,7 @@ def test_render_lang_auto_detected_two_attempts_disagree():
         },
     )
     assert (
-        "🌐 **Мова:** | ru (auto-detected=0.80, uk=0.15, 2/2 disagree, picked higher prob)"
+        "🌐 **Language:** | ru (auto-detected=0.80, uk=0.15, 2/2 disagree, picked higher prob)"
         in out
     )
 
@@ -413,7 +413,8 @@ def test_render_processing_percent_of_duration():
         stage_models={},
         model_load_elapsed={},
     )
-    assert "⚡ **Час обробки:** 5m0s (50% of duration)" in out
+    # Header label in col 1, value in col 3 (right-aligned)
+    assert "| ⚡ **Processing time:** | | 5m0s (50% of duration) |" in out
 
 
 # -------------------------------------------------------- auto silence threshold
@@ -484,9 +485,10 @@ def test_render_cli_params_omitted_when_none():
         audio_meta=_meta(), dialog=_minimal_dialog(), tldr="", language="uk",
         cli_invocation=None,
     )
-    assert "Параметри запуску" not in out
-    assert "Run parameters" not in out
-    assert "app version" not in out
+    # No header section: no version row, no Context row, no Redacted topics row
+    assert "App version" not in out
+    assert "Context:" not in out
+    assert "Redacted topics:" not in out
 
 
 def test_render_cli_params_only_defaults_uk():
@@ -500,12 +502,15 @@ def test_render_cli_params_only_defaults_uk():
         audio_meta=_meta(), dialog=_minimal_dialog(), tldr="", language="uk",
         cli_invocation=invocation,
     )
-    assert "🔧 **Параметри запуску:**" in out
-    assert "| app version | 0.41.0 |" in out
-    assert "*не вказано*" in out
-    # Built-in default topics with uk descriptions, suffixed (default)
+    # Context + Redacted topics live in the upper meta table
+    assert "💡 **Context:**" in out
+    assert "*not specified*" in out
+    assert "🚫 **Redacted topics:**" in out
+    # Built-in default topics with uk descriptions (locale is uk), (default) suffix
     assert "здоров'я" in out
     assert "*(default)*" in out
+    # App version lives in the lower table, English label
+    assert "| App version: | 0.41.0 |" in out
 
 
 def test_render_cli_params_custom_user_context():
@@ -520,7 +525,7 @@ def test_render_cli_params_custom_user_context():
         cli_invocation=invocation,
     )
     assert "Brainstorm про застосунок" in out
-    assert "*не вказано*" not in out
+    assert "*not specified*" not in out
 
 
 def test_render_cli_params_custom_safe_speech():
@@ -584,9 +589,12 @@ def test_render_cli_params_en_locale():
         audio_meta=_meta(), dialog=_minimal_dialog(), tldr="", language="en",
         cli_invocation=invocation,
     )
-    assert "🔧 **Run parameters:**" in out
+    # All labels are English regardless of locale; topic descriptions follow locale
+    assert "💡 **Context:**" in out
     assert "*not specified*" in out
+    assert "🚫 **Redacted topics:**" in out
     assert "*(default)*" in out
-    # English locale uses bare topic names, not uk descriptions
+    # English locale: bare topic names instead of uk descriptions
     assert "health, drugs, alcohol" in out
     assert "здоров'я" not in out
+    assert "| App version: | 0.41.0 |" in out
