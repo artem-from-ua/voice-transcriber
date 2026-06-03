@@ -70,7 +70,7 @@ def _format_segments(section_segments: list[Segment]) -> str:
     return "\n".join(lines)
 
 
-def _topics_text(topics: list[str], language: str) -> str:
+def format_topics_for_display(topics: list[str], language: str) -> str:
     if language.lower().startswith("en"):
         return ", ".join(topics)
     label_map = {
@@ -180,7 +180,7 @@ def redact_dialog(
 
     reporter = progress if progress is not None else NullProgress()
     prompt_name = _pick_prompt_name(language)
-    topics_text = _topics_text(topics, language)
+    topics_text = format_topics_for_display(topics, language)
     system_prompt = with_user_context(
         render_prompt(prompt_name, topics=topics_text),
         user_context,

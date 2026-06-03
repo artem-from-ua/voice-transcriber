@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.42.0] — 2026-06-03
+
+### Changed
+
+- **Transcript header is now fully English.** All header field labels are English regardless of conversation language: `Transcript:`, `📅 Started (duration):`, `🌐 Language:`, `👥 Participants:`, `⚡ Processing time:`, `💡 Context:`, `🚫 Redacted topics:`, `App version:`. Topic descriptions inside `🚫 Redacted topics:` still follow the conversation locale (uk → expanded descriptions, en → bare topic names).
+- **`--user-context` and `--safe-speech-topics` moved to the upper meta table.** They now appear as `💡 Context:` and `🚫 Redacted topics:` rows directly under `🌐 Language:`, instead of in a separate "Run parameters" block at the bottom of the header.
+- **Lower CLI-parameters table no longer has a heading row.** The bottom block (now containing `App version:` and any CLI overrides) is rendered as a plain bordered table without a `🔧 Run parameters` row.
+- **`Processing time:` value moved to the right-aligned third column** of the AI-models table. Header row is now `| ⚡ Processing time: | | NNs (XX%) |` instead of `| ⚡ Processing time: NNs (XX%) | | |` — the timing aligns visually with per-stage durations underneath.
+- Removed Ukrainian-locale fallback string `*не вказано*`; the upper-table empty-context placeholder is always English `*not specified*`.
+
+## [0.41.0] — 2026-05-30
+
+### Added
+
+- **CLI invocation parameters surfaced in transcript header.** New table after the AI-models block lists `app version`, `--user-context` (or `*not specified*` / `*не вказано*`), `--safe-speech-topics` (built-in defaults shown with a `*(default)*` suffix), and any other CLI flags the user explicitly overrode from `PipelineOptions` defaults (e.g. `--llm-temperature 0.3`, `--no-proofread`). Localized (uk/en). The transcript is now self-describing — a reader can reproduce the run from the header alone, without consulting the run log.
+
+### Changed
+
+- `voice.__version__` now reads from installed package metadata via `importlib.metadata.version("voice")` instead of a hard-coded `"0.1.0"`. The constant stayed at `0.1.0` across every release since the project started; now it tracks `pyproject.toml` automatically.
+- `safe_speech._topics_text` is now public as `safe_speech.format_topics_for_display(topics, language)` so the render stage can reuse the same uk/en localization that the LLM prompt sees.
+
 ## [0.40.1] — 2026-05-29
 
 ### Fixed
