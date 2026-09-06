@@ -1,10 +1,13 @@
 ---
-status: accepted
+status: superseded
 date: 2026-05-14
 see_also: []
+superseded_by: [0038]
 ---
 
 # 0029 — Issue label taxonomy: 4 axes (type, priority, stage, area)
+
+> **Superseded in part by [ADR 0038](0038-taxonomy-source-of-truth-in-docs.md).** The four axes and their dictionaries described below are still in force. What changed is where the taxonomy lives and how it reaches an AI assistant: the source of truth moved to [`docs/issue-labels.md`](../issue-labels.md), and the `CLAUDE.md` mirror this record relies on was removed. Read the "mirrored in `CLAUDE.md`" and "colocation" passages below as historical.
 
 ## Context
 
@@ -28,7 +31,7 @@ A labelling scheme is not architecture, so it does not need to be perfect — it
 
 ## Decision
 
-Four label axes, colon-prefixed. Each axis has a fixed dictionary; values are documented in [`docs/conventions.md`](../conventions.md) and mirrored in [`CLAUDE.md`](../../CLAUDE.md).
+Four label axes, colon-prefixed. Each axis has a fixed dictionary; values are documented in [`docs/issue-labels.md`](../issue-labels.md) (originally `docs/conventions.md`, mirrored in `CLAUDE.md` — see ADR 0038).
 
 | Axis | Mandatory | Cardinality | Dictionary size |
 | --- | --- | --- | --- |
@@ -49,7 +52,7 @@ Total label dictionary: 31 prefixed labels + the project-relevant built-ins (`go
 - `enhancement` semantics split: user-visible new capability → `type:feature`; internal restructuring → `type:refactor`. A rename like `agc` → `autogain` is `type:refactor`, not `type:feature`.
 - Whisper `initial_prompt` is `stage:speech2text`, not `area:prompts`. `area:prompts` is exclusively for LLM system prompts.
 
-**Issue title format** is decided alongside the labels: `[CRITICAL ]<type>(<scope>): <functional subject>`. The title carries the same `type` word as the `type:*` label (`feat`, `fix`, `perf`, ...) plus `epic` and `research` modifiers that are title-only. Scope follows the **user-facing effect**, not the code location. The subject describes the outcome, not the implementation. Full rules and worked examples in [`docs/conventions.md`](../conventions.md#issue-title-format).
+**Issue title format** is decided alongside the labels: `[CRITICAL ]<type>(<scope>): <functional subject>`. The title carries the same `type` word as the `type:*` label (`feat`, `fix`, `perf`, ...) plus `epic` and `research` modifiers that are title-only. Scope follows the **user-facing effect**, not the code location. The subject describes the outcome, not the implementation. Full rules and worked examples in [`docs/issue-labels.md`](../issue-labels.md#title-format) (they lived in `docs/conventions.md` when this record was written; see ADR 0038).
 
 Rationale: labels are stripped in email notifications, mobile views, GitHub search, and cross-repo references. Filtering uses labels; reading uses titles. Both need to work without the other.
 
