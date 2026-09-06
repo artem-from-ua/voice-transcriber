@@ -7,7 +7,7 @@ superseded_by: [0038]
 
 # 0029 — Issue label taxonomy: 4 axes (type, priority, stage, area)
 
-> **Superseded in part by [ADR 0038](0038-taxonomy-source-of-truth-in-docs.md).** The four axes and their dictionaries described below are still in force. What changed is where the taxonomy lives and how it reaches an AI assistant: the source of truth moved to [`docs/issue-labels.md`](../issue-labels.md), and the `CLAUDE.md` mirror this record relies on was removed. Read the "mirrored in `CLAUDE.md`" and "colocation" passages below as historical.
+> **Superseded in part by [ADR 0038](0038-taxonomy-source-of-truth-in-docs.md).** The four axes and their dictionaries described below are still in force. What changed is where the taxonomy lives and how it reaches an AI assistant: the source of truth moved to [`docs/issue-labels.md`](../issue-labels.md), and the `CLAUDE.md` mirror this record relies on was removed. Read the "mirrored in `CLAUDE.md`" and "colocation" passages below as historical. The same applies to three counts and one policy in the Decision section, which were accurate when written and have since moved on: `area:*` has 8 values, not 7 (`area:repo` came later), the dictionary totals 36 labels rather than 31, the soft limit is a single number (5) rather than a 3–5 range, and no GitHub built-in is kept — all nine are deleted, with the closing reasons re-homed to `reason:*` and `kb-grooming` to `by:kb-grooming`. The current values live in [`docs/issue-labels.md`](../issue-labels.md); they are not corrected below, because an accepted record is superseded rather than edited.
 
 ## Context
 

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "taxonomyDocument": "docs/issue-labels.md",
-  "adr": "docs/adr/0029-issue-label-taxonomy.md",
+  "adr": "docs/adr/0038-taxonomy-source-of-truth-in-docs.md",
   "titleFormat": {
     "enabled": true,
     "rewriteExisting": false
