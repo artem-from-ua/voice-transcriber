@@ -51,7 +51,7 @@ Priority is the one axis where color carries urgency rather than membership, hen
 
 ### `stage:*`
 
-<!-- source: modules path=src/voice ignore=cli,llm,pipeline,types,silence,whisper_asr,download_whisper,speaker_emojis -->
+<!-- source: modules path=src/voice ignore=cli,llm,pipeline,types,silence,whisper_asr,download_whisper,speaker_emojis,prompts -->
 
 One label per pipeline stage, keyed on the module name in `src/voice/`. Use `stage:*` when the issue is about that specific step's behaviour, parameters, or output.
 
@@ -73,7 +73,7 @@ One label per pipeline stage, keyed on the module name in `src/voice/`. Use `sta
 
 All `stage:*` share one blue. A per-stage gradient was tried first and rejected: on issues carrying two or more stages the chips read as visual noise.
 
-Modules listed in `ignore=` above have no stage of their own on purpose. `whisper_asr.py`, `download_whisper.py` and `speaker_emojis.py` are covered inside the descriptions of `stage:speech2text` and `stage:render`; `cli.py`, `llm.py`, `pipeline.py`, `types.py` and `silence.py` are infrastructure that belongs to the `area:*` axis. Underscore-prefixed modules (`_prompts.py`, `_progress.py`, …) are private helpers and are excluded before the ignore list is consulted, so they never need listing here.
+Modules listed in `ignore=` above have no stage of their own on purpose. `whisper_asr.py`, `download_whisper.py` and `speaker_emojis.py` are covered inside the descriptions of `stage:speech2text` and `stage:render`; `cli.py`, `llm.py`, `pipeline.py`, `types.py` and `silence.py` are infrastructure that belongs to the `area:*` axis, as is the `prompts/` package of prompt templates, covered by `area:prompts`. Underscore-prefixed modules (`_prompts.py`, `_progress.py`, …) are private helpers and are excluded before the ignore list is consulted, so they never need listing here.
 
 ### `area:*`
 
@@ -147,13 +147,19 @@ Marks issues that originate from a non-human source. Orthogonal to the four main
 
 **Scope values come from the axis dictionaries**, with one exception. A scope that names a single file or document (`claude-md`) is not a taxonomy value — such issues take `area:repo` and the matching scope. Neither is a module deliberately left out of the axis: `pipeline`, `cli`, `llm` and the rest of the `ignore=` list are infrastructure, and an issue about them takes the `area:*` value that covers it.
 
-The exception is a **proposed stage**: an issue that argues for a new pipeline stage may use that stage's future name as its scope (`feat(followup): …`) before any label or module exists. The title is what a reader sees first, and naming the thing being proposed beats routing it through the nearest existing area. Its labels stay on the `area:*` axis until the stage ships, at which point the stage gets its own value and the scope becomes real.
+The exception is a **proposed stage**: an issue that argues for a new pipeline stage may use that stage's future name as its scope before any label or module exists. The title is what a reader sees first, and naming the thing being proposed beats routing it through the nearest existing area. Its labels stay on the `area:*` axis until the stage ships, at which point the stage gets its own value, the scope becomes real, and the row below is removed. Every such scope is listed in the table below — one line per exception, so an unlisted scope stays an error.
 
 **Length:** 60–80 characters, soft. Self-containment beats brevity — if trimming a word makes the title ambiguous without reading the labels, keep the word.
 
 **Language:** English, like every repository artifact. Mixed-language quotes from real ASR output (`"корище цей"`, `"HugginsFace"`) are fine inside a title as evidence.
 
 **Exempt:** issues carrying a `by:*` label keep whatever title the automation produced.
+
+**Allowed scopes beyond the axis values:**
+
+| Scope | Why |
+|---|---|
+| `followup` | Proposes a pipeline stage that does not exist yet; labels use a cross-cutting axis until it ships. |
 
 ## Legacy label mapping
 
@@ -178,6 +184,6 @@ Policy: **delete**. Exceptions kept: none. GitHub silently re-creates built-ins 
 | | |
 |---|---|
 | Config | `.claude-plugin/issue-conventions.json` |
-| Plugin | `issue-conventions` v0.1.2 |
+| Plugin | `issue-conventions` v0.2.1 |
 | Last synced with GitHub | 2026-09-07 |
 <!-- /issue-conventions:managed -->
