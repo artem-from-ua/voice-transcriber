@@ -147,13 +147,19 @@ Marks issues that originate from a non-human source. Orthogonal to the four main
 
 **Scope values come from the axis dictionaries**, with one exception. A scope that names a single file or document (`claude-md`) is not a taxonomy value — such issues take `area:repo` and the matching scope. Neither is a module deliberately left out of the axis: `pipeline`, `cli`, `llm` and the rest of the `ignore=` list are infrastructure, and an issue about them takes the `area:*` value that covers it.
 
-The exception is a **proposed stage**: an issue that argues for a new pipeline stage may use that stage's future name as its scope (`feat(followup): …`) before any label or module exists. The title is what a reader sees first, and naming the thing being proposed beats routing it through the nearest existing area. Its labels stay on the `area:*` axis until the stage ships, at which point the stage gets its own value and the scope becomes real.
+The exception is a **proposed stage**: an issue that argues for a new pipeline stage may use that stage's future name as its scope before any label or module exists. The title is what a reader sees first, and naming the thing being proposed beats routing it through the nearest existing area. Its labels stay on the `area:*` axis until the stage ships, at which point the stage gets its own value, the scope becomes real, and the row below is removed. Every such scope is listed in the table below — one line per exception, so an unlisted scope stays an error.
 
 **Length:** 60–80 characters, soft. Self-containment beats brevity — if trimming a word makes the title ambiguous without reading the labels, keep the word.
 
 **Language:** English, like every repository artifact. Mixed-language quotes from real ASR output (`"корище цей"`, `"HugginsFace"`) are fine inside a title as evidence.
 
 **Exempt:** issues carrying a `by:*` label keep whatever title the automation produced.
+
+**Allowed scopes beyond the axis values:**
+
+| Scope | Why |
+|---|---|
+| `followup` | Proposes a pipeline stage that does not exist yet; labels use a cross-cutting axis until it ships. |
 
 ## Legacy label mapping
 
