@@ -51,7 +51,7 @@ Priority is the one axis where color carries urgency rather than membership, hen
 
 ### `stage:*`
 
-<!-- source: modules path=src/voice ignore=cli,llm,pipeline,types,silence,whisper_asr,download_whisper,speaker_emojis -->
+<!-- source: modules path=src/voice ignore=cli,llm,pipeline,types,silence,whisper_asr,download_whisper,speaker_emojis,prompts -->
 
 One label per pipeline stage, keyed on the module name in `src/voice/`. Use `stage:*` when the issue is about that specific step's behaviour, parameters, or output.
 
@@ -73,7 +73,7 @@ One label per pipeline stage, keyed on the module name in `src/voice/`. Use `sta
 
 All `stage:*` share one blue. A per-stage gradient was tried first and rejected: on issues carrying two or more stages the chips read as visual noise.
 
-Modules listed in `ignore=` above have no stage of their own on purpose. `whisper_asr.py`, `download_whisper.py` and `speaker_emojis.py` are covered inside the descriptions of `stage:speech2text` and `stage:render`; `cli.py`, `llm.py`, `pipeline.py`, `types.py` and `silence.py` are infrastructure that belongs to the `area:*` axis. Underscore-prefixed modules (`_prompts.py`, `_progress.py`, …) are private helpers and are excluded before the ignore list is consulted, so they never need listing here.
+Modules listed in `ignore=` above have no stage of their own on purpose. `whisper_asr.py`, `download_whisper.py` and `speaker_emojis.py` are covered inside the descriptions of `stage:speech2text` and `stage:render`; `cli.py`, `llm.py`, `pipeline.py`, `types.py` and `silence.py` are infrastructure that belongs to the `area:*` axis, as is the `prompts/` package of prompt templates, covered by `area:prompts`. Underscore-prefixed modules (`_prompts.py`, `_progress.py`, …) are private helpers and are excluded before the ignore list is consulted, so they never need listing here.
 
 ### `area:*`
 
