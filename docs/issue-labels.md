@@ -184,6 +184,6 @@ Policy: **delete**. Exceptions kept: none. GitHub silently re-creates built-ins 
 | | |
 |---|---|
 | Config | `.claude-plugin/issue-conventions.json` |
-| Plugin | `issue-conventions` v0.1.2 |
+| Plugin | `issue-conventions` v0.2.1 |
 | Last synced with GitHub | 2026-09-07 |
 <!-- /issue-conventions:managed -->
