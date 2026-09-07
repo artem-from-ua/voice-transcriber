@@ -29,7 +29,7 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | 23  | [`safe_speech` stage for sensitive-content redaction](0023-safe-speech-stage.md)       | accepted                     |
 | ~~24~~  | ~~[Defaults for the `safe_speech` stage](0024-safe-speech-defaults.md)~~               | accepted (render display superseded by 0025) |
 | 25  | [Silence events: unified pause/muted rendering with timestamp ranges](0025-render-silence-events.md) | accepted (supersedes 0024 render display) |
-| ~~26~~  | ~~[Proofread stage: default off, opt-in via `--proofread`](0026-proofread-default-off.md)~~ | accepted (superseded by 0028) |
+| ~~26~~  | ~~[Proofread stage: default off, opt-in via `--proofread`](0026-proofread-default-off.md)~~ | superseded by 0028 |
 | 27  | [`prompt_cache_session()`: amortise the system-prompt KV across LLM-stage loops](0027-prompt-cache-llm-stages.md) | accepted                     |
 | 28  | [Proofread stage: default on again after the iteration-2.1 rework](0028-proofread-default-on-after-rework.md) | accepted (supersedes 0026)   |
 | ~~29~~  | ~~[Issue label taxonomy: 4 axes (type, priority, stage, area)](0029-issue-label-taxonomy.md)~~ | accepted (storage mechanism superseded by 0038; axes still in force) |
