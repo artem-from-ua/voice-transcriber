@@ -163,7 +163,7 @@ before fixing the classifier — so the fix has a test that pins it.
   - `/tmp/postprocess-57/04-merge.json`, `05-proofread.json` —
     the input pair for the classifier.
 - **Measurement results (checked in):**
-  [`docs/measurements/57/`](../measurements/57/) — `categories.json`,
+  `docs/measurements/57/` — `categories.json`,
   `spot-check.md` (filled), `judge-input.md`, `judge-marks.json`,
   `final-table.md`.
 
@@ -284,7 +284,7 @@ Grid: `n_context ∈ {0, 1, 2, 3, 5, 8}`. Each grid point is one full
 `voice transcribe --proofread --proofread-context N --dump-stages …` run;
 results aggregated by [`scripts/proofread-classify.py sweep`](../../scripts/proofread-classify.py).
 Canonical numbers in
-[`docs/measurements/120/sweep/sweep-summary.md`](../measurements/120/sweep/sweep-summary.md).
+`docs/measurements/120/sweep/sweep-summary.md`.
 
 | n_context | unchanged | proper_noun_fix | substantive | hit-rate | wall-clock | seg 70 | seg 81 |
 |---|---|---|---|---|---|---|---|
@@ -313,8 +313,8 @@ keeps the real-time floor.
 
 #### Human spot-check on `n_context=3` (iteration 2)
 
-[Filled spot-check](../measurements/120/spotcheck-n3/spot-check.md) +
-[final-table](../measurements/120/spotcheck-n3/final-table.md):
+Filled spot-check + final-table (`spot-check.md`, `final-table.md` under
+`docs/measurements/120/spotcheck-n3/`):
 
 - Human marks: **3 better, 6 worse, 5 neutral** on the 14
   `substantive_rewrite` segments.
@@ -357,7 +357,7 @@ Failure-mode coverage on the six patterns from iteration 2 spot-check:
 - ❌ Synonym substitution `чуваки → хлопці` regressed on n=3 with the
   new prompt (seg 70 — iter 2 had kept it correctly).
 
-The iter-2.1 spot-check ([source](../measurements/120/iter2.1/spotcheck/spot-check.md))
+The iter-2.1 spot-check (`docs/measurements/120/iter2.1/spotcheck/spot-check.md`)
 revealed that most of the remaining `substantive_rewrite` segments fall
 into one specific category that **no prompt rule can fix**:
 

@@ -244,6 +244,6 @@ calls this out.
   fix can close.
 - [`docs/benchmarks/proofread-hit-rate.md`](../benchmarks/proofread-hit-rate.md) — both iterations
   of the measurement.
-- [`docs/measurements/120/`](../measurements/120/) — raw artefacts:
+- `docs/measurements/120/` — raw artefacts:
   the iter-2 sweep, the iter-2.1 single-point run, the spot-check
   files, the comparison tables.
