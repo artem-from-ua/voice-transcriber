@@ -29,10 +29,10 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | 23  | [`safe_speech` stage for sensitive-content redaction](0023-safe-speech-stage.md)       | accepted                     |
 | ~~24~~  | ~~[Defaults for the `safe_speech` stage](0024-safe-speech-defaults.md)~~               | accepted (render display superseded by 0025) |
 | 25  | [Silence events: unified pause/muted rendering with timestamp ranges](0025-render-silence-events.md) | accepted (supersedes 0024 render display) |
-| ~~26~~  | ~~[Proofread stage: default off, opt-in via `--proofread`](0026-proofread-default-off.md)~~ | accepted (superseded by 0028) |
+| ~~26~~  | ~~[Proofread stage: default off, opt-in via `--proofread`](0026-proofread-default-off.md)~~ | superseded by 0028 |
 | 27  | [`prompt_cache_session()`: amortise the system-prompt KV across LLM-stage loops](0027-prompt-cache-llm-stages.md) | accepted                     |
 | 28  | [Proofread stage: default on again after the iteration-2.1 rework](0028-proofread-default-on-after-rework.md) | accepted (supersedes 0026)   |
-| 29  | [Issue label taxonomy: 4 axes (type, priority, stage, area)](0029-issue-label-taxonomy.md) | accepted                     |
+| ~~29~~  | ~~[Issue label taxonomy: 4 axes (type, priority, stage, area)](0029-issue-label-taxonomy.md)~~ | accepted (storage mechanism superseded by 0038; axes still in force) |
 | 30  | [Section-based TL;DR with recursive aggregation](0030-section-based-tldr.md) | accepted                     |
 | 31  | [Chunk Whisper ASR in Python for long recordings](0031-chunked-asr.md) | accepted                     |
 | 32  | [Dedicated chunked-mode prompt + snap-to-speaker-boundary for `speech_structure`](0032-structure-chunk-prompt-and-snap.md) | accepted (extends 0018) |
@@ -40,5 +40,6 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | 34  | [Keep `mps` as the diarization default; pyannote 3.1 runs fully on Apple GPU](0034-diarize-mps-default.md) | accepted                     |
 | 36  | [Text-similarity dedup for chunked ASR](0036-text-similarity-asr-dedup.md) | accepted (refines 0031 dedup) |
 | 37  | [Merge-stage optimisation pipeline order](0037-merge-split-optimisation-pipeline.md) | accepted |
+| 38  | [The issue taxonomy lives in `docs/issue-labels.md`, not in `CLAUDE.md`](0038-taxonomy-source-of-truth-in-docs.md) | accepted (supersedes 0029 in part) |
 
 New decisions land here as `NNNN-kebab-case-title.md` with the same frontmatter (`status`, `date`, optional `supersedes` / `superseded_by`).
