@@ -145,7 +145,9 @@ Marks issues that originate from a non-human source. Orthogonal to the four main
 
 **Scope is mandatory and singular.** A comma-separated scope (`feat(cli,llm,speech2text): ...`) is not allowed — when the effect is genuinely cross-stage, use the `area:*` value that covers it instead of listing stages. A missing scope is equally wrong: labels are invisible in email notifications, mobile views and search results, and the scope is what keeps the title self-contained there.
 
-**Scope values come from the axis dictionaries.** A scope that names a single file or document (`claude-md`) is not a taxonomy value — such issues take `area:repo` and the matching scope.
+**Scope values come from the axis dictionaries**, with one exception. A scope that names a single file or document (`claude-md`) is not a taxonomy value — such issues take `area:repo` and the matching scope. Neither is a module deliberately left out of the axis: `pipeline`, `cli`, `llm` and the rest of the `ignore=` list are infrastructure, and an issue about them takes the `area:*` value that covers it.
+
+The exception is a **proposed stage**: an issue that argues for a new pipeline stage may use that stage's future name as its scope (`feat(followup): …`) before any label or module exists. The title is what a reader sees first, and naming the thing being proposed beats routing it through the nearest existing area. Its labels stay on the `area:*` axis until the stage ships, at which point the stage gets its own value and the scope becomes real.
 
 **Length:** 60–80 characters, soft. Self-containment beats brevity — if trimming a word makes the title ambiguous without reading the labels, keep the word.
 
