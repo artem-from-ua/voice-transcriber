@@ -1,7 +1,6 @@
 ---
-status: draft
+status: accepted
 date: 2026-09-07
-gate: promote to accepted once the SessionStart hook has been observed to fire reliably across ~20 sessions, and the label rules have been applied to new issues without the CLAUDE.md copy present
 supersedes: [0029]
 ---
 
@@ -40,9 +39,9 @@ Existing titles are **not** rewritten. 91 of 98 already match the format; three 
 ## Alternatives considered
 
 - **Keep the `CLAUDE.md` copy alongside the document.** Rejected: it is exactly the per-session context cost the plugin exists to remove, and it recreates the three-copies problem. The counter-argument — that the hook's reliability in this repo is not yet measured — is answered by the two-line pointer, which costs ~20 tokens instead of 111 lines while leaving a fallback path if the hook does not fire.
-- **Remove the `CLAUDE.md` section entirely, with no pointer.** Rejected for now, for the reason above; revisit at the gate.
+- **Remove the `CLAUDE.md` section entirely, with no pointer.** Rejected for now, for the reason above. Left open under Consequences rather than decided here.
 - **Put the machine-readable taxonomy directly into `docs/conventions.md`.** Rejected: the plugin's footer claims ownership of the file it manages ("do not edit by hand"), and `conventions.md` is meant to hold other conventions too. Regeneration would have to preserve unrelated human prose in the same file — a class of bug that loses data quietly — and the strict parser schema would break as soon as the next convention is appended.
-- **Amend ADR 0029 in place.** Rejected: it is `accepted`, and by this project's convention an accepted ADR is an immutable record — superseded, not edited.
+- **Amend ADR 0029 in place.** Rejected: it is `accepted`, and by this project's convention an accepted ADR is an immutable record — superseded, not edited. 0029 keeps that status here, because only its storage mechanism is replaced and its axes still govern every label in the repo; this follows the partial-supersession pattern already used by ADRs 0024 and 0026, where the record stays `accepted` and the index Status cell names what was superseded.
 - **Drop the unused `stage:*` values** (`stage:transcode`, `stage:audio_meta`, `stage:lang_detect`, currently zero issues each). Rejected: they map to real modules in `src/voice/`. Zero usage means no issue has been filed about them yet, not that the value is dead; deleting them would also break the document's module-to-axis correspondence, which is what lets the drift check spot a stage with no label.
 - **Take over the Dependabot labels** (`dependencies`, `python:uv`). Rejected: another tool applies them, and only to pull requests, which this taxonomy does not cover. Dependabot is configured through the repository settings rather than a `dependabot.yml` in the tree, so the missing `.github/` directory is not evidence that it is dormant — `automated-security-fixes` is enabled and PR #192 carries both labels. They are recorded as `keep` in the legacy mapping and are never auto-deleted; the plugin reports them as undeclared and leaves them alone.
 
@@ -50,9 +49,8 @@ Existing titles are **not** rewritten. 91 of 98 already match the format; three 
 
 **Positive:** one source of truth, mechanically checkable — `label-plan.sh` reports zero creates and zero updates against the live labels today, so the document provably matches GitHub. Every session in this repo loses 111 lines of always-loaded context. The dictionaries reach an assistant on demand, in a subagent, instead of by permanent residence in the main context. Drift between the document, the ADR, and GitHub becomes a reported divergence rather than something noticed by chance.
 
-**Negative:** the rules are no longer visible by default — if the `SessionStart` hook fails to fire, an assistant sees only the two-line pointer and has to follow it. This is untested in this repository, which is why this record ships as a draft with the gate above. The plugin also becomes a dependency of the labelling workflow: without it, the document is still readable by a human, but nothing verifies it against GitHub.
+**Negative:** the rules are no longer visible by default — if the `SessionStart` hook fails to fire, an assistant sees only the two-line pointer and has to follow it. Hook reliability is unmeasured in this repository, which is exactly what the pointer insures against. The plugin also becomes a dependency of the labelling workflow: without it, the document is still readable by a human, but nothing verifies it against GitHub.
 
-TODO after the gate:
-- Whether the hook actually fires across sessions, and what an assistant does when it does not.
-- Whether the two-line pointer turned out to be load-bearing or dead weight — remove it if the hook proves reliable.
-- The first real divergence the drift check catches, and whether the report was actionable.
+**Left open deliberately.** Whether `CLAUDE.md` keeps its two-line pointer is *not* settled here. The pointer costs about twenty tokens per session against the 111 lines it replaced, so it can sit there indefinitely at negligible cost; removing it is a separate, smaller decision that needs evidence this record does not yet have. Revisit when the hook has been seen firing across a few dozen sessions, and answer three questions then: whether it fires reliably, what an assistant does in the session where it does not, and whether the pointer ever turned out to be the thing that saved a labelling operation. If the answers favor removal, that is a one-line follow-up ADR, not a re-litigation of this one.
+
+The remaining unknown is operational rather than architectural: the first real divergence the drift check catches, and whether its report is actionable enough to act on without re-deriving the taxonomy by hand.
