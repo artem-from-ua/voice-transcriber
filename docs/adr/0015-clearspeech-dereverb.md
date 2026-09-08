@@ -66,10 +66,10 @@ Looking at the actual segments:
 
 - A4 produces **9 % less transcribed text** (3 747 chars vs 4 119) than A1.
 - A4 routes ~30 seconds of mid-recording speech into `[Human Sounds]` / `[Breath]` / `[Noise]` markers instead of transcribing it.
-- One mid-recording segment that A1 captures as `"У мене там є account, я не дуже шарю. Там якось можна закинути бабло і використовувати подібні моделі. І в принципі ми можемо протестувати."` becomes A4's `"Хоча і те, що ми переговарювали знову."` — different content at a different timestamp.
-- The last segments of A4 contain phrases like `"Потому что… по йому голову"` and `"шойго ми штукавий ресурс короче який треба розглядати"` — markedly more gibberish than A1's `"Тобто це, мабуть, просто рекламний вайданчик? …"`
+- One mid-recording segment that A1 captures as a coherent three-sentence utterance becomes, in A4, a single short unrelated sentence — different content at a different timestamp.
+- A4's final segments degrade into strings that are not valid words at all, while A1 over the same stretch stays grammatical apart from one mis-heard noun.
 
-A2 (`dereverb,agc`) and A1 also diverge heavily (char-similarity 0.214) — A2 *concatenates* shorter turns into long Russian-leaning blocks (`"Доброе утро, все. Вот зашел?"`, `"Ну я вот запустил, короче... Так и куплять шторку ведь открывателя?..."`), which is what drives its 7.1 % RU rate up.
+A2 (`dereverb,agc`) and A1 also diverge heavily (char-similarity 0.214) — A2 *concatenates* shorter turns into long blocks that drift away from the spoken language, which is what drives its 7.1 % non-target-glyph rate up.
 
 The pattern that the four runs show, when read together:
 

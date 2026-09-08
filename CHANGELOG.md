@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.42.1] — 2026-06-08
+
+### Changed
+
+- **Proofread prompt uses invented examples.** The two "never complete an interrupted sentence" examples were taken from a real run; they are now invented sentences that demonstrate the same rule — a word cut mid-token, and a self-interrupted question. No behavioural change.
+- **ADRs 0013, 0014, 0015, 0022, 0028 and the proofread / prompt-cache benchmarks describe ASR output instead of quoting it.** Every metric, table and conclusion is unchanged; the illustrative transcript excerpts are replaced by descriptions of what the output looked like.
+
 ## [0.42.0] — 2026-06-03
 
 ### Changed

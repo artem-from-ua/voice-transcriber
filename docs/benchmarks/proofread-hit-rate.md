@@ -323,7 +323,7 @@ Filled spot-check + final-table (`spot-check.md`, `final-table.md` under
   introduced six new failure patterns — colloquial-answer normalisation
   (`Нє → Ні`), particle changes (`от → а`), interrupted-sentence
   completion (`сигнал... → сигналізує`), obscenity censorship
-  (`Ніхуя → Нічого`), and the iteration-1 `оця → ця` regression
+  (obscenity softened to a synonym), and the iteration-1 `оця → ця` regression
   re-appearing.
 
 This is why iteration 2 by itself did **not** justify default-on. The
@@ -351,7 +351,7 @@ Failure-mode coverage on the six patterns from iteration 2 spot-check:
 
 - ✅ `Нє` no longer normalised to `Ні` (seg 15).
 - ✅ Interrupted-sentence `сигнал...` no longer completed (seg 24).
-- ✅ Obscenity `Ніхуя` no longer censored (seg 33).
+- ✅ Obscenity no longer censored.
 - ✅ `оця` no longer flattened to `ця` (seg 75).
 - ❌ Particle change `от → а` still happens occasionally (seg 11).
 - ❌ Synonym substitution `чуваки → хлопці` regressed on n=3 with the
