@@ -64,7 +64,7 @@ Both of these came out of the tuning process and would be expensive to re-discov
 
 ### 1. pyannote classifies long non-speech as a "turn"
 
-The first tuning slice (15–45 s) had a turn at `[5.36-11.03] SPEAKER_01` at -36 dBFS that AGC happily boosted by +12 dB. User listening revealed it was **one speaker inhaling from a vape pen**, not speech. pyannote's exclusive timeline doesn't distinguish "speech" from "loud breath" — it just splits the audio between the active diariser labels.
+The first tuning slice (15–45 s) had a turn at `[5.36-11.03] SPEAKER_01` at -36 dBFS that AGC happily boosted by +12 dB. Listening revealed it was **a long inhale**, not speech. pyannote's exclusive timeline doesn't distinguish "speech" from "loud breath" — it just splits the audio between the active diariser labels.
 
 `SILENT_RMS_THRESHOLD = 1e-6` does not save us here: human sounds at -36 dBFS are far above silence. Only the raw `[Human Sounds]` markers (where pyannote *did* mark non-speech, with `speaker=None`) get skipped because our gain envelope leaves the gap regions at unity. Anything pyannote tagged as a speaker turn is fair game for AGC.
 
