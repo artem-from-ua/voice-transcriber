@@ -70,7 +70,7 @@ Each row is a full ASR run on the reference recording with `--unknown-speaker ke
 Three observations are load-bearing:
 
 1. **A1 stays the best.** No chain involving denoise improves on the bare `agc` baseline. The default is left unchanged.
-2. **Pre-AGC denoise (A2) is catastrophic.** Adding denoise before AGC to the *same* chain that performs at 5.1 % takes it to 27.5 % — a 5.4× regression. Inspection of the 11 RU-glyph segments confirms real Russian drift, not stray letters ("Если ты зараз видишь voice isolation…", "Делают тут кого-то…", etc.).
+2. **Pre-AGC denoise (A2) is catastrophic.** Adding denoise before AGC to the *same* chain that performs at 5.1 % takes it to 27.5 % — a 5.4× regression. Inspection of the 11 flagged segments confirms real language drift, not stray letters — whole utterances come back in a different language.
 3. **Post-AGC denoise (A5) is the salvageable position.** It is still worse than `agc` (8.2 % vs 5.1 %), but 3.4× better than pre-AGC. With `bandpass` and `presence` added (A3 = 8.5 %), the result is essentially the same as A5 — bandpass+presence appear to mask the residual spectral-subtraction artefacts that AGC alone could not fix.
 
 The physics intuition for pre-AGC ("estimate noise on the raw signal") was therefore wrong on this material. AGC's per-turn RMS normalisation is what afftdn needs to read a stable noise floor; without it the per-turn amplitude swings throw off the FFT-frame noise estimate enough that the subtraction artefacts spike in proportion to per-turn gain, and VibeVoice reads the spikes as Russian phonemes.

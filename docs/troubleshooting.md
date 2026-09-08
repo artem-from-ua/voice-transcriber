@@ -43,7 +43,7 @@ Whisper's decoder occasionally loops on near-silent or very repetitive audio. Th
 
 ## Auto-detect picks the wrong language
 
-Symptom: the transcript header shows `🌐 Мова: ru` (or `pl`, `de`, …) on what you know is a Ukrainian recording, the ASR text reads like transliterated Russian (`Подошёл` instead of `Подойшов`), and the LLM stages produce a TL;DR in the wrong language.
+Symptom: the transcript header shows `🌐 Мова: ru` (or `pl`, `de`, …) on what you know is a Ukrainian recording, the ASR text reads like Ukrainian transliterated into that language, and the LLM stages produce a TL;DR in the wrong language.
 
 Cause: `[4] lang_detect` runs Whisper's `model.detect_language()` over the longest pyannote turn, which is normally a 5+ second stretch of one speaker with enough lexical content to disambiguate Slavic languages. When the longest turn is unusually short (sub-2-second sound effects, a single "ага", a clap), Whisper's classifier has too little signal and picks the wrong language. See [ADR 0022](adr/0022-asr-language-autodetect.md) for why the longest pyannote turn is normally the best signal we have.
 

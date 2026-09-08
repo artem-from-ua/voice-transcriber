@@ -151,7 +151,7 @@ Failure-mode coverage after iter 2.1:
 
 - ✅ `Нє` no longer normalised to `Ні` (seg 15).
 - ✅ Interrupted-sentence `сигнал...` no longer completed (seg 24).
-- ✅ Obscenity `Ніхуя` no longer censored to `Нічого` (seg 33).
+- ✅ Obscenity no longer censored to a milder synonym.
 - ✅ `оця` no longer flattened to `ця` (seg 75).
 - ❌ Particle change `от → а` still happens (seg 11) — rule did not
   fully transfer.

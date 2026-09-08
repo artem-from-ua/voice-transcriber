@@ -155,10 +155,10 @@ toward unrelated Ukrainian roots (`продуктовий` is NOT a misheard
   speaker interruption captured by the ASR. Do NOT add the obvious
   continuation, even if you "know" what the speaker meant to say next.
   Examples to LEAVE as-is:
-    - `Коли ти говориш, надумно сигнал...` stays `Коли ти говориш,
-      надумно сигнал...`. Do NOT extend to `сигналізує`.
+    - `Коли воно вантажиться, там такий індик...` stays `Коли воно
+      вантажиться, там такий індик...`. Do NOT extend to `індикатор`.
     - `Я думав, що це...` stays `Я думав, що це...`. Do NOT extend.
-    - `Voice Isolation? Це коли... Нє.` stays exactly that.
+    - `Кеш? Це коли... Нє.` stays exactly that.
 - **Short segments — bias hard toward leaving alone.** If the current
   segment is short (roughly 3 words or fewer) AND the ASR rendering is
   itself a valid <<language>> word or phrase (even a colloquial one),

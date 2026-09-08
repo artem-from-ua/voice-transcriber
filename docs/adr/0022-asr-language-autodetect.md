@@ -15,9 +15,9 @@ The hard-coded default made sense when the project was Ukrainian-only. After Whi
 
 A first attempt set `--language` default to `None` and read the detected language out of `mlx_whisper.transcribe()`'s `result["language"]` field — which is populated by Whisper's internal classifier running on the first 30-second window of the audio. **End-to-end testing on the project's reference Ukrainian recording showed this fails catastrophically:**
 
-- The first 30 s contained "Підбирається" + a 13 s silence + "Подойшов?" — three short utterances with little lexical content.
+- The first 30 s contained two very short utterances separated by 13 s of silence — little lexical content for the detector to work with.
 - Whisper classified this as Russian with confidence 0.85.
-- The pipeline then ran ASR with `language="ru"`, which rewrote Ukrainian phonetics as Russian transliteration ("Подойшов?" → "Подошёл?", "Ліворуч" → "Левую ручку", "Відбирається" → "Вернется").
+- The pipeline then ran ASR pinned to the wrongly-detected language, which rewrote Ukrainian phonetics into that language's spelling — including one case where a single word was expanded into an unrelated two-word phrase.
 - Downstream LLM stages received Russian prompts: proofread fixed only 24 of 107 segments (vs 34 of 90 with `language="uk"`); structure produced invalid JSON on 2 of 4 chunks; TL;DR was generated in Russian; the rendered header showed `🌐 Мова: ru`.
 
 The transcript was unusable. The diagnosis was clean: Whisper's classifier is fine, but the **first 30 s window is the wrong sample** — it is structurally biased toward silences and acknowledgement utterances rather than substantive speech.

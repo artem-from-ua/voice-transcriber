@@ -214,8 +214,7 @@ is byte-identical (0/90 differing), but the `sections` array shows a
 **different sectionisation** — 5 sections in `main` vs 6 sections in
 `feature`, with different section titles and slightly shifted
 boundaries on the 17000–55000 ms range (`main` keeps it as one
-"Обговорення Voice Isolation" section, `feature` splits it into
-"Обговорення шторок" + "Перевірка шторки Voice Isolation").
+section, `feature` splits the same range into two).
 
 Both sectionisations are valid — the segments and the bulk timeline
 agree, only the LLM's choice of where to draw section boundaries is
