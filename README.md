@@ -9,7 +9,11 @@ uv run voice transcribe ~/recordings/meeting.m4a
 The output is `~/recordings/meeting.md` with a metadata block, an optional TL;DR, and the dialogue split into thematic sections with emoji-tagged speakers.
 
 > [!NOTE]
-> Jump to: [Prerequisites](#prerequisites) · [Setup](#setup) · [Run](#run) · [Onboarding](#onboarding) · [Development](#development)
+> Jump to: [Pipeline](#pipeline) · [Prerequisites](#prerequisites) · [Setup](#setup) · [Run](#run) · [Onboarding](#onboarding) · [Development](#development)
+
+## Pipeline
+
+<a href="docs/pipeline.md"><img src="https://www.plantuml.com/plantuml/svg/lLXjJoCt4Fw-ls9qV6bLDa02uKNfwdYB3WcaArnx7wuHSdOdmSgklR8TEAwgrFw7KtzCVyxzaewzcxTb7G879H2nyVXvnZFZn-EyrOOfCyxIm72J8jnA7cDe51CwLhoF2hxzzHLodcFA1G9P3r47UiH5pXJB89PPBWKASsNkQRh2s30nJ77Ev50fUVVXXiSZWLf3SsuenI6Av4Yg1DMnJAK2nqo3XFZGZiMZeP9ZaHIsQwVk9mWwsf970K0Yut56S-4FUW2uO6h81JHtwEbF-cEneNd5s3cjP-RLzhpzZdjupvA4Yo4KapiR9KbGWBoX5zFmgqOL1DCem9jEF_gqrIlM4Si4Enlzw7VHuL5dCCXo74QT3HwvgHyFVwCbxDbN5Q3P0pPEkBpEqB1vX5p9FiuWkbqVGgi72MUAVy5hdICReT8pdFoU2I4DXeuaWj8YB6OmmwK8MusjASq9VGvhUxl7fzt3Aj5s3rBA-7M2Xd8_uyZIp-7T3ITe5S77ufymfVXYUDkQ8f_Jr1CqiBQ_UNgwlra5t-b1d29JTWqOtypGjQs20QTyKA2C738kB6Ov6FFyFeAEZlfC93dJj7GTrOtd2ZMA61V7oqHPWmI5v1fzywbiyHPLVpBkrdHyvKjAkmV5Gfe6FpyvLeTNbxuuxVOWGpAtaCxsmZxvtDZh0TMH72XaoQ8JQHR1BtSecesTSFSeF1FQgB7DQkd2UwafLztkyN6xNKNTxm6dS1a-kAyfkLNGp-nq7_pMvYHuryMqiSAdmL-vHoy-RLhD1lYWr5Q2febUuERCyN6MCNN_DEmFvoUNNcpQvYILL8RJp5-wnsdg0ojG47uYWFPHQwSNHbOq3g0JMmazMDlUjAy82hq1kwKw6sxCkbWr-k6EtQv3jiteBMz1ez7uSM9T8Let4sdzsP5QiNjDrjRHNhFRNa-Oli744awKfOQqo8QJhJ4RBcMMkHL3beAaRQwelbTWBigudjVk2X0iG_tIhAu4wqXHQ6xuBOAHEO-Vo-idTffGGpos4s8f2gbxdFHx8liANALQ_4zadkIz0fMJanUb2kpUzcvyrplKy6srOVJkonAcJ0ffPMFAiq3po1R_JlJg8kX8Vn4I5unfLXwNAIiNI_0Dpz3sc7e9GRthpy6UkBe0RviIhyGkWQ-ARq1-UiFl8R6jeS1a2OixNcQ5Qd68f7swVxhLhP8KBLCD3Trfv51G9xsCQNxRLBAmCj5paX8KQDvL-TJP-Wjtt2pBqUIyIbaVqncbW_GIUZNQjPoXxJaNWrLCcE8jrzwdkBrmp5Pfgcxx5FZvXEKY5dQBbyKUpNHKnrPRvo2ikTTbdv8_uSHNcD5HdyogYNh31OVBRjApAvIx7oVCuFeIacIit9Look8SzoxBJ_aJJ1le4gcqzMAvKx0ktkNt6xbfP7EhBxvci663cAg5RlO0dJwBHmVbvPUc0dNQz0bT_wX_NyGzF2F5Jp0zWBcBz0JTzlCpkE8QjohSmgMn3gwu7QmATtv-KOKfJGlvZRvz_Tl-_lFlnAm6Ra5QAp15_Qm4Ox_We09Y7gGYhIiXpN8A3m9bireaDtXBR-Ci_Gy0" alt="Pipeline stages" height="600"></a>
 
 ## Prerequisites
 

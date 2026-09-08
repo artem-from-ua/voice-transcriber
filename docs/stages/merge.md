@@ -8,6 +8,10 @@ is an opt-in correction for known failure modes of that default.
 
 ## Pipeline at a glance
 
+<details>
+<summary>Diagram source</summary>
+<!-- plantuml-generated -->
+
 ```plantuml
 @startuml
 title merge stage — optimisation pipeline
@@ -68,6 +72,8 @@ legend right
 endlegend
 @enduml
 ```
+
+</details>
 
 ![PlantUML Diagram](https://www.plantuml.com/plantuml/svg/XPJFKjim4CRlUegTS0cqXj8IohzXW4Ac9mxbsCbaDlR65iWhZoJ7JKzzYBu8fzvvb3v9LtO20SBquaaahRxVxdwhCn_GXReqAkXW24foEO4iolVlhzzWgw1BxJ5eor3fYencKihVQQxGOGddQT0p7UONrcNalbXZ7MmS3iu7v_jhJWqjXnlzas3tu-gkSxPPX0uk3Yyk1okRbpJ5seGOUOqbGUyhcHa5dM9FE2AzEZg_-GQUyf8uU7W7rHoPRI08jMD_hDJHzzqHCEePWMsOd1gFqJGuzudbyLXLv996-05TNk8Fi3DoRMpxos1r32Sd6rS7mxtXvUbflExZ2ARQ68cRQFG0VQbJeXaU_e0kAqm3R6rjAaVelSuPxbXaaou2ef879dI0CB4rP-ZcAbW8HKSCgUIAcZNdxU5juaprUadIDYVnbT4XMP5FWgQazBtU4dDmTTXXVXf1HfXDaBF_CYBFMpLe2ki9Kgcb8z0U6XqApUhX_XfA3tQwGWqBwapIyt9SsXKJU0MxX5XFkJS2prYj9nH4N-Xf0CAqWFOwIEkmL8vb91-KiKrIEJl1YPOJoqnQSdYuRpGBuYkig9fqU-l91gDESImsYOcD7nD_YpMY8PHYM2qYX7VIy1LtAiq27lsst9mwx7pxYivoifHRWxOVqTehnf9ZUE7e4c-japeaipW6hUUZAb2fGw3iKLNrKtHEamT7KvdiRe92uMoT5zrZiFdA_9z7tSuBpNYtJ0MZWPl5B1v3OTdMxZbgKv2y9T8sEV8Uo8ZRPEgIjsRjO0Ifis9IpWMDZ426jWFBkc--04cbQfA561AppCGfIj5BYh40hkQk1nzsfTW1js-zvLPoE1mUNEr6IHzifPIXNEOEdCwBe01E9fZU7It1G1PsuiefF2f3Vo8oyNs4dIXUfs8PD9lFWcF_Le8N9deg_jFX1S_AuQVS-smbXkN1XRH0bYOf-TSHgpFvo8F-3m00)
 
