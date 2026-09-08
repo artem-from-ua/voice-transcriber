@@ -41,7 +41,7 @@ Filed as [issue #172](https://github.com/artem-from-ua/voice-transcriber/issues/
 
 The measurement does **not** re-run ASR for the strict baseline —
 PR #169 already produced those numbers and they're reused verbatim
-(see [`docs/measurements/issue-156/summary.md`](../measurements/issue-156/summary.md)).
+(see `docs/measurements/issue-156/summary.md`).
 Only the text-dedup arm is freshly transcribed.
 
 ## 2. Expected output
@@ -148,7 +148,7 @@ from the strict baseline so the upstream pipeline state is provably
 identical. Wall-clock: ~247 s on M1/16 GB, indistinguishable from
 strict 246 s.
 
-Per-arm artefacts under [`docs/measurements/issue-172/`](../measurements/issue-172/):
+Per-arm artefacts under `docs/measurements/issue-172/`:
 
 - `boundaries.json` — per-cutoff features.
 - `judge-input.md` — rendered windows the judge read.
@@ -156,7 +156,7 @@ Per-arm artefacts under [`docs/measurements/issue-172/`](../measurements/issue-1
 - `summary.md` — aggregated table + decision.
 
 The strict-baseline comparison artefacts live under
-[`docs/measurements/issue-156/`](../measurements/issue-156/) (PR #169).
+`docs/measurements/issue-156/` (PR #169).
 
 ## 6. Result and decision
 

@@ -42,5 +42,16 @@ samples/
 audio/
 out/
 
+# Local-only archive of material pulled out of the repo and its GitHub
+# artefacts. Never committed.
+.private-archive/
+
+# Measurement dumps derived from private recordings.
+# Aggregate numbers belong in docs/benchmarks/; per-run stage dumps, logs and
+# spot-checks stay local because they quote recorded speech verbatim.
+docs/measurements/*/
+!docs/measurements/163/
+!docs/measurements/issue-125/
+
 # pyannote / HF caches sometimes spilled here
 .huggingface/

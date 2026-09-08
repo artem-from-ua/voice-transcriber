@@ -206,4 +206,4 @@ sync.
   — snap-to-silence post-mortem that motivated this ADR.
 - [`docs/benchmarks/asr-text-dedup.md`](../benchmarks/asr-text-dedup.md)
   — full benchmark numbers backing this decision.
-- [`docs/measurements/issue-172/`](../measurements/issue-172/) — per-boundary judge marks.
+- `docs/measurements/issue-172/` — per-boundary judge marks.

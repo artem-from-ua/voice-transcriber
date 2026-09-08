@@ -145,7 +145,7 @@ audio features, no raw audio.
   `~/Downloads/<long-recording-dump>/` (contains `03-asr.json` +
   `02b-clear_speech-*-autogain.wav`).
 - Per-run artefacts under
-  [`docs/measurements/issue-156/`](../measurements/issue-156/):
+  `docs/measurements/issue-156/`:
   - `boundaries.json` — per-cutoff features.
   - `judge-input.md` — rendered windows the judge read.
   - `judge-marks.json` — judge verdicts + rationale.
@@ -186,7 +186,7 @@ uv run python scripts/asr-chunk-boundary-quality.py parse-marks \
 | decision | **material** |
 
 Full per-boundary table:
-[`docs/measurements/issue-156/summary.md`](../measurements/issue-156/summary.md).
+`docs/measurements/issue-156/summary.md`.
 
 ### Pattern across the three `missing` boundaries
 
