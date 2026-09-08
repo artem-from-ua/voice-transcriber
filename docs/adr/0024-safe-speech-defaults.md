@@ -1,6 +1,7 @@
 ---
-status: accepted
+status: superseded
 date: 2026-05-12
+superseded_by: ["0025-render-silence-events"]
 see_also: [0011, 0013, 0014, 0015, 0023]
 ---
 
