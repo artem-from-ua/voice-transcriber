@@ -27,7 +27,7 @@ Short, dated records of choices that shape how the pipeline works. Format: Conte
 | 21  | [Remove the VibeVoice ASR backend](0021-remove-vibevoice-backend.md)                  | accepted                     |
 | 22  | [`--language` defaults to detection on the longest pyannote turn](0022-asr-language-autodetect.md) | accepted                     |
 | 23  | [`safe_speech` stage for sensitive-content redaction](0023-safe-speech-stage.md)       | accepted                     |
-| ~~24~~  | ~~[Defaults for the `safe_speech` stage](0024-safe-speech-defaults.md)~~               | accepted (render display superseded by 0025) |
+| ~~24~~  | ~~[Defaults for the `safe_speech` stage](0024-safe-speech-defaults.md)~~               | superseded (render display, by 0025) |
 | 25  | [Silence events: unified pause/muted rendering with timestamp ranges](0025-render-silence-events.md) | accepted (supersedes 0024 render display) |
 | ~~26~~  | ~~[Proofread stage: default off, opt-in via `--proofread`](0026-proofread-default-off.md)~~ | superseded by 0028 |
 | 27  | [`prompt_cache_session()`: amortise the system-prompt KV across LLM-stage loops](0027-prompt-cache-llm-stages.md) | accepted                     |
