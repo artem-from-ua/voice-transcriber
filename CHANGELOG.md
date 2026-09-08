@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.42.2] — 2026-09-08
+
+### Security
+
+- **Dependency lockfile refreshed to clear 31 open Dependabot alerts.** `uv lock --upgrade` moves the vulnerable transitive pins past their patched versions: `pillow` 12.2.0 → 12.3.0 (11 advisories), `aiohttp` 3.13.5 → 3.14.3 (13 advisories), `transformers` 5.8.0 → 5.16.1, `lightning` / `pytorch-lightning` 2.6.1 → 2.6.5 (checkpoint RCE, CVE-2026-58659), and `setuptools` 81.0.0 → 84.0.0. The one direct dependency involved, `torch`, goes 2.11.0 → 2.14.0. No source changes; the full test suite and a CLI import smoke check pass on the upgraded set.
+
 ## [0.42.1] — 2026-06-08
 
 ### Changed
