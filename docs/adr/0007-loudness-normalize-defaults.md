@@ -9,7 +9,7 @@ date: 2026-05-11
 
 Issue #47 introduced a per-segment AGC stage between diarisation and ASR. Issue text proposed initial defaults of `target_dbfs=-20.0` and `max_gain_db=12.0`. Those are reasonable a-priori choices (target = broadcast-ish loudness; ceiling = standard "do not amplify breath/silence" rule), but the issue acceptance criteria are stringent enough that the defaults were never going to land unmeasured.
 
-The concrete numbers came out of a listening loop on the project's test recording (`~/Downloads/two-speakers-diar-test-ukr.m4a`, 6 minutes, 2 speakers at very different microphone distances), combined with two objective metrics:
+The concrete numbers came out of a listening loop on the project's test recording (`~/Downloads/<reference-recording>.m4a`, 6 minutes, 2 speakers at very different microphone distances), combined with two objective metrics:
 
 - **Metric A — language drift.** Count ASR segments whose output contains Cyrillic glyphs that exist in Russian but not in Ukrainian (`ы`, `ъ`, `э`). Lower is better — those glyphs are an unambiguous fingerprint of VibeVoice sliding into Russian on hard inputs. Issue target: ≥ 20% relative reduction with normalisation on.
 - **Metric B — per-pyannote-turn RMS spread.** Std-dev of per-turn RMS in dBFS, comparing raw WAV vs the normalised WAV. Lower is better — this is the direct sanity check that AGC did its job. Issue target: ≥ 50% relative reduction.

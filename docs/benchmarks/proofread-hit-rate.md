@@ -147,7 +147,7 @@ before fixing the classifier — so the fix has a test that pins it.
 
 ## 5. Real test input
 
-- **Recording:** `~/Downloads/two-speakers-diar-test-ukr.m4a`. 374 s
+- **Recording:** `~/Downloads/<reference-recording>.m4a`. 374 s
   (6:14). Two speakers, Ukrainian conversation about software / Hugging
   Face / Gradio / Claude Code, code-switched English, casual register,
   occasional swearing. This is the project's canonical test recording
@@ -279,7 +279,7 @@ addressed in this iteration.
 
 #### Parameter sweep — context size
 
-Audio: `~/Downloads/two-speakers-diar-test-ukr.m4a` (same as iteration 1).
+Audio: `~/Downloads/<reference-recording>.m4a` (same as iteration 1).
 Grid: `n_context ∈ {0, 1, 2, 3, 5, 8}`. Each grid point is one full
 `voice transcribe --proofread --proofread-context N --dump-stages …` run;
 results aggregated by [`scripts/proofread-classify.py sweep`](../../scripts/proofread-classify.py).
