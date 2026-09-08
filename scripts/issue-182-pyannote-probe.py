@@ -8,11 +8,11 @@ runtime params per `pipe.parameters()`:
   - clustering.min_cluster_size    (default 12)
 
 Sweeps a sensible 1D grid for each candidate, applies to the same audio
-(/tmp/zendesk-12min.wav must exist from prior #177 probe), prints turn
-boundaries around our canonical failure window (180-195 s), and reports
-how each setting attributes two ground-truth words:
-  know  @[185.04-185.16]  truth=Ostap (SPEAKER_01)
-  yes   @[186.30-187.20]  truth=Maria (SPEAKER_00)
+(set VOICE_PROBE_WAV to the 12-min reference used by the #177 probe),
+prints turn boundaries around our canonical failure window (180-195 s),
+and reports how each setting attributes two ground-truth words:
+  know  @[185.04-185.16]  truth=SPEAKER_01
+  yes   @[186.30-187.20]  truth=SPEAKER_00
 
 Read-only probe — does not write into the repo. Not part of the pipeline.
 """
@@ -21,7 +21,7 @@ from __future__ import annotations
 import os
 import time
 
-WAV = "/tmp/zendesk-12min.wav"
+WAV = os.environ.get("VOICE_PROBE_WAV", "/tmp/reference-12min.wav")
 
 CANONICAL = [
     {"start": 185.04, "end": 185.16, "content": "know", "truth": "SPEAKER_01"},
