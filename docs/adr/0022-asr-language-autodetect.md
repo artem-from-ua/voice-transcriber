@@ -91,6 +91,6 @@ The result is bound to a local `effective_language` variable in `pipeline.run()`
 3. **Two attempts by default**, with the second attempt picked structurally (longest turn of a different speaker if ≥2 speakers; second-longest turn of the same speaker if 1 speaker).
 4. **AGREE/DISAGREE gate, not probability averaging.** When attempts agree on top-1, accept the most-confident attempt's probabilities as the result. When they disagree, either escalate (third attempt) or fall back to the hard-coded `FALLBACK_LANGUAGE` with a log hint asking the user to pass `--language` explicitly. The CLI flag `--language` remains a hard pre-stage override that bypasses lang_detect entirely (unchanged from this ADR's main body).
 
-**Reproducer.** `scripts/lang-detect-fill-probe.py` — runs against the cached pyannote output `~/Downloads/two-speakers-diar-test-ukr.diarize.json` and the cached 16 kHz WAV. Re-running it requires only the Whisper model already used by the ASR stage; no new dependencies.
+**Reproducer.** `scripts/lang-detect-fill-probe.py` — runs against the cached pyannote output `~/Downloads/<reference-recording>.diarize.json` and the cached 16 kHz WAV. Re-running it requires only the Whisper model already used by the ASR stage; no new dependencies.
 
 **Status of this postscript.** Records empirical results that constrain the design space for a future change. The lang_detect code itself is unchanged at the time of writing — the main body of this ADR still describes current behaviour.

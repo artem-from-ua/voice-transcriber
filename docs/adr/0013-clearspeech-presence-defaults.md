@@ -9,7 +9,7 @@ date: 2026-05-12
 
 ## Context
 
-Issue #48 sub-experiment E2b added a peaking-EQ "presence boost" effect to the clearspeech chain. Issue text proposed nominal cutoffs around 3 kHz / +3..+6 dB. The exact defaults that ship with v0.15.0 are picked by a listening test plus a four-point Metric A grid on the project's reference recording — same recording (`~/Downloads/two-speakers-diar-test-ukr.m4a`) used for ADR 0007 / ADR 0011.
+Issue #48 sub-experiment E2b added a peaking-EQ "presence boost" effect to the clearspeech chain. Issue text proposed nominal cutoffs around 3 kHz / +3..+6 dB. The exact defaults that ship with v0.15.0 are picked by a listening test plus a four-point Metric A grid on the project's reference recording — same recording (`~/Downloads/<reference-recording>.m4a`) used for ADR 0007 / ADR 0011.
 
 The presence effect is **default off** in v0.15.0: `--clearspeech-chain` defaults to `"agc"`, and users opt into presence by adding it to the chain (`--clearspeech-chain agc,bandpass,presence`). The values in this ADR are what an opt-in user gets without further tuning.
 

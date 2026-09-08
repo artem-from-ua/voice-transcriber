@@ -36,7 +36,7 @@ already clean.
 ## Measurement
 
 A controlled run on the project's 6:14 reference recording
-(`two-speakers-diar-test-ukr.m4a`, two-speaker Ukrainian conversation with
+(`<reference-recording>.m4a`, two-speaker Ukrainian conversation with
 code-switched English and IT terms) — see
 [`docs/benchmarks/proofread-hit-rate.md`](../postprocess-hit-rate.md) for the full
 method and `docs/measurements/57/` for the raw artefacts.

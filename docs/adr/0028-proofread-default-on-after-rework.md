@@ -108,7 +108,7 @@ v0.29.0 wire format, kept for the sweep baseline.
 
 ## Measurement summary
 
-Audio: `~/Downloads/two-speakers-diar-test-ukr.m4a` (6:14, two
+Audio: `~/Downloads/<reference-recording>.m4a` (6:14, two
 speakers, Ukrainian conversation about software with code-switched
 English IT terms, casual register, occasional swearing). Same recording
 as iteration 1.

@@ -22,7 +22,7 @@ The motivating recurring question — "do we need to keep VibeVoice around as a 
 
 ## Comparison on the target hardware (16 GB Apple Silicon, M-series)
 
-Numbers below are from ADR 0017's reference recording (`two-speakers-diar-test-ukr.m4a`, 6:13, two speakers, code-switching to English, swearing). The "Whisper wins on" column is what the row shows; columns are kept side-by-side so the trade-off is visible even when a future Whisper alternative is being evaluated.
+Numbers below are from ADR 0017's reference recording (`<reference-recording>.m4a`, 6:13, two speakers, code-switching to English, swearing). The "Whisper wins on" column is what the row shows; columns are kept side-by-side so the trade-off is visible even when a future Whisper alternative is being evaluated.
 
 | Aspect | Whisper-large-v3-MLX (default since v0.20.0) | VibeVoice-ASR-6bit (legacy) |
 | --- | --- | --- |

@@ -2,30 +2,33 @@
 
 Probe for the question: does padding the Whisper detect_language window with
 real speech (additional same-speaker turns) instead of silence improve the
-uk-vs-ru margin on the project's reference recording?
+uk-vs-competing-language margin on the project's reference recording?
 
-Loads:
-- ~/Downloads/two-speakers-diar-test-ukr.wav (16 kHz mono, 372.8 s)
-- ~/Downloads/two-speakers-diar-test-ukr.diarize.json (cached pyannote turns)
+Loads (override the directory with VOICE_PROBE_DIR):
+- <reference-recording>.wav (16 kHz mono)
+- <reference-recording>.diarize.json (cached pyannote turns)
 
 Runs Whisper-large-v3-MLX detect_language() on two mel inputs, sequentially:
 1. baseline: longest single turn (current production behaviour, ADR 0022)
 2. greedy-fill: longest turn + next-longest same-speaker turns concatenated
    until total reaches >= 30 s, then trimmed to 30 s.
 
-Reports top-3 probabilities and the uk:ru margin for each.
+Reports top-3 probabilities and the uk / runner-up margin for each.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 
 import numpy as np
 
-WAV = Path.home() / "Downloads" / "two-speakers-diar-test-ukr.wav"
-DIAR = Path.home() / "Downloads" / "two-speakers-diar-test-ukr.diarize.json"
+_DIR = Path(os.environ.get("VOICE_PROBE_DIR", Path.home() / "Downloads"))
+_STEM = os.environ.get("VOICE_PROBE_STEM", "reference-recording")
+WAV = _DIR / f"{_STEM}.wav"
+DIAR = _DIR / f"{_STEM}.diarize.json"
 TARGET_S = 30.0
 
 

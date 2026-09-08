@@ -25,7 +25,7 @@ The project's policy is MLX-first ([ADR 0002](0002-mlx-format-preference.md)) an
 
 Add a Whisper backend behind a new `--asr-engine {vibevoice,whisper}` flag, with **`whisper` as the default**.
 
-The default was switched after an empirical end-to-end comparison on the project's reference Ukrainian recording (`two-speakers-diar-test-ukr.m4a`, 6:13 of two speakers, code-switching to English, swearing). On a 16 GB M-series Mac:
+The default was switched after an empirical end-to-end comparison on the project's reference Ukrainian recording (`<reference-recording>.m4a`, 6:13 of two speakers, code-switching to English, swearing). On a 16 GB M-series Mac:
 
 | Metric | Whisper-large-v3-MLX | VibeVoice-ASR-6bit |
 | --- | --- | --- |

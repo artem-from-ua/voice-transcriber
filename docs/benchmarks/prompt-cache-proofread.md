@@ -139,7 +139,7 @@ permanent regression coverage.
 
 ## 5. Real test input
 
-Recording: `~/Downloads/two-speakers-diar-test-ukr.m4a` (the project's
+Recording: `~/Downloads/<reference-recording>.m4a` (the project's
 reference recording — 374.9 s, two speakers, Ukrainian conversational
 with code-switched English IT terms `Hugging Face`, `Gradio`,
 `Claude Code`).
