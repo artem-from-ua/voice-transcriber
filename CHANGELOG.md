@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.42.3] — 2026-09-28
+
+### Security
+
+- **`lightning` and `pytorch-lightning` pinned to 2.6.6, clearing the last open Dependabot alert.** CVE-2026-58659 / GHSA-qqmf-gpg7-g8gw is arbitrary code execution through checkpoint `_instantiate_class` in `lightning` < 2.6.6; both distributions reach us transitively through `pyannote-audio`. The advisory names only the `lightning` distribution, but the vulnerable loader also ships in `pytorch-lightning`, so both are upgraded 2.6.5 → 2.6.6. The lockfile change is limited to those two packages. No source changes; the full test suite passes on the upgraded set.
+
 ## [0.42.2] — 2026-09-08
 
 ### Security
